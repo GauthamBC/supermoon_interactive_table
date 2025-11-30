@@ -1,3 +1,6 @@
+import base64
+import io
+import requests
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
@@ -350,7 +353,6 @@ HTML_TEMPLATE = r"""<!doctype html>
     </div>
 
     <div id="embed-wrapper" class="embed-wrapper">
-      <!-- TODO: replace src with your GitHub Pages URL once you host the HTML file -->
       <textarea id="embed-code" readonly>&lt;iframe src="https://example.com/yourpage.html"
       title="Top Supermoon States"
       width="100%" height="750"
@@ -581,10 +583,7 @@ def generate_html_from_df(df: pd.DataFrame,
         prob = float(row["probability"])
         odds = int(row["odds"])
 
-        # Bar width as % of max probability
         width_pct = prob / max_prob * 100.0
-
-        # Intensity based on probability
         intensity = 0.35 + 0.65 * (prob / max_prob)
         bar_style = f"width:{width_pct:.2f}%;opacity:{intensity:.2f};"
 
@@ -630,7 +629,78 @@ def generate_html_from_df(df: pd.DataFrame,
 
     return html
 
-# === 4. Streamlit App ================================================
+# === 4. GitHub helpers ================================================
+
+GITHUB_API_BASE = "https://api.github.com"
+
+
+def github_headers(token: str) -> dict:
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+    }
+
+
+def create_github_repo(token: str, name: str, description: str = "", private: bool = False):
+    """
+    Create a new GitHub repo under the authenticated user.
+    Returns JSON response on success. If repo exists (422), we'll still return the body.
+    """
+    url = f"{GITHUB_API_BASE}/user/repos"
+    payload = {
+        "name": name,
+        "description": description,
+        "private": private,
+        "auto_init": True,
+    }
+    resp = requests.post(url, headers=github_headers(token), json=payload)
+    if resp.status_code not in (201, 422):  # 422 = already exists
+        raise RuntimeError(f"GitHub repo create failed: {resp.status_code} {resp.text}")
+    return resp.json()
+
+
+def put_file_in_repo(token: str, owner: str, repo: str, path: str, content: str, message: str):
+    """
+    Create or update a file in a repo (default branch).
+    """
+    url = f"{GITHUB_API_BASE}/repos/{owner}/{repo}/contents/{path}"
+
+    get_resp = requests.get(url, headers=github_headers(token))
+    sha = None
+    if get_resp.status_code == 200:
+        sha = get_resp.json().get("sha")
+
+    b64_content = base64.b64encode(content.encode("utf-8")).decode("utf-8")
+
+    payload = {
+        "message": message,
+        "content": b64_content,
+    }
+    if sha:
+        payload["sha"] = sha
+
+    resp = requests.put(url, headers=github_headers(token), json=payload)
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(f"GitHub file upload failed: {resp.status_code} {resp.text}")
+    return resp.json()
+
+
+def enable_github_pages(token: str, owner: str, repo: str):
+    """
+    Best-effort: enable GitHub Pages using the main branch root.
+    We don't raise on failure because it often requires manual setup.
+    """
+    url = f"{GITHUB_API_BASE}/repos/{owner}/{repo}/pages"
+    payload = {
+        "source": {
+            "branch": "main",
+            "path": "/",
+        }
+    }
+    resp = requests.post(url, headers=github_headers(token), json=payload)
+    return resp.status_code, resp.text
+
+# === 5. Streamlit App ================================================
 
 st.set_page_config(page_title="Supermoon Table Generator", layout="wide")
 
@@ -720,5 +790,66 @@ if uploaded_file is not None:
         file_name="supermoon_table.html",
         mime="text/html",
     )
+
+    # ---- GitHub publish section -------------------------------------
+    st.subheader("Publish to GitHub Pages (optional)")
+
+    st.markdown(
+        "This will create a **new public repo** on your GitHub account, "
+        "upload `index.html`, and try to enable GitHub Pages.\n\n"
+        "Store `GITHUB_TOKEN` and `GITHUB_USER` in Streamlit *secrets* before using this."
+    )
+
+    default_repo_name = "supermoon-table-widget"
+    repo_name = st.text_input("GitHub repository name", value=default_repo_name)
+
+    if st.button("Create repo and publish to GitHub Pages"):
+        token = st.secrets.get("GITHUB_TOKEN")
+        owner = st.secrets.get("GITHUB_USER")
+
+        if not token or not owner:
+            st.error("Missing `GITHUB_TOKEN` or `GITHUB_USER` in Streamlit secrets.")
+        elif not repo_name.strip():
+            st.error("Please enter a repository name.")
+        else:
+            with st.spinner("Creating GitHub repo and uploading HTML..."):
+                try:
+                    # 1) Create repo (or reuse if already exists)
+                    _ = create_github_repo(
+                        token,
+                        repo_name,
+                        description="Auto-generated supermoon visibility table widget.",
+                        private=False,
+                    )
+
+                    # 2) Upload index.html
+                    put_file_in_repo(
+                        token,
+                        owner=owner,
+                        repo=repo_name,
+                        path="index.html",
+                        content=html,
+                        message="Add supermoon table widget HTML",
+                    )
+
+                    # 3) Try to enable GitHub Pages
+                    status_code, pages_resp = enable_github_pages(token, owner, repo_name)
+
+                    # 4) Expected pages URL
+                    pages_url = f"https://{owner}.github.io/{repo_name}/"
+
+                    st.success("GitHub repo created/updated and HTML uploaded.")
+                    st.markdown(f"**GitHub Pages URL (expected):** [{pages_url}]({pages_url})")
+
+                    if status_code not in (201, 204):
+                        st.info(
+                            "GitHub Pages API call may need manual confirmation in repo settings.\n\n"
+                            "If the link doesn't work immediately, open the repo → **Settings → Pages**, "
+                            "and set source to `main` / root."
+                        )
+
+                except Exception as e:
+                    st.error(f"Something went wrong with GitHub API: {e}")
+
 else:
     st.info("Upload a CSV to generate the widget.")
