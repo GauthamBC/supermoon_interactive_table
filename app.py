@@ -572,10 +572,12 @@ HTML_TEMPLATE = r"""<!doctype html>
 """
 
 # === 3. Generator: build rows + DATA ==================================
-def generate_html_from_df(df: pd.DataFrame,
-                          title: str,
-                          subtitle: str,
-                          embed_url: str) -> str:
+def generate_html_from_df(
+    df: pd.DataFrame,
+    title: str,
+    subtitle: str,
+    embed_url: str,
+) -> str:
     """
     df must have columns:
       state, probability, odds, elevation_ft, dark_score,
@@ -604,7 +606,10 @@ def generate_html_from_df(df: pd.DataFrame,
 
         flag_url = STATE_FLAG_URLS.get(state, "")
         if flag_url:
-            img_html = f'<img loading="lazy" decoding="async" alt="{state} flag" width="18" height="18" src="{flag_url}">'
+            img_html = (
+                f'<img loading="lazy" decoding="async" alt="{state} flag" '
+                f'width="18" height="18" src="{flag_url}">'
+            )
         else:
             img_html = ""
 
@@ -652,7 +657,10 @@ def generate_html_from_df(df: pd.DataFrame,
 def ensure_repo_exists(owner: str, repo: str, token: str) -> None:
     """Create repo via GitHub API if it does not exist."""
     api_base = "https://api.github.com"
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+    }
 
     r = requests.get(f"{api_base}/repos/{owner}/{repo}", headers=headers)
     if r.status_code == 200:
@@ -670,11 +678,57 @@ def ensure_repo_exists(owner: str, repo: str, token: str) -> None:
     if r.status_code not in (200, 201):
         raise RuntimeError(f"Error creating repo: {r.status_code} {r.text}")
 
-def upload_file_to_github(owner: str, repo: str, token: str,
-                          path: str, content: str, message: str) -> None:
+
+def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main") -> None:
+    """
+    Try to ensure GitHub Pages is enabled for this repo on the given branch.
+    If it can't be enabled via API, we just bubble up an error so the app can show it.
+    """
+    api_base = "https://api.github.com"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+    }
+
+    # Check existing Pages config
+    r = requests.get(f"{api_base}/repos/{owner}/{repo}/pages", headers=headers)
+    if r.status_code == 200:
+        return  # already enabled
+    if r.status_code not in (404, 403):
+        raise RuntimeError(f"Error checking GitHub Pages: {r.status_code} {r.text}")
+
+    # 403 often means not allowed via API (eg, missing scopes); just stop quietly
+    if r.status_code == 403:
+        return
+
+    # Try to enable if 404
+    payload = {
+        "source": {
+            "branch": branch,
+            "path": "/",
+        }
+    }
+    r2 = requests.post(f"{api_base}/repos/{owner}/{repo}/pages", headers=headers, json=payload)
+    if r2.status_code not in (201, 202):
+        # If this fails, the caller can warn the user that they may need to
+        # enable Pages manually in the repo settings.
+        raise RuntimeError(f"Error enabling GitHub Pages: {r2.status_code} {r2.text}")
+
+
+def upload_file_to_github(
+    owner: str,
+    repo: str,
+    token: str,
+    path: str,
+    content: str,
+    message: str,
+) -> None:
     """Create or update a file in GitHub repo using the contents API."""
     api_base = "https://api.github.com"
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+    }
 
     # Check if file exists to get its SHA
     get_url = f"{api_base}/repos/{owner}/{repo}/contents/{path}"
@@ -695,6 +749,20 @@ def upload_file_to_github(owner: str, repo: str, token: str,
     r = requests.put(get_url, headers=headers, json=payload)
     if r.status_code not in (200, 201):
         raise RuntimeError(f"Error uploading file: {r.status_code} {r.text}")
+
+
+def trigger_pages_build(owner: str, repo: str, token: str) -> bool:
+    """
+    Ask GitHub to rebuild the Pages site for this repo.
+    Returns True on (likely) success, False if it couldn't be triggered.
+    """
+    api_base = "https://api.github.com"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+    }
+    r = requests.post(f"{api_base}/repos/{owner}/{repo}/pages/builds", headers=headers)
+    return r.status_code in (201, 202)
 
 # === 5. Streamlit App ================================================
 
@@ -729,15 +797,20 @@ github_username = st.text_input(
 default_repo_name = "supermoon-visibility-widget"
 repo_name = st.text_input("GitHub repo name (for GitHub Pages)", value=default_repo_name)
 
-# Build expected GitHub Pages URL (used:
-# 1) inside the widget's Embed button textarea
-# 2) in the separate iframe snippet shown below)
+branch_name = st.text_input("GitHub branch for GitHub Pages", value="main")
+
+# Build expected GitHub Pages URL (used both inside widget + external iframe)
 if github_username and repo_name and "your-github-username" not in github_username:
-    expected_embed_url = f"https://{github_username}.github.io/{repo_name}/supermoon_table.html"
+    expected_embed_url = (
+        f"https://{github_username}.github.io/{repo_name}/supermoon_table.html"
+    )
 else:
     expected_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
 
-st.caption(f"Expected GitHub Pages URL (baked into the widget's embed button): `{expected_embed_url}`")
+st.caption(
+    f"Expected GitHub Pages URL (baked into the widget's Embed button & iframe below): "
+    f"`{expected_embed_url}`"
+)
 
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
@@ -811,10 +884,10 @@ if uploaded_file is not None:
     # --- 2) IFRAME SNIPPET WITH GITHUB URL ---------------------------
     st.subheader("Iframe embed code (using GitHub Pages URL)")
     iframe_snippet = f"""<iframe src="{expected_embed_url}"
-      title="{title}"
-      width="100%" height="750"
-      scrolling="no"
-      style="border:0;" loading="lazy"></iframe>"""
+  title="{title}"
+  width="100%" height="750"
+  scrolling="no"
+  style="border:0;" loading="lazy"></iframe>"""
     st.code(iframe_snippet, language="html")
 
     # Download button
@@ -829,7 +902,11 @@ if uploaded_file is not None:
     # Optional: push to GitHub
     st.subheader("Publish to GitHub (optional)")
 
-    effective_github_user = github_username if github_username and "your-github-username" not in github_username else GITHUB_USER_DEFAULT
+    effective_github_user = (
+        github_username
+        if github_username and "your-github-username" not in github_username
+        else GITHUB_USER_DEFAULT
+    )
 
     if not GITHUB_TOKEN or not effective_github_user or "your-github-username" in effective_github_user:
         st.info(
@@ -837,9 +914,23 @@ if uploaded_file is not None:
             "or provide a real GitHub username above."
         )
     else:
-        if st.button("Create/Update repo and upload supermoon_table.html"):
+        if st.button("Create / Update repo, upload HTML & trigger GitHub Pages build"):
             try:
+                # 1) Ensure repo exists
                 ensure_repo_exists(effective_github_user, repo_name, GITHUB_TOKEN)
+
+                # 2) Try to enable GitHub Pages on the chosen branch
+                try:
+                    ensure_pages_enabled(
+                        effective_github_user, repo_name, GITHUB_TOKEN, branch_name
+                    )
+                except Exception as pages_err:
+                    st.warning(
+                        f"Could not automatically enable GitHub Pages via API "
+                        f"(you might need to enable it once in the repo settings): {pages_err}"
+                    )
+
+                # 3) Upload / update the HTML file
                 upload_file_to_github(
                     effective_github_user,
                     repo_name,
@@ -848,9 +939,33 @@ if uploaded_file is not None:
                     html,
                     "Add/update supermoon_table.html from Streamlit app",
                 )
-                pages_url = expected_embed_url
-                st.success(f"Uploaded to GitHub! GitHub Pages URL (once Pages is enabled): {pages_url}")
+
+                # 4) Ask GitHub to rebuild the Pages site
+                build_ok = trigger_pages_build(
+                    effective_github_user, repo_name, GITHUB_TOKEN
+                )
+
+                st.success(
+                    "Uploaded HTML to GitHub and requested a GitHub Pages build."
+                )
+
+                info_msg = (
+                    f"**Expected GitHub Pages URL:** {expected_embed_url}\n\n"
+                    "If you open this URL and still see a 404, GitHub Pages "
+                    "probably hasn't finished building yet. Wait a bit and refresh."
+                )
+                st.info(info_msg)
+
+                if not build_ok:
+                    st.warning(
+                        "Could not confirm that a GitHub Pages build was triggered. "
+                        "If the page does not appear after some time, check the "
+                        "Pages settings and build logs in the repository."
+                    )
+
+                st.markdown("**Iframe embed code (using that URL):**")
                 st.code(iframe_snippet, language="html")
+
             except Exception as e:
                 st.error(f"GitHub upload failed: {e}")
 else:
