@@ -1,9 +1,20 @@
-import base64
 import io
+import base64
 import requests
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
+
+# =========================
+# 0. GitHub config (secrets)
+# =========================
+# In .streamlit/secrets.toml, you can optionally set:
+# GITHUB_TOKEN = "ghp_...."
+# GITHUB_USER  = "your-github-username"
+# These are only needed for the auto-upload section at the bottom.
+
+GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN", "").strip()
+GITHUB_USER_DEFAULT = st.secrets.get("GITHUB_USER", "").strip()
 
 # === 1. State -> flag URL mapping =====================================
 STATE_FLAG_URLS = {
@@ -353,8 +364,8 @@ HTML_TEMPLATE = r"""<!doctype html>
     </div>
 
     <div id="embed-wrapper" class="embed-wrapper">
-      <textarea id="embed-code" readonly>&lt;iframe src="https://example.com/yourpage.html"
-      title="Top Supermoon States"
+      <textarea id="embed-code" readonly>&lt;iframe src="[[EMBED_URL]]"
+      title="[[TITLE]]"
       width="100%" height="750"
       scrolling="no"
       style="border:0;" loading="lazy"&gt;&lt;/iframe&gt;
@@ -563,7 +574,8 @@ HTML_TEMPLATE = r"""<!doctype html>
 # === 3. Generator: build rows + DATA ==================================
 def generate_html_from_df(df: pd.DataFrame,
                           title: str,
-                          subtitle: str) -> str:
+                          subtitle: str,
+                          embed_url: str) -> str:
     """
     df must have columns:
       state, probability, odds, elevation_ft, dark_score,
@@ -583,7 +595,10 @@ def generate_html_from_df(df: pd.DataFrame,
         prob = float(row["probability"])
         odds = int(row["odds"])
 
+        # Bar width as % of max probability
         width_pct = prob / max_prob * 100.0
+
+        # Intensity based on probability
         intensity = 0.35 + 0.65 * (prob / max_prob)
         bar_style = f"width:{width_pct:.2f}%;opacity:{intensity:.2f};"
 
@@ -621,84 +636,65 @@ def generate_html_from_df(df: pd.DataFrame,
         )
     data_js = "{\n" + ",\n".join(data_lines) + "\n      }"
 
-    html = (HTML_TEMPLATE
-            .replace("[[ROWS]]", rows_html)
-            .replace("[[DATA]]", data_js)
-            .replace("[[TITLE]]", title)
-            .replace("[[SUBTITLE]]", subtitle))
+    html = (
+        HTML_TEMPLATE
+        .replace("[[ROWS]]", rows_html)
+        .replace("[[DATA]]", data_js)
+        .replace("[[TITLE]]", title)
+        .replace("[[SUBTITLE]]", subtitle)
+        .replace("[[EMBED_URL]]", embed_url)
+    )
 
     return html
 
-# === 4. GitHub helpers ================================================
+# === 4. GitHub helper functions (optional) ============================
 
-GITHUB_API_BASE = "https://api.github.com"
+def ensure_repo_exists(owner: str, repo: str, token: str) -> None:
+    """Create repo via GitHub API if it does not exist."""
+    api_base = "https://api.github.com"
+    headers = {"Authorization": f"Bearer {token}"}
 
+    r = requests.get(f"{api_base}/repos/{owner}/{repo}", headers=headers)
+    if r.status_code == 200:
+        return
+    if r.status_code != 404:
+        raise RuntimeError(f"Error checking repo: {r.status_code} {r.text}")
 
-def github_headers(token: str) -> dict:
-    return {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-    }
-
-
-def create_github_repo(token: str, name: str, description: str = "", private: bool = False):
-    """
-    Create a new GitHub repo under the authenticated user.
-    Returns JSON response on success. If repo exists (422), we'll still return the body.
-    """
-    url = f"{GITHUB_API_BASE}/user/repos"
     payload = {
-        "name": name,
-        "description": description,
-        "private": private,
+        "name": repo,
         "auto_init": True,
+        "private": False,
+        "description": "Supermoon visibility widget (auto-created by Streamlit app).",
     }
-    resp = requests.post(url, headers=github_headers(token), json=payload)
-    if resp.status_code not in (201, 422):  # 422 = already exists
-        raise RuntimeError(f"GitHub repo create failed: {resp.status_code} {resp.text}")
-    return resp.json()
+    r = requests.post(f"{api_base}/user/repos", headers=headers, json=payload)
+    if r.status_code not in (200, 201):
+        raise RuntimeError(f"Error creating repo: {r.status_code} {r.text}")
 
+def upload_file_to_github(owner: str, repo: str, token: str,
+                          path: str, content: str, message: str) -> None:
+    """Create or update a file in GitHub repo using the contents API."""
+    api_base = "https://api.github.com"
+    headers = {"Authorization": f"Bearer {token}"}
 
-def put_file_in_repo(token: str, owner: str, repo: str, path: str, content: str, message: str):
-    """
-    Create or update a file in a repo (default branch).
-    """
-    url = f"{GITHUB_API_BASE}/repos/{owner}/{repo}/contents/{path}"
-
-    get_resp = requests.get(url, headers=github_headers(token))
+    # Check if file exists to get its SHA
+    get_url = f"{api_base}/repos/{owner}/{repo}/contents/{path}"
+    r = requests.get(get_url, headers=headers)
     sha = None
-    if get_resp.status_code == 200:
-        sha = get_resp.json().get("sha")
+    if r.status_code == 200:
+        sha = r.json().get("sha")
 
-    b64_content = base64.b64encode(content.encode("utf-8")).decode("utf-8")
+    encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
 
     payload = {
         "message": message,
-        "content": b64_content,
+        "content": encoded,
     }
     if sha:
         payload["sha"] = sha
 
-    resp = requests.put(url, headers=github_headers(token), json=payload)
-    if resp.status_code not in (200, 201):
-        raise RuntimeError(f"GitHub file upload failed: {resp.status_code} {resp.text}")
-    return resp.json()
-
-
-def enable_github_pages(token: str, owner: str, repo: str):
-    """
-    Best-effort: enable GitHub Pages using the main branch root.
-    We don't raise on failure because it often requires manual setup.
-    """
-    url = f"{GITHUB_API_BASE}/repos/{owner}/{repo}/pages"
-    payload = {
-        "source": {
-            "branch": "main",
-            "path": "/",
-        }
-    }
-    resp = requests.post(url, headers=github_headers(token), json=payload)
-    return resp.status_code, resp.text
+    r = requests.put(get_url, headers=headers, json=payload)
+    if r.status_code not in (200, 201):
+        raise RuntimeError(f"Error uploading file: {r.status_code} {r.text}")
 
 # === 5. Streamlit App ================================================
 
@@ -723,6 +719,25 @@ default_subtitle = (
 
 title = st.text_input("Widget title", value=default_title)
 subtitle = st.text_input("Widget subtitle", value=default_subtitle)
+
+# GitHub details for URL & (optionally) upload
+github_username = st.text_input(
+    "GitHub username (used to build GitHub Pages URL)",
+    value=GITHUB_USER_DEFAULT or "your-github-username",
+)
+
+default_repo_name = "supermoon-visibility-widget"
+repo_name = st.text_input("GitHub repo name (for GitHub Pages)", value=default_repo_name)
+
+# Build expected GitHub Pages URL (used:
+# 1) inside the widget's Embed button textarea
+# 2) in the separate iframe snippet shown below)
+if github_username and repo_name and "your-github-username" not in github_username:
+    expected_embed_url = f"https://{github_username}.github.io/{repo_name}/supermoon_table.html"
+else:
+    expected_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
+
+st.caption(f"Expected GitHub Pages URL (baked into the widget's embed button): `{expected_embed_url}`")
 
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
@@ -778,11 +793,31 @@ if uploaded_file is not None:
     st.subheader("Cleaned data preview")
     st.dataframe(df.head())
 
-    html = generate_html_from_df(df, title, subtitle)
+    # Generate HTML with expected GitHub Pages URL baked into the widget's embed button
+    html = generate_html_from_df(df, title, subtitle, expected_embed_url)
 
+    # --- Interactive table preview inside Streamlit -------------------
     st.subheader("Interactive widget preview")
     components.html(html, height=900, scrolling=True)
 
+    # --- 1) RAW HTML OUTPUT (copy & paste) ---------------------------
+    st.subheader("Full HTML code (copy & paste)")
+    st.text_area(
+        "Generated HTML (supermoon_table.html)",
+        value=html,
+        height=400,
+    )
+
+    # --- 2) IFRAME SNIPPET WITH GITHUB URL ---------------------------
+    st.subheader("Iframe embed code (using GitHub Pages URL)")
+    iframe_snippet = f"""<iframe src="{expected_embed_url}"
+      title="{title}"
+      width="100%" height="750"
+      scrolling="no"
+      style="border:0;" loading="lazy"></iframe>"""
+    st.code(iframe_snippet, language="html")
+
+    # Download button
     st.subheader("Download HTML file")
     st.download_button(
         label="Download supermoon_table.html",
@@ -791,65 +826,32 @@ if uploaded_file is not None:
         mime="text/html",
     )
 
-    # ---- GitHub publish section -------------------------------------
-    st.subheader("Publish to GitHub Pages (optional)")
+    # Optional: push to GitHub
+    st.subheader("Publish to GitHub (optional)")
 
-    st.markdown(
-        "This will create a **new public repo** on your GitHub account, "
-        "upload `index.html`, and try to enable GitHub Pages.\n\n"
-        "Store `GITHUB_TOKEN` and `GITHUB_USER` in Streamlit *secrets* before using this."
-    )
+    effective_github_user = github_username if github_username and "your-github-username" not in github_username else GITHUB_USER_DEFAULT
 
-    default_repo_name = "supermoon-table-widget"
-    repo_name = st.text_input("GitHub repository name", value=default_repo_name)
-
-    if st.button("Create repo and publish to GitHub Pages"):
-        token = st.secrets.get("GITHUB_TOKEN")
-        owner = st.secrets.get("GITHUB_USER")
-
-        if not token or not owner:
-            st.error("Missing `GITHUB_TOKEN` or `GITHUB_USER` in Streamlit secrets.")
-        elif not repo_name.strip():
-            st.error("Please enter a repository name.")
-        else:
-            with st.spinner("Creating GitHub repo and uploading HTML..."):
-                try:
-                    # 1) Create repo (or reuse if already exists)
-                    _ = create_github_repo(
-                        token,
-                        repo_name,
-                        description="Auto-generated supermoon visibility table widget.",
-                        private=False,
-                    )
-
-                    # 2) Upload index.html
-                    put_file_in_repo(
-                        token,
-                        owner=owner,
-                        repo=repo_name,
-                        path="index.html",
-                        content=html,
-                        message="Add supermoon table widget HTML",
-                    )
-
-                    # 3) Try to enable GitHub Pages
-                    status_code, pages_resp = enable_github_pages(token, owner, repo_name)
-
-                    # 4) Expected pages URL
-                    pages_url = f"https://{owner}.github.io/{repo_name}/"
-
-                    st.success("GitHub repo created/updated and HTML uploaded.")
-                    st.markdown(f"**GitHub Pages URL (expected):** [{pages_url}]({pages_url})")
-
-                    if status_code not in (201, 204):
-                        st.info(
-                            "GitHub Pages API call may need manual confirmation in repo settings.\n\n"
-                            "If the link doesn't work immediately, open the repo → **Settings → Pages**, "
-                            "and set source to `main` / root."
-                        )
-
-                except Exception as e:
-                    st.error(f"Something went wrong with GitHub API: {e}")
-
+    if not GITHUB_TOKEN or not effective_github_user or "your-github-username" in effective_github_user:
+        st.info(
+            "To enable GitHub publishing, set `GITHUB_TOKEN` and `GITHUB_USER` in secrets "
+            "or provide a real GitHub username above."
+        )
+    else:
+        if st.button("Create/Update repo and upload supermoon_table.html"):
+            try:
+                ensure_repo_exists(effective_github_user, repo_name, GITHUB_TOKEN)
+                upload_file_to_github(
+                    effective_github_user,
+                    repo_name,
+                    GITHUB_TOKEN,
+                    "supermoon_table.html",
+                    html,
+                    "Add/update supermoon_table.html from Streamlit app",
+                )
+                pages_url = expected_embed_url
+                st.success(f"Uploaded to GitHub! GitHub Pages URL (once Pages is enabled): {pages_url}")
+                st.code(iframe_snippet, language="html")
+            except Exception as e:
+                st.error(f"GitHub upload failed: {e}")
 else:
     st.info("Upload a CSV to generate the widget.")
