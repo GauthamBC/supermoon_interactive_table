@@ -18,29 +18,67 @@ def get_secret(key: str, default: str = "") -> str:
 GITHUB_TOKEN = get_secret("GITHUB_TOKEN", "")
 GITHUB_USER_DEFAULT = get_secret("GITHUB_USER", "")
 
-# === GitHub helper: check if repo exists ==============================
-def github_repo_exists(owner: str, repo: str, token: str = "") -> bool:
+# === GitHub helpers ===================================================
+
+def github_headers(token: str):
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+    }
+
+def ensure_repo_exists(owner: str, repo: str, token: str) -> bool:
     """
-    Return True if https://github.com/{owner}/{repo} exists, else False.
-    Uses GitHub API: GET /repos/{owner}/{repo}
+    Ensure repo exists.
+    Returns:
+      True  -> repo was just created
+      False -> repo already existed
     """
     api_base = "https://api.github.com"
-    url = f"{api_base}/repos/{owner}/{repo}"
+    headers = github_headers(token)
 
-    headers = {"Accept": "application/vnd.github+json"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-
-    r = requests.get(url, headers=headers)
-
+    # Check if repo exists
+    r = requests.get(f"{api_base}/repos/{owner}/{repo}", headers=headers)
     if r.status_code == 200:
-        return True
-    if r.status_code == 404:
-        return False
+        return False  # already exists
+    if r.status_code != 404:
+        raise RuntimeError(f"Error checking repo: {r.status_code} {r.text}")
 
-    # Any other status is unexpected; surface it to the user
-    st.warning(f"Unexpected GitHub API response ({r.status_code}): {r.text}")
-    return False
+    # Create repo if missing
+    payload = {
+        "name": repo,
+        "auto_init": True,
+        "private": False,
+        "description": "Supermoon visibility widget (auto-created by Streamlit app).",
+    }
+    r = requests.post(f"{api_base}/user/repos", headers=headers, json=payload)
+    if r.status_code not in (200, 201):
+        raise RuntimeError(f"Error creating repo: {r.status_code} {r.text}")
+
+    return True  # newly created
+
+def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main") -> None:
+    """
+    Attempt to enable GitHub Pages on the repo from the given branch root.
+    If Pages is already enabled, this is a no-op.
+    """
+    api_base = "https://api.github.com"
+    headers = github_headers(token)
+
+    # Check if Pages already enabled
+    r = requests.get(f"{api_base}/repos/{owner}/{repo}/pages", headers=headers)
+    if r.status_code == 200:
+        return
+    if r.status_code not in (404, 403):
+        raise RuntimeError(f"Error checking GitHub Pages: {r.status_code} {r.text}")
+    if r.status_code == 403:
+        # No permission via API, but don't kill the flow.
+        return
+
+    # Enable GitHub Pages from the given branch root
+    payload = {"source": {"branch": branch, "path": "/"}}
+    r2 = requests.post(f"{api_base}/repos/{owner}/{repo}/pages", headers=headers, json=payload)
+    if r2.status_code not in (201, 202):
+        raise RuntimeError(f"Error enabling GitHub Pages: {r2.status_code} {r2.text}")
 
 # === 1. State -> flag URL mapping =====================================
 STATE_FLAG_URLS = {
@@ -698,28 +736,69 @@ if GITHUB_USER_DEFAULT and GITHUB_USER_DEFAULT not in username_options:
 github_username_input = st.selectbox("Username", options=username_options)
 effective_github_user = github_username_input.strip()
 
-# Campaign name with check button
+# Campaign name with "Check & create on GitHub"
 st.markdown("### Campaign name")
 col_repo, col_btn = st.columns([3, 1])
 
 with col_repo:
     default_repo_name = "supermoon-visibility-widget"
-    repo_name = st.text_input("Campaign name (GitHub repo name)", value=default_repo_name, key="repo_name")
+    repo_name = st.text_input(
+        "Campaign name (GitHub repo name)",
+        value=default_repo_name,
+        key="repo_name",
+    )
 
 with col_btn:
     st.markdown("&nbsp;")  # vertical spacer
-    if st.button("Check on GitHub"):
+    if st.button("Check & create on GitHub"):
         if not repo_name.strip():
             st.warning("Please enter a campaign name before checking.")
         elif not effective_github_user:
             st.warning("Please select a username before checking.")
+        elif not GITHUB_TOKEN:
+            st.error(
+                "No `GITHUB_TOKEN` found in secrets, so I can't create a repo for you.\n\n"
+                "Add a personal access token (with `repo` scope) as `GITHUB_TOKEN` in Streamlit secrets."
+            )
         else:
-            exists = github_repo_exists(effective_github_user, repo_name.strip(), GITHUB_TOKEN)
-            if exists:
-                st.error(f"❌ Repo `{effective_github_user}/{repo_name.strip()}` already exists.")
-            else:
-                st.success(f"✅ `{effective_github_user}/{repo_name.strip()}` is available (no existing repo found).")
+            try:
+                created = ensure_repo_exists(
+                    effective_github_user,
+                    repo_name.strip(),
+                    GITHUB_TOKEN,
+                )
 
+                # Try to enable GitHub Pages
+                try:
+                    ensure_pages_enabled(
+                        effective_github_user,
+                        repo_name.strip(),
+                        GITHUB_TOKEN,
+                        branch="main",
+                    )
+                except Exception as pages_err:
+                    st.warning(
+                        f"Repo exists/created, but enabling GitHub Pages via API may have failed: {pages_err}\n"
+                        "You might need to turn on Pages manually in the repo settings."
+                    )
+
+                if created:
+                    st.success(
+                        f"✅ `{effective_github_user}/{repo_name.strip()}` did not exist, "
+                        f"so I created the repo and attempted to enable GitHub Pages.\n\n"
+                        f"Once you add `supermoon_table.html` to that repo on the `main` branch, "
+                        f"it should be served at:\n"
+                        f"`https://{effective_github_user}.github.io/{repo_name.strip()}/supermoon_table.html`"
+                    )
+                else:
+                    st.error(
+                        f"❌ Repo `{effective_github_user}/{repo_name.strip()}` already exists.\n"
+                        "Use a different campaign name, or reuse this repo manually."
+                    )
+            except Exception as e:
+                st.error(f"GitHub check/creation failed: {e}")
+
+# Expected embed URL using current username + campaign name
 expected_embed_url = f"https://{effective_github_user}.github.io/{repo_name}/supermoon_table.html"
 
 st.caption(
@@ -787,7 +866,7 @@ if uploaded_file is not None:
 
     st.subheader("HTML file contents (copy & paste)")
     st.text_area(
-        "Copy this into a file named `supermoon_table.html`",
+        "Copy this into a file named `supermoon_table.html` in your chosen repo",
         value=html,
         height=400,
     )
