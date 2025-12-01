@@ -946,8 +946,8 @@ st.set_page_config(page_title="Supermoon Table Generator", layout="wide")
 
 st.title("Supermoon Visibility Table Generator")
 st.write(
-    "Upload a CSV, then use the tabs to preview, configure, and publish "
-    "your Supermoon widget via GitHub Pages."
+    "Upload a CSV, choose your GitHub campaign, then use the tabs to preview "
+    "and embed your Supermoon widget via GitHub Pages."
 )
 
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
@@ -995,31 +995,165 @@ if uploaded_file is not None:
     df["elevation_ft"] = raw_df["Avg. Elevation (ft)"].astype(float)
     df["dark_score"] = raw_df["Darkness Score (1–5)"].astype(float)
 
-    # Defaults for widget text
-    default_title = "Top U.S. States for Supermoon Visibility in 2025"
+    # Defaults for widget text (2026, all 50 states ranked best→worst)
+    default_title = "Supermoon Viewing in 2026: Ranking All 50 U.S. States"
     default_subtitle = (
-        "Ranked by visibility factors such as sky clarity, elevation, and "
-        "atmospheric conditions, converted into implied probabilities and "
-        "moneyline odds."
+        "All 50 states ranked from best to worst for December supermoon visibility, "
+        "based on sky clarity, elevation, darkness, and atmospheric conditions."
     )
 
-    # Load any existing GitHub settings from session state to drive the preview URL
+    # ---------- Global GitHub & campaign settings (above tabs) ----------
+    st.subheader("GitHub & campaign settings")
+
+    # Existing saved values
     saved_gh_user = st.session_state.get("gh_user", "")
     saved_gh_repo = st.session_state.get("gh_repo", "supermoon-visibility-widget")
 
-    if saved_gh_user and saved_gh_repo:
-        current_embed_url = (
-            f"https://{saved_gh_user}.github.io/{saved_gh_repo}/supermoon_table.html"
+    username_options = ["GauthamBC", "ActionNetwork", "MoonWatcher", "SampleUser"]
+    if GITHUB_USER_DEFAULT and GITHUB_USER_DEFAULT not in username_options:
+        username_options.insert(0, GITHUB_USER_DEFAULT)
+
+    if saved_gh_user in username_options:
+        default_idx = username_options.index(saved_gh_user)
+    else:
+        default_idx = 0
+
+    github_username_input = st.selectbox(
+        "Username (GitHub username)",
+        options=username_options,
+        index=default_idx,
+        key="gh_user",
+    )
+    effective_github_user = github_username_input.strip()
+
+    repo_name = st.text_input(
+        "Campaign name (GitHub repo name)",
+        value=saved_gh_repo,
+        key="gh_repo",
+    )
+
+    if effective_github_user and repo_name.strip():
+        expected_embed_url = (
+            f"https://{effective_github_user}.github.io/{repo_name.strip()}/supermoon_table.html"
         )
     else:
-        current_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
+        expected_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
 
-    # --- Tabs layout ---
+    st.caption(
+        f"Expected GitHub Pages URL (used in widget footer & iframe):\n\n`{expected_embed_url}`"
+    )
+
+    # ---------- One-click: create/update repo + HTML + iframe ----------
+    st.markdown(
+        "<p style='font-size:0.85rem; color:#c4c4c4;'>"
+        "Click <strong>Get widget</strong> to publish the table to GitHub Pages and receive "
+        "an iframe you can paste into your site."
+        "</p>",
+        unsafe_allow_html=True,
+    )
+
+    iframe_snippet = st.session_state.get("iframe_snippet")
+
+    if not GITHUB_TOKEN:
+        st.info(
+            "Set `GITHUB_TOKEN` in `.streamlit/secrets.toml` (with `repo` scope) "
+            "to enable automatic GitHub publishing."
+        )
+    elif not effective_github_user or not repo_name.strip():
+        st.info("Fill in username and campaign name above.")
+    else:
+        if st.button("Get widget"):
+            try:
+                # Use latest configured title/subtitle from session state or defaults
+                title_for_publish = st.session_state.get("widget_title", default_title)
+                subtitle_for_publish = st.session_state.get("widget_subtitle", default_subtitle)
+
+                # Generate final HTML with the real embed URL
+                html_final = generate_html_from_df(
+                    df, title_for_publish, subtitle_for_publish, expected_embed_url
+                )
+
+                # 1) Ensure repo exists
+                ensure_repo_exists(
+                    effective_github_user,
+                    repo_name.strip(),
+                    GITHUB_TOKEN,
+                )
+
+                # 2) Enable GitHub Pages (best effort)
+                try:
+                    ensure_pages_enabled(
+                        effective_github_user,
+                        repo_name.strip(),
+                        GITHUB_TOKEN,
+                        branch="main",
+                    )
+                except Exception as pages_err:
+                    st.warning(
+                        f"Repo exists/created, but enabling GitHub Pages via API may have failed: {pages_err}\n"
+                        "You may need to finalize Pages settings manually in GitHub."
+                    )
+
+                # 3) Upload HTML file
+                upload_file_to_github(
+                    effective_github_user,
+                    repo_name.strip(),
+                    GITHUB_TOKEN,
+                    "supermoon_table.html",
+                    html_final,
+                    "Add/update supermoon_table.html from Streamlit app",
+                    branch="main",
+                )
+
+                # 4) Trigger Pages build
+                build_ok = trigger_pages_build(
+                    effective_github_user,
+                    repo_name.strip(),
+                    GITHUB_TOKEN,
+                )
+
+                iframe_snippet = f"""<iframe src="{expected_embed_url}"
+  title="{title_for_publish}"
+  width="100%" height="650"
+  scrolling="no"
+  style="border:0;" loading="lazy"></iframe>"""
+
+                st.session_state["iframe_snippet"] = iframe_snippet
+
+                st.success(
+                    f"Repo `{effective_github_user}/{repo_name.strip()}` is ready and "
+                    "`supermoon_table.html` has been uploaded."
+                )
+                st.info(
+                    "Once GitHub Pages finishes building, your widget should be live at:\n\n"
+                    f"`{expected_embed_url}`"
+                )
+
+                if not build_ok:
+                    st.warning(
+                        "Could not confirm a GitHub Pages build via API. "
+                        "If the page never appears, check the Pages settings and build logs in GitHub."
+                    )
+
+                st.subheader("Your iframe embed code")
+                st.code(iframe_snippet, language="html")
+
+            except Exception as e:
+                st.error(f"GitHub publish failed: {e}")
+
+    # If a previous run already produced an iframe, keep showing it
+    if iframe_snippet:
+        st.subheader("Current iframe embed code")
+        st.code(iframe_snippet, language="html")
+
+    st.markdown("---")
+
+    # ---------- Tabs layout (data + widget config/preview) ----------
     tab1, tab2, tab3 = st.tabs(
         [
             "Detected columns & data",
             "Configure & preview widget",
-            "Create Iframe",
+            "Embed help",
         ]
     )
 
@@ -1033,7 +1167,7 @@ if uploaded_file is not None:
 
     # -------- TAB 2: Configure widget + preview --------
     with tab2:
-        # No "Widget text" header per your request
+        # Widget title/subtitle (no "Widget text" header)
         title = st.text_input(
             "Widget name",
             value=st.session_state.get("widget_title", default_title),
@@ -1045,10 +1179,9 @@ if uploaded_file is not None:
             key="widget_subtitle",
         )
 
-        # Build preview HTML with the *current* embed URL (from saved GH settings if set)
-        html_preview = generate_html_from_df(df, title, subtitle, current_embed_url)
+        # Preview HTML uses the expected embed URL
+        html_preview = generate_html_from_df(df, title, subtitle, expected_embed_url)
 
-        # Inner tabs: Widget preview / HTML contents
         preview_tab, html_tab = st.tabs(["Widget preview", "HTML file contents"])
 
         with preview_tab:
@@ -1062,136 +1195,19 @@ if uploaded_file is not None:
                 label_visibility="collapsed",
             )
 
-    # -------- TAB 3: Create repo, upload HTML & publish (Create Iframe) --------
+    # -------- TAB 3: Simple embed help --------
     with tab3:
-        # Smaller guidance text instead of big subheaders
+        st.subheader("How to embed your widget")
         st.markdown(
-            "<p style='font-size:0.85rem; color:#c4c4c4;'>"
-            "Please choose your GitHub account. If you don't have one configured in this tool, "
-            "please contact the tool creator, <strong>Gautham Marthandan</strong>."
-            "</p>",
-            unsafe_allow_html=True,
+            "1. Click **Get widget** above.\n"
+            "2. Wait for GitHub Pages to finish building at the URL shown.\n"
+            "3. Paste the iframe code into your article or CMS.\n"
         )
-
-        # Read latest title/subtitle from session state (so publish uses what you configured)
-        title_for_publish = st.session_state.get("widget_title", default_title)
-        subtitle_for_publish = st.session_state.get("widget_subtitle", default_subtitle)
-
-        username_options = ["GauthamBC", "ActionNetwork", "MoonWatcher", "SampleUser"]
-        if GITHUB_USER_DEFAULT and GITHUB_USER_DEFAULT not in username_options:
-            username_options.insert(0, GITHUB_USER_DEFAULT)
-
-        # figure out default index for selectbox from saved_gh_user
-        if saved_gh_user in username_options:
-            default_idx = username_options.index(saved_gh_user)
+        if st.session_state.get("iframe_snippet"):
+            st.markdown("**Current iframe code:**")
+            st.code(st.session_state["iframe_snippet"], language="html")
         else:
-            default_idx = 0
-
-        github_username_input = st.selectbox(
-            "Username (GitHub username)",
-            options=username_options,
-            index=default_idx,
-            key="gh_user",
-        )
-        effective_github_user = github_username_input.strip()
-
-        repo_name = st.text_input(
-            "Campaign name (GitHub repo name)",
-            value=saved_gh_repo,
-            key="gh_repo",
-        )
-
-        if effective_github_user and repo_name.strip():
-            expected_embed_url = (
-                f"https://{effective_github_user}.github.io/{repo_name.strip()}/supermoon_table.html"
-            )
-        else:
-            expected_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
-
-        st.caption(
-            f"Expected GitHub Pages URL (used in final widget footer & iframe):\n\n`{expected_embed_url}`"
-        )
-
-        if not GITHUB_TOKEN:
-            st.info(
-                "Set `GITHUB_TOKEN` in `.streamlit/secrets.toml` (with `repo` scope) "
-                "to enable automatic GitHub publishing."
-            )
-        elif not effective_github_user or not repo_name.strip():
-            st.info("Fill in username and campaign name above.")
-        else:
-            # Shorter button label
-            if st.button("Get the iframe"):
-                try:
-                    # Generate final HTML with the real embed URL
-                    html_final = generate_html_from_df(
-                        df, title_for_publish, subtitle_for_publish, expected_embed_url
-                    )
-
-                    # 1) Ensure repo exists
-                    ensure_repo_exists(
-                        effective_github_user,
-                        repo_name.strip(),
-                        GITHUB_TOKEN,
-                    )
-
-                    # 2) Enable GitHub Pages (best effort)
-                    try:
-                        ensure_pages_enabled(
-                            effective_github_user,
-                            repo_name.strip(),
-                            GITHUB_TOKEN,
-                            branch="main",
-                        )
-                    except Exception as pages_err:
-                        st.warning(
-                            f"Repo exists/created, but enabling GitHub Pages via API may have failed: {pages_err}\n"
-                            "You may need to finalize Pages settings manually in GitHub."
-                        )
-
-                    # 3) Upload HTML file
-                    upload_file_to_github(
-                        effective_github_user,
-                        repo_name.strip(),
-                        GITHUB_TOKEN,
-                        "supermoon_table.html",
-                        html_final,
-                        "Add/update supermoon_table.html from Streamlit app",
-                        branch="main",
-                    )
-
-                    # 4) Trigger Pages build
-                    build_ok = trigger_pages_build(
-                        effective_github_user,
-                        repo_name.strip(),
-                        GITHUB_TOKEN,
-                    )
-
-                    st.success(
-                        f"Repo `{effective_github_user}/{repo_name.strip()}` is ready and "
-                        "`supermoon_table.html` has been uploaded."
-                    )
-                    st.info(
-                        "Once GitHub Pages finishes building, your widget should be live at:\n\n"
-                        f"`{expected_embed_url}`"
-                    )
-
-                    if not build_ok:
-                        st.warning(
-                            "Could not confirm a GitHub Pages build via API. "
-                            "If the page never appears, check the Pages settings and build logs in GitHub."
-                        )
-
-                    st.subheader("Your iframe embed code")
-                    iframe_snippet = f"""<iframe src="{expected_embed_url}"
-  title="{title_for_publish}"
-  width="100%" height="650"
-  scrolling="no"
-  style="border:0;" loading="lazy"></iframe>"""
-                    st.code(iframe_snippet, language="html")
-
-                except Exception as e:
-                    st.error(f"GitHub publish failed: {e}")
+            st.info("No iframe yet – click **Get widget** above to generate it.")
 
 else:
-    st.info("Upload a CSV to unlock the tabs and generate your widget.")
+    st.info("Upload a CSV to unlock the GitHub settings and widget tabs.")
