@@ -1,9 +1,3 @@
-* Single clean `.row` rule
-* Scrollable `.table` with slim green scrollbar
-* JS that measures the *real* row height and clamps to ~20 visible rows
-* Preview tab still uses the current embed URL; publish tab regenerates HTML with the real GitHub Pages URL.
-
-```python
 import base64
 import requests
 import pandas as pd
