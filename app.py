@@ -151,7 +151,8 @@ HTML_TEMPLATE = r"""<!doctype html>
       background:linear-gradient(90deg,var(--brand-600),var(--brand-500))!important;
     }
     .vi-compact-embed .val{
-      position:absolute;right:6px;top:50%;transform:translateY(-50%);
+      position:absolute;right:6px;top:50%;
+      transform:translateY(-50%);
       font-variant-numeric:tabular-nums;font-weight:800;font-size:13px;
       color:#0e1a12!important;background:#fff!important;border:2px solid #e6e9ed!important;
       border-radius:999px;padding:2px 8px;
@@ -650,13 +651,19 @@ def github_headers(token: str):
         "Accept": "application/vnd.github+json",
     }
 
-def ensure_repo_exists(owner: str, repo: str, token: str) -> None:
+def ensure_repo_exists(owner: str, repo: str, token: str) -> bool:
+    """
+    Ensure repo exists.
+    Returns:
+      True  -> repo was just created
+      False -> repo already existed
+    """
     api_base = "https://api.github.com"
     headers = github_headers(token)
 
     r = requests.get(f"{api_base}/repos/{owner}/{repo}", headers=headers)
     if r.status_code == 200:
-        return
+        return False  # already exists
     if r.status_code != 404:
         raise RuntimeError(f"Error checking repo: {r.status_code} {r.text}")
 
@@ -669,6 +676,8 @@ def ensure_repo_exists(owner: str, repo: str, token: str) -> None:
     r = requests.post(f"{api_base}/user/repos", headers=headers, json=payload)
     if r.status_code not in (200, 201):
         raise RuntimeError(f"Error creating repo: {r.status_code} {r.text}")
+
+    return True  # newly created
 
 def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main") -> None:
     api_base = "https://api.github.com"
@@ -753,7 +762,6 @@ default_repo_name = "supermoon-visibility-widget"
 repo_name = st.text_input("GitHub repo name (for GitHub Pages)", value=default_repo_name)
 branch_name = st.text_input("GitHub branch for GitHub Pages", value="main")
 
-# Pick one effective username to use everywhere
 github_username_input = github_username_input.strip()
 effective_github_user = (
     github_username_input
@@ -864,7 +872,12 @@ if uploaded_file is not None:
             try:
                 st.write(f"Using GitHub user: `{effective_github_user}`, repo: `{repo_name}`")
 
-                ensure_repo_exists(effective_github_user, repo_name, GITHUB_TOKEN)
+                # NEW: know if repo existed already
+                created = ensure_repo_exists(effective_github_user, repo_name, GITHUB_TOKEN)
+                if created:
+                    st.success(f"Created new repo `{effective_github_user}/{repo_name}`.")
+                else:
+                    st.info(f"Repo `{effective_github_user}/{repo_name}` already exists – reusing it.")
 
                 try:
                     ensure_pages_enabled(
