@@ -1,4 +1,3 @@
-import base64
 import requests
 import pandas as pd
 import streamlit as st
@@ -18,6 +17,30 @@ def get_secret(key: str, default: str = "") -> str:
 
 GITHUB_TOKEN = get_secret("GITHUB_TOKEN", "")
 GITHUB_USER_DEFAULT = get_secret("GITHUB_USER", "")
+
+# === GitHub helper: check if repo exists ==============================
+def github_repo_exists(owner: str, repo: str, token: str = "") -> bool:
+    """
+    Return True if https://github.com/{owner}/{repo} exists, else False.
+    Uses GitHub API: GET /repos/{owner}/{repo}
+    """
+    api_base = "https://api.github.com"
+    url = f"{api_base}/repos/{owner}/{repo}"
+
+    headers = {"Accept": "application/vnd.github+json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    r = requests.get(url, headers=headers)
+
+    if r.status_code == 200:
+        return True
+    if r.status_code == 404:
+        return False
+
+    # Any other status is unexpected; surface it to the user
+    st.warning(f"Unexpected GitHub API response ({r.status_code}): {r.text}")
+    return False
 
 # === 1. State -> flag URL mapping =====================================
 STATE_FLAG_URLS = {
@@ -673,12 +696,30 @@ if GITHUB_USER_DEFAULT and GITHUB_USER_DEFAULT not in username_options:
     username_options.insert(0, GITHUB_USER_DEFAULT)
 
 github_username_input = st.selectbox("Username", options=username_options)
-
-# Campaign name (GitHub repo name)
-default_repo_name = "supermoon-visibility-widget"
-repo_name = st.text_input("Campaign name (GitHub repo name)", value=default_repo_name)
-
 effective_github_user = github_username_input.strip()
+
+# Campaign name with check button
+st.markdown("### Campaign name")
+col_repo, col_btn = st.columns([3, 1])
+
+with col_repo:
+    default_repo_name = "supermoon-visibility-widget"
+    repo_name = st.text_input("Campaign name (GitHub repo name)", value=default_repo_name, key="repo_name")
+
+with col_btn:
+    st.markdown("&nbsp;")  # vertical spacer
+    if st.button("Check on GitHub"):
+        if not repo_name.strip():
+            st.warning("Please enter a campaign name before checking.")
+        elif not effective_github_user:
+            st.warning("Please select a username before checking.")
+        else:
+            exists = github_repo_exists(effective_github_user, repo_name.strip(), GITHUB_TOKEN)
+            if exists:
+                st.error(f"❌ Repo `{effective_github_user}/{repo_name.strip()}` already exists.")
+            else:
+                st.success(f"✅ `{effective_github_user}/{repo_name.strip()}` is available (no existing repo found).")
+
 expected_embed_url = f"https://{effective_github_user}.github.io/{repo_name}/supermoon_table.html"
 
 st.caption(
