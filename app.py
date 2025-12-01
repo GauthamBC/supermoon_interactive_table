@@ -1019,7 +1019,7 @@ if uploaded_file is not None:
         [
             "Detected columns & data",
             "Configure & preview widget",
-            "Create repo & publish",
+            "Create Iframe",
         ]
     )
 
@@ -1047,7 +1047,7 @@ if uploaded_file is not None:
         )
 
         st.caption(
-            "GitHub username and campaign name live in the **Create repo & publish** tab.\n\n"
+            "GitHub username and campaign name live in the **Create Iframe** tab.\n\n"
             f"Current embed URL used inside the preview widget: `{current_embed_url}`"
         )
 
@@ -1067,7 +1067,10 @@ if uploaded_file is not None:
 
     # -------- TAB 3: Create repo, upload HTML & publish --------
     with tab3:
-        st.subheader("GitHub settings")
+        st.markdown(
+            "**Please choose your GitHub account. If you don't have one configured in this tool, "
+            "please contact the tool creator, Gautham Marthandan.**"
+        )
 
         # Read latest title/subtitle from session state (so publish uses what you configured)
         title_for_publish = st.session_state.get("widget_title", default_title)
@@ -1107,9 +1110,6 @@ if uploaded_file is not None:
         st.caption(
             f"Expected GitHub Pages URL (used in final widget footer & iframe):\n\n`{expected_embed_url}`"
         )
-
-        st.markdown("---")
-        st.subheader("Create repo, upload HTML & trigger Pages build")
 
         if not GITHUB_TOKEN:
             st.info(
