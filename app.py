@@ -1,3 +1,11 @@
+Here’s the full updated script with:
+
+* Single clean `.row` rule
+* Scrollable `.table` with slim green scrollbar
+* JS that measures the *real* row height and clamps to ~20 visible rows
+* Preview tab still uses the current embed URL; publish tab regenerates HTML with the real GitHub Pages URL.
+
+```python
 import base64
 import requests
 import pandas as pd
@@ -223,7 +231,32 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .sub{margin:0;color:rgba(255,255,255,.92)!important;font-size:12px}
     .vi-compact-embed .meta{margin:4px 0 0;color:rgba(255,255,255,.85)!important;font-size:12px}
 
-   .vi-compact-embed .row{
+    /* Scrollable table area with thin green scrollbar */
+    .vi-compact-embed .table{
+      padding:10px 12px;
+      max-height:720px; /* JS will refine this based on 20 rows */
+      overflow-y:auto;
+      overflow-x:hidden;
+      scrollbar-width:thin;
+      scrollbar-color:var(--brand-600) #f3faf6;
+    }
+
+    .vi-compact-embed .table::-webkit-scrollbar{
+      width:8px;
+    }
+    .vi-compact-embed .table::-webkit-scrollbar-track{
+      background:#f3faf6;
+      border-radius:999px;
+    }
+    .vi-compact-embed .table::-webkit-scrollbar-thumb{
+      background:linear-gradient(180deg,var(--brand-600),var(--brand-500));
+      border-radius:999px;
+    }
+    .vi-compact-embed .table::-webkit-scrollbar-thumb:hover{
+      background:#2E8538;
+    }
+
+    .vi-compact-embed .row{
       display:grid;
       grid-template-columns:36px 1fr minmax(240px,48%);
       gap:8px;
@@ -235,13 +268,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       background:#fff!important;
       transition:transform .18s,box-shadow .18s,background-color .15s,border-color .15s;
       transform-origin:center;
-      min-height:48px;  /* NEW: helps the 20-row max-height behave nicely */
-    }
-    .vi-compact-embed .row{
-      display:grid;grid-template-columns:36px 1fr minmax(240px,48%);gap:8px;align-items:center;margin:6px 0;
-      border:1px solid var(--border)!important;border-radius:12px;padding:8px 10px;background:#fff!important;
-      transition:transform .18s,box-shadow .18s,background-color .15s,border-color .15s;
-      transform-origin:center;
+      min-height:48px;
     }
     .vi-compact-embed .row:hover,.vi-compact-embed .row:focus-within{
       background:linear-gradient(0deg,var(--hover-tint),var(--hover-tint)),#fff!important;
@@ -497,6 +524,17 @@ HTML_TEMPLATE = r"""<!doctype html>
       const rows   = document.querySelectorAll('.vi-compact-embed .row.is-clickable[data-state]');
       const panel  = document.getElementById('az-details');
       const closeB = document.getElementById('az-close');
+      const tableEl = document.querySelector('.vi-compact-embed .table');
+
+      // Dynamically size scroll area so about 20 rows are visible
+      window.addEventListener('load', () => {
+        if (tableEl && rows.length) {
+          const firstRect = rows[0].getBoundingClientRect();
+          const rowHeight = firstRect.height || 60;
+          const visibleRows = 20;
+          tableEl.style.maxHeight = (rowHeight * visibleRows) + 'px';
+        }
+      });
 
       const allElev = Object.values(DATA).map(d=>d.elev);
       const elevMin = Math.min(...allElev);
