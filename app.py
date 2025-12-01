@@ -1072,8 +1072,8 @@ if uploaded_file is not None:
         key="widget_subtitle",
     )
 
-    # ---------- GitHub & campaign settings ----------
-    st.subheader("GitHub & campaign settings")
+    # ---------- GitHub & iFrame settings ----------
+    st.subheader("iFrame settings")
 
     saved_gh_user = st.session_state.get("gh_user", "")
     saved_gh_repo = st.session_state.get("gh_repo", "supermoon-visibility-widget")
@@ -1096,7 +1096,7 @@ if uploaded_file is not None:
     effective_github_user = github_username_input.strip()
 
     repo_name = st.text_input(
-        "Campaign name (GitHub repo name)",
+        "Enter a repository name (use letters, numbers, or underscores; no spaces).",
         value=saved_gh_repo,
         key="gh_repo",
     )
