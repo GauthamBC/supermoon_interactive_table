@@ -757,7 +757,7 @@ st.set_page_config(page_title="Supermoon Table Generator", layout="wide")
 
 st.title("Supermoon Visibility Table Generator")
 st.write(
-    "Upload a CSV, then use the tabs below to preview, configure, and publish "
+    "Upload a CSV, then use the tabs to preview, configure, and publish "
     "your Supermoon widget via GitHub Pages."
 )
 
@@ -824,7 +824,7 @@ if uploaded_file is not None:
         st.subheader("Cleaned data preview")
         st.dataframe(df.head())
 
-    # -------- TAB 3: Configure widget (we do this before we need HTML) --------
+    # -------- TAB 3: Configure widget (title & subtitle only) --------
     with tab3:
         st.subheader("Widget text")
         default_title = "Top U.S. States for Supermoon Visibility in 2025"
@@ -837,7 +837,29 @@ if uploaded_file is not None:
         title = st.text_input("Widget name", value=default_title, key="widget_title")
         subtitle = st.text_input("Widget subtitle", value=default_subtitle, key="widget_subtitle")
 
-        st.markdown("---")
+        st.info(
+            "GitHub username and campaign name live in the **Create repo & publish** tab."
+        )
+
+    # Build a preview HTML using a placeholder URL
+    placeholder_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
+    html_preview = generate_html_from_df(df, title, subtitle, placeholder_embed_url)
+
+    # -------- TAB 2: Widget preview --------
+    with tab2:
+        st.subheader("Interactive widget preview")
+        components.html(html_preview, height=900, scrolling=True)
+
+        st.subheader("HTML file contents (preview)")
+        st.text_area(
+            "This uses a placeholder embed URL. The final HTML (with real GitHub Pages URL) "
+            "will be generated when you publish in the last tab.",
+            value=html_preview,
+            height=350,
+        )
+
+    # -------- TAB 4: Create repo, upload HTML & publish (GitHub fields here) --------
+    with tab4:
         st.subheader("GitHub settings")
 
         username_options = ["GauthamBC", "ActionNetwork", "MoonWatcher", "SampleUser"]
@@ -863,27 +885,11 @@ if uploaded_file is not None:
             expected_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
 
         st.caption(
-            f"Expected GitHub Pages URL (used in widget footer & iframe):\n\n`{expected_embed_url}`"
+            f"Expected GitHub Pages URL (used in final widget footer & iframe):\n\n`{expected_embed_url}`"
         )
 
-    # After tab3 code runs, we have title/subtitle/user/repo -> build HTML once
-    html = generate_html_from_df(df, title, subtitle, expected_embed_url)
-
-    # -------- TAB 2: Widget preview --------
-    with tab2:
-        st.subheader("Interactive widget preview")
-        components.html(html, height=900, scrolling=True)
-
-        st.subheader("HTML file contents")
-        st.text_area(
-            "Copy this into `supermoon_table.html` if you’d rather upload manually.",
-            value=html,
-            height=350,
-        )
-
-    # -------- TAB 4: Create repo, upload HTML & publish --------
-    with tab4:
-        st.subheader("Create repo, upload HTML & publish via GitHub Pages")
+        st.markdown("---")
+        st.subheader("Create repo, upload HTML & trigger Pages build")
 
         if not GITHUB_TOKEN:
             st.info(
@@ -891,10 +897,13 @@ if uploaded_file is not None:
                 "to enable automatic GitHub publishing."
             )
         elif not effective_github_user or not repo_name.strip():
-            st.info("Configure username and campaign name in the **Configure widget** tab first.")
+            st.info("Fill in username and campaign name above.")
         else:
             if st.button("Create repo, upload `supermoon_table.html` & trigger Pages build"):
                 try:
+                    # Generate final HTML with the real embed URL
+                    html_final = generate_html_from_df(df, title, subtitle, expected_embed_url)
+
                     # 1) Ensure repo exists
                     created = ensure_repo_exists(
                         effective_github_user,
@@ -922,7 +931,7 @@ if uploaded_file is not None:
                         repo_name.strip(),
                         GITHUB_TOKEN,
                         "supermoon_table.html",
-                        html,
+                        html_final,
                         "Add/update supermoon_table.html from Streamlit app",
                         branch="main",
                     )
