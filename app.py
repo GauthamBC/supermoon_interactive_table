@@ -814,6 +814,17 @@ if uploaded_file is not None:
         "moneyline odds."
     )
 
+    # Load any existing GitHub settings from session state to drive the preview URL
+    saved_gh_user = st.session_state.get("gh_user", "")
+    saved_gh_repo = st.session_state.get("gh_repo", "supermoon-visibility-widget")
+
+    if saved_gh_user and saved_gh_repo:
+        current_embed_url = (
+            f"https://{saved_gh_user}.github.io/{saved_gh_repo}/supermoon_table.html"
+        )
+    else:
+        current_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
+
     # --- Tabs layout ---
     tab1, tab2, tab3 = st.tabs(
         [
@@ -847,12 +858,12 @@ if uploaded_file is not None:
         )
 
         st.caption(
-            "GitHub username and campaign name live in the **Create repo & publish** tab."
+            "GitHub username and campaign name live in the **Create repo & publish** tab.\n\n"
+            f"Current embed URL used inside the preview widget: `{current_embed_url}`"
         )
 
-        # Use placeholder embed URL for preview; real URL will be used on publish
-        placeholder_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
-        html_preview = generate_html_from_df(df, title, subtitle, placeholder_embed_url)
+        # Preview HTML uses the *current* embed URL (driven by GitHub settings if set)
+        html_preview = generate_html_from_df(df, title, subtitle, current_embed_url)
 
         st.markdown("---")
         st.subheader("Interactive widget preview")
@@ -860,7 +871,7 @@ if uploaded_file is not None:
 
         st.subheader("HTML file contents (preview)")
         st.text_area(
-            "Preview only – the final HTML will use your real GitHub Pages URL when you publish.",
+            "Preview only – when you change GitHub settings, this embed URL updates on the next run.",
             value=html_preview,
             height=350,
         )
@@ -877,14 +888,23 @@ if uploaded_file is not None:
         if GITHUB_USER_DEFAULT and GITHUB_USER_DEFAULT not in username_options:
             username_options.insert(0, GITHUB_USER_DEFAULT)
 
+        # figure out default index for selectbox from saved_gh_user
+        if saved_gh_user in username_options:
+            default_idx = username_options.index(saved_gh_user)
+        else:
+            default_idx = 0
+
         github_username_input = st.selectbox(
-            "Username (GitHub username)", options=username_options, key="gh_user"
+            "Username (GitHub username)",
+            options=username_options,
+            index=default_idx,
+            key="gh_user",
         )
         effective_github_user = github_username_input.strip()
 
         repo_name = st.text_input(
             "Campaign name (GitHub repo name)",
-            value="supermoon-visibility-widget",
+            value=saved_gh_repo,
             key="gh_repo",
         )
 
