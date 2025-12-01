@@ -1,20 +1,23 @@
-import io
 import base64
 import requests
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-# =========================
-# 0. GitHub config (secrets)
-# =========================
-# In .streamlit/secrets.toml, you can optionally set:
-# GITHUB_TOKEN = "ghp_...."
-# GITHUB_USER  = "your-github-username"
-# These are only needed for the auto-upload section at the bottom.
+# ==============
+# 0. Secrets
+# ==============
 
-GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN", "").strip()
-GITHUB_USER_DEFAULT = st.secrets.get("GITHUB_USER", "").strip()
+def get_secret(key: str, default: str = "") -> str:
+    try:
+        if hasattr(st, "secrets") and key in st.secrets:
+            return str(st.secrets[key]).strip()
+    except Exception:
+        pass
+    return default
+
+GITHUB_TOKEN = get_secret("GITHUB_TOKEN", "")
+GITHUB_USER_DEFAULT = get_secret("GITHUB_USER", "")
 
 # === 1. State -> flag URL mapping =====================================
 STATE_FLAG_URLS = {
@@ -112,7 +115,6 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .sub{margin:0;color:rgba(255,255,255,.92)!important;font-size:12px}
     .vi-compact-embed .meta{margin:4px 0 0;color:rgba(255,255,255,.85)!important;font-size:12px}
 
-    /* TABLE – no internal scroll / no artificial height */
     .vi-compact-embed .table{
       padding:10px 12px;
       max-height:none;
@@ -139,7 +141,6 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .chip{width:18px;height:18px;border-radius:50%;overflow:hidden;border:1px solid #cfe4da;background:#fff;flex-shrink:0}
     .vi-compact-embed .chip img{width:100%;height:100%;object-fit:cover}
 
-    /* Gradient track + gradient bar */
     .vi-compact-embed .metric{
       position:relative;height:28px;border-radius:999px;
       background:linear-gradient(90deg, rgba(86,194,87,.12), rgba(255,255,255,0))!important;
@@ -181,7 +182,6 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .metrics-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
     @media (max-width:640px){.vi-compact-embed .metrics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
-    /* Cards auto-size: no fixed viz row height */
     .vi-compact-embed .metric-card{
       background:#fff;border:1px solid var(--border);border-radius:10px;
       padding:8px 10px 8px;
@@ -192,7 +192,6 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .metric-number{font-weight:800;font-size:19px;color:#0e1a1f;margin:0;font-variant-numeric:tabular-nums}
     .vi-compact-embed .metric-scale{font-size:11px;color:#8a9099;margin:0}
 
-    /* Visuals */
     .vi-compact-embed .spark svg{width:100%;height:56px}
     .vi-compact-embed .spark-base{stroke:#e6f1ec;stroke-width:3;fill:none}
     .vi-compact-embed .spark-line{stroke:url(#az-elev-grad);stroke-width:4;fill:none;stroke-linecap:round;transition:stroke-dashoffset .6s}
@@ -507,7 +506,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       });
 
       if(closeB) closeB.addEventListener('click', closePanel);
-      document.addEventListener('keydown', e=>{ if(e.key==='Escape' && panel.classList.contains('open')) closePanel(); });
+      document.addEventListener('keydown', e=>{ if (e.key==='Escape' && panel.classList.contains('open')) closePanel(); });
 
       const btn     = document.getElementById('copy-embed-btn');
       const wrapper = document.getElementById('embed-wrapper');
@@ -578,13 +577,7 @@ def generate_html_from_df(
     subtitle: str,
     embed_url: str,
 ) -> str:
-    """
-    df must have columns:
-      state, probability, odds, elevation_ft, dark_score,
-      clear_days_dec, humidity_dec
-    """
     df = df.copy()
-
     df = df.sort_values("probability", ascending=False).reset_index(drop=True)
     df["rank"] = df.index + 1
 
@@ -597,10 +590,7 @@ def generate_html_from_df(
         prob = float(row["probability"])
         odds = int(row["odds"])
 
-        # Bar width as % of max probability
         width_pct = prob / max_prob * 100.0
-
-        # Intensity based on probability
         intensity = 0.35 + 0.65 * (prob / max_prob)
         bar_style = f"width:{width_pct:.2f}%;opacity:{intensity:.2f};"
 
@@ -652,15 +642,17 @@ def generate_html_from_df(
 
     return html
 
-# === 4. GitHub helper functions (optional) ============================
+# === 4. GitHub helper functions ======================================
 
-def ensure_repo_exists(owner: str, repo: str, token: str) -> None:
-    """Create repo via GitHub API if it does not exist."""
-    api_base = "https://api.github.com"
-    headers = {
+def github_headers(token: str):
+    return {
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json",
     }
+
+def ensure_repo_exists(owner: str, repo: str, token: str) -> None:
+    api_base = "https://api.github.com"
+    headers = github_headers(token)
 
     r = requests.get(f"{api_base}/repos/{owner}/{repo}", headers=headers)
     if r.status_code == 200:
@@ -678,42 +670,23 @@ def ensure_repo_exists(owner: str, repo: str, token: str) -> None:
     if r.status_code not in (200, 201):
         raise RuntimeError(f"Error creating repo: {r.status_code} {r.text}")
 
-
 def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main") -> None:
-    """
-    Try to ensure GitHub Pages is enabled for this repo on the given branch.
-    If it can't be enabled via API, we just bubble up an error so the app can show it.
-    """
     api_base = "https://api.github.com"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-    }
+    headers = github_headers(token)
 
-    # Check existing Pages config
     r = requests.get(f"{api_base}/repos/{owner}/{repo}/pages", headers=headers)
     if r.status_code == 200:
-        return  # already enabled
+        return
     if r.status_code not in (404, 403):
         raise RuntimeError(f"Error checking GitHub Pages: {r.status_code} {r.text}")
-
-    # 403 often means not allowed via API (eg, missing scopes); just stop quietly
     if r.status_code == 403:
+        # No permission via API, but don't kill the flow.
         return
 
-    # Try to enable if 404
-    payload = {
-        "source": {
-            "branch": branch,
-            "path": "/",
-        }
-    }
+    payload = {"source": {"branch": branch, "path": "/"}}
     r2 = requests.post(f"{api_base}/repos/{owner}/{repo}/pages", headers=headers, json=payload)
     if r2.status_code not in (201, 202):
-        # If this fails, the caller can warn the user that they may need to
-        # enable Pages manually in the repo settings.
         raise RuntimeError(f"Error enabling GitHub Pages: {r2.status_code} {r2.text}")
-
 
 def upload_file_to_github(
     owner: str,
@@ -723,14 +696,9 @@ def upload_file_to_github(
     content: str,
     message: str,
 ) -> None:
-    """Create or update a file in GitHub repo using the contents API."""
     api_base = "https://api.github.com"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-    }
+    headers = github_headers(token)
 
-    # Check if file exists to get its SHA
     get_url = f"{api_base}/repos/{owner}/{repo}/contents/{path}"
     r = requests.get(get_url, headers=headers)
     sha = None
@@ -739,10 +707,7 @@ def upload_file_to_github(
 
     encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
 
-    payload = {
-        "message": message,
-        "content": encoded,
-    }
+    payload = {"message": message, "content": encoded}
     if sha:
         payload["sha"] = sha
 
@@ -750,17 +715,9 @@ def upload_file_to_github(
     if r.status_code not in (200, 201):
         raise RuntimeError(f"Error uploading file: {r.status_code} {r.text}")
 
-
 def trigger_pages_build(owner: str, repo: str, token: str) -> bool:
-    """
-    Ask GitHub to rebuild the Pages site for this repo.
-    Returns True on (likely) success, False if it couldn't be triggered.
-    """
     api_base = "https://api.github.com"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-    }
+    headers = github_headers(token)
     r = requests.post(f"{api_base}/repos/{owner}/{repo}/pages/builds", headers=headers)
     return r.status_code in (201, 202)
 
@@ -777,7 +734,6 @@ st.write(
     "**Avg. Elevation (ft)**, **Darkness Score (1–5)**."
 )
 
-# Title / subtitle inputs
 default_title = "Top U.S. States for Supermoon Visibility in 2025"
 default_subtitle = (
     "Ranked by visibility factors such as sky clarity, elevation, and "
@@ -788,22 +744,25 @@ default_subtitle = (
 title = st.text_input("Widget title", value=default_title)
 subtitle = st.text_input("Widget subtitle", value=default_subtitle)
 
-# GitHub details for URL & (optionally) upload
-github_username = st.text_input(
+github_username_input = st.text_input(
     "GitHub username (used to build GitHub Pages URL)",
     value=GITHUB_USER_DEFAULT or "your-github-username",
 )
 
 default_repo_name = "supermoon-visibility-widget"
 repo_name = st.text_input("GitHub repo name (for GitHub Pages)", value=default_repo_name)
-
 branch_name = st.text_input("GitHub branch for GitHub Pages", value="main")
 
-# Build expected GitHub Pages URL (used both inside widget + external iframe)
-if github_username and repo_name and "your-github-username" not in github_username:
-    expected_embed_url = (
-        f"https://{github_username}.github.io/{repo_name}/supermoon_table.html"
-    )
+# Pick one effective username to use everywhere
+github_username_input = github_username_input.strip()
+effective_github_user = (
+    github_username_input
+    if github_username_input and github_username_input != "your-github-username"
+    else (GITHUB_USER_DEFAULT or github_username_input)
+)
+
+if effective_github_user and "your-github-username" not in effective_github_user:
+    expected_embed_url = f"https://{effective_github_user}.github.io/{repo_name}/supermoon_table.html"
 else:
     expected_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
 
@@ -833,7 +792,6 @@ if uploaded_file is not None:
         "Avg. Elevation (ft)",
         "Darkness Score (1–5)",
     ]
-
     missing = [c for c in required_cols if c not in raw_df.columns]
     if missing:
         st.error(f"Missing required columns in CSV: {missing}")
@@ -866,14 +824,11 @@ if uploaded_file is not None:
     st.subheader("Cleaned data preview")
     st.dataframe(df.head())
 
-    # Generate HTML with expected GitHub Pages URL baked into the widget's embed button
     html = generate_html_from_df(df, title, subtitle, expected_embed_url)
 
-    # --- Interactive table preview inside Streamlit -------------------
     st.subheader("Interactive widget preview")
     components.html(html, height=900, scrolling=True)
 
-    # --- 1) RAW HTML OUTPUT (copy & paste) ---------------------------
     st.subheader("Full HTML code (copy & paste)")
     st.text_area(
         "Generated HTML (supermoon_table.html)",
@@ -881,7 +836,6 @@ if uploaded_file is not None:
         height=400,
     )
 
-    # --- 2) IFRAME SNIPPET WITH GITHUB URL ---------------------------
     st.subheader("Iframe embed code (using GitHub Pages URL)")
     iframe_snippet = f"""<iframe src="{expected_embed_url}"
   title="{title}"
@@ -890,7 +844,6 @@ if uploaded_file is not None:
   style="border:0;" loading="lazy"></iframe>"""
     st.code(iframe_snippet, language="html")
 
-    # Download button
     st.subheader("Download HTML file")
     st.download_button(
         label="Download supermoon_table.html",
@@ -899,38 +852,29 @@ if uploaded_file is not None:
         mime="text/html",
     )
 
-    # Optional: push to GitHub
     st.subheader("Publish to GitHub (optional)")
-
-    effective_github_user = (
-        github_username
-        if github_username and "your-github-username" not in github_username
-        else GITHUB_USER_DEFAULT
-    )
 
     if not GITHUB_TOKEN or not effective_github_user or "your-github-username" in effective_github_user:
         st.info(
             "To enable GitHub publishing, set `GITHUB_TOKEN` and `GITHUB_USER` in secrets "
-            "or provide a real GitHub username above."
+            "and/or provide a real GitHub username above."
         )
     else:
         if st.button("Create / Update repo, upload HTML & trigger GitHub Pages build"):
             try:
-                # 1) Ensure repo exists
+                st.write(f"Using GitHub user: `{effective_github_user}`, repo: `{repo_name}`")
+
                 ensure_repo_exists(effective_github_user, repo_name, GITHUB_TOKEN)
 
-                # 2) Try to enable GitHub Pages on the chosen branch
                 try:
                     ensure_pages_enabled(
                         effective_github_user, repo_name, GITHUB_TOKEN, branch_name
                     )
                 except Exception as pages_err:
                     st.warning(
-                        f"Could not automatically enable GitHub Pages via API "
-                        f"(you might need to enable it once in the repo settings): {pages_err}"
+                        f"GitHub Pages may need manual setup in the repo settings: {pages_err}"
                     )
 
-                # 3) Upload / update the HTML file
                 upload_file_to_github(
                     effective_github_user,
                     repo_name,
@@ -940,27 +884,21 @@ if uploaded_file is not None:
                     "Add/update supermoon_table.html from Streamlit app",
                 )
 
-                # 4) Ask GitHub to rebuild the Pages site
                 build_ok = trigger_pages_build(
                     effective_github_user, repo_name, GITHUB_TOKEN
                 )
 
-                st.success(
-                    "Uploaded HTML to GitHub and requested a GitHub Pages build."
+                st.success("Uploaded HTML to GitHub and requested a GitHub Pages build.")
+                st.info(
+                    f"Expected GitHub Pages URL: {expected_embed_url}\n\n"
+                    "If it returns 404 right away, GitHub Pages may still be building. "
+                    "Once it’s live, you can use the iframe snippet above."
                 )
-
-                info_msg = (
-                    f"**Expected GitHub Pages URL:** {expected_embed_url}\n\n"
-                    "If you open this URL and still see a 404, GitHub Pages "
-                    "probably hasn't finished building yet. Wait a bit and refresh."
-                )
-                st.info(info_msg)
 
                 if not build_ok:
                     st.warning(
-                        "Could not confirm that a GitHub Pages build was triggered. "
-                        "If the page does not appear after some time, check the "
-                        "Pages settings and build logs in the repository."
+                        "Could not confirm a GitHub Pages build via API. "
+                        "If the page never appears, check the Pages settings and build logs in GitHub."
                     )
 
                 st.markdown("**Iframe embed code (using that URL):**")
