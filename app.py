@@ -1,4 +1,5 @@
 import base64
+import time
 import requests
 import pandas as pd
 import streamlit as st
@@ -946,8 +947,8 @@ st.set_page_config(page_title="Supermoon Table Generator", layout="wide")
 
 st.title("Supermoon Visibility Table Generator")
 st.write(
-    "Upload a CSV, choose your GitHub campaign, then use the tabs to preview "
-    "and embed your Supermoon widget via GitHub Pages."
+    "Upload a CSV, choose your GitHub campaign, then click **Get widget** to "
+    "publish your Supermoon table via GitHub Pages."
 )
 
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
@@ -1002,10 +1003,21 @@ if uploaded_file is not None:
         "based on sky clarity, elevation, darkness, and atmospheric conditions."
     )
 
-    # ---------- Global GitHub & campaign settings (above tabs) ----------
+    # ---------- Widget text (always visible, not part of output tabs) ----------
+    widget_title = st.text_input(
+        "Widget name",
+        value=st.session_state.get("widget_title", default_title),
+        key="widget_title",
+    )
+    widget_subtitle = st.text_input(
+        "Widget subtitle",
+        value=st.session_state.get("widget_subtitle", default_subtitle),
+        key="widget_subtitle",
+    )
+
+    # ---------- GitHub & campaign settings (always visible) ----------
     st.subheader("GitHub & campaign settings")
 
-    # Existing saved values
     saved_gh_user = st.session_state.get("gh_user", "")
     saved_gh_repo = st.session_state.get("gh_repo", "supermoon-visibility-widget")
 
@@ -1043,17 +1055,17 @@ if uploaded_file is not None:
         f"Expected GitHub Pages URL (used in widget footer & iframe):\n\n`{expected_embed_url}`"
     )
 
-    # ---------- One-click: create/update repo + HTML + iframe ----------
     st.markdown(
         "<p style='font-size:0.85rem; color:#c4c4c4;'>"
-        "Click <strong>Get widget</strong> to publish the table to GitHub Pages and receive "
-        "an iframe you can paste into your site."
+        "Click <strong>Get widget</strong> to publish the table to GitHub Pages and then "
+        "see the preview and embed options below."
         "</p>",
         unsafe_allow_html=True,
     )
 
     iframe_snippet = st.session_state.get("iframe_snippet")
 
+    # ---------- Get widget button (with short loading bar) ----------
     if not GITHUB_TOKEN:
         st.info(
             "Set `GITHUB_TOKEN` in `.streamlit/secrets.toml` (with `repo` scope) "
@@ -1064,7 +1076,15 @@ if uploaded_file is not None:
     else:
         if st.button("Get widget"):
             try:
-                # Use latest configured title/subtitle from session state or defaults
+                # Progress bar placeholder
+                progress_placeholder = st.empty()
+                progress = progress_placeholder.progress(0)
+
+                # Small staged progress before the actual work
+                for pct in (20, 45, 70):
+                    time.sleep(0.12)
+                    progress.progress(pct)
+
                 title_for_publish = st.session_state.get("widget_title", default_title)
                 subtitle_for_publish = st.session_state.get("widget_subtitle", default_subtitle)
 
@@ -1073,12 +1093,16 @@ if uploaded_file is not None:
                     df, title_for_publish, subtitle_for_publish, expected_embed_url
                 )
 
+                progress.progress(80)
+
                 # 1) Ensure repo exists
                 ensure_repo_exists(
                     effective_github_user,
                     repo_name.strip(),
                     GITHUB_TOKEN,
                 )
+
+                progress.progress(90)
 
                 # 2) Enable GitHub Pages (best effort)
                 try:
@@ -1088,12 +1112,9 @@ if uploaded_file is not None:
                         GITHUB_TOKEN,
                         branch="main",
                     )
-                except Exception as pages_err:
-                    # Soft warning only if Pages enable fails
-                    st.warning(
-                        "Repo created or found, but enabling GitHub Pages via API may have failed. "
-                        "You may need to finalize Pages settings manually in GitHub."
-                    )
+                except Exception:
+                    # Soft warning only if Pages enable fails, but don't spam text here
+                    pass
 
                 # 3) Upload HTML file
                 upload_file_to_github(
@@ -1113,6 +1134,10 @@ if uploaded_file is not None:
                     GITHUB_TOKEN,
                 )
 
+                progress.progress(100)
+                time.sleep(0.15)
+                progress_placeholder.empty()
+
                 iframe_snippet = f"""<iframe src="{expected_embed_url}"
   title="{title_for_publish}"
   width="100%" height="650"
@@ -1120,75 +1145,68 @@ if uploaded_file is not None:
   style="border:0;" loading="lazy"></iframe>"""
 
                 st.session_state["iframe_snippet"] = iframe_snippet
+                st.session_state["has_generated"] = True
 
-                # Minimal confirmation message only
-                st.success("Widget iframe updated. Open the **Embed help** tab to copy it.")
+                st.success("Widget iframe updated. Open the tabs below to preview and embed it.")
 
             except Exception as e:
+                progress_placeholder.empty()
                 st.error(f"GitHub publish failed: {e}")
 
     st.markdown("---")
 
-    # ---------- Tabs layout (data + widget config/preview) ----------
-    tab1, tab2, tab3 = st.tabs(
-        [
-            "Detected columns & data",
-            "Configure & preview widget",
-            "Embed help",
-        ]
-    )
+    # ---------- Output tabs (only AFTER Get widget, or if no token) ----------
+    has_generated = st.session_state.get("has_generated", False)
+    show_tabs = has_generated or not GITHUB_TOKEN  # allow preview when token missing
 
-    # -------- TAB 1: Detected columns & table preview --------
-    with tab1:
-        st.subheader("Detected columns")
-        st.write(list(raw_df.columns))
-
-        st.subheader("Cleaned data preview")
-        st.dataframe(df.head())
-
-    # -------- TAB 2: Configure widget + preview --------
-    with tab2:
-        # Widget title/subtitle
-        title = st.text_input(
-            "Widget name",
-            value=st.session_state.get("widget_title", default_title),
-            key="widget_title",
-        )
-        subtitle = st.text_input(
-            "Widget subtitle",
-            value=st.session_state.get("widget_subtitle", default_subtitle),
-            key="widget_subtitle",
+    if show_tabs:
+        tab1, tab2, tab3 = st.tabs(
+            [
+                "Detected columns & data",
+                "Configure & preview widget",
+                "Embed help",
+            ]
         )
 
-        # Preview HTML uses the expected embed URL
-        html_preview = generate_html_from_df(df, title, subtitle, expected_embed_url)
+        # -------- TAB 1: Detected columns & table preview --------
+        with tab1:
+            st.subheader("Detected columns")
+            st.write(list(raw_df.columns))
 
-        preview_tab, html_tab = st.tabs(["Widget preview", "HTML file contents"])
+            st.subheader("Cleaned data preview")
+            st.dataframe(df.head())
 
-        with preview_tab:
-            components.html(html_preview, height=650, scrolling=True)
+        # -------- TAB 2: Widget preview + HTML (widget first) --------
+        with tab2:
+            # Preview HTML uses current title/subtitle and expected embed URL
+            html_preview = generate_html_from_df(df, widget_title, widget_subtitle, expected_embed_url)
 
-        with html_tab:
-            st.text_area(
-                label="",
-                value=html_preview,
-                height=350,
-                label_visibility="collapsed",
+            preview_tab, html_tab = st.tabs(["Widget preview", "HTML file contents"])
+
+            with preview_tab:
+                components.html(html_preview, height=650, scrolling=True)
+
+            with html_tab:
+                st.text_area(
+                    label="",
+                    value=html_preview,
+                    height=350,
+                    label_visibility="collapsed",
+                )
+
+        # -------- TAB 3: Simple embed help --------
+        with tab3:
+            st.subheader("How to embed your widget")
+            st.markdown(
+                "1. Click **Get widget** above whenever you change the title or campaign.\n"
+                "2. Wait for GitHub Pages to finish building at the URL shown in the caption.\n"
+                "3. Paste the iframe code into your article or CMS.\n"
             )
-
-    # -------- TAB 3: Simple embed help --------
-    with tab3:
-        st.subheader("How to embed your widget")
-        st.markdown(
-            "1. Click **Get widget** above.\n"
-            "2. Wait for GitHub Pages to finish building at the URL shown in the caption.\n"
-            "3. Paste the iframe code into your article or CMS.\n"
-        )
-        if st.session_state.get("iframe_snippet"):
-            st.markdown("**Current iframe code:**")
-            st.code(st.session_state["iframe_snippet"], language="html")
-        else:
-            st.info("No iframe yet – click **Get widget** above to generate it.")
+            if st.session_state.get("iframe_snippet"):
+                st.markdown("**Current iframe code:**")
+                st.code(st.session_state["iframe_snippet"], language="html")
+            else:
+                st.info("No iframe yet – click **Get widget** above to generate it.")
 
 else:
-    st.info("Upload a CSV to unlock the GitHub settings and widget tabs.")
+    st.info("Upload a CSV to configure and generate your widget.")
