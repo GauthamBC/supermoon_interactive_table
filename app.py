@@ -1089,8 +1089,9 @@ if uploaded_file is not None:
                         branch="main",
                     )
                 except Exception as pages_err:
+                    # Soft warning only if Pages enable fails
                     st.warning(
-                        f"Repo exists/created, but enabling GitHub Pages via API may have failed: {pages_err}\n"
+                        "Repo created or found, but enabling GitHub Pages via API may have failed. "
                         "You may need to finalize Pages settings manually in GitHub."
                     )
 
@@ -1106,7 +1107,7 @@ if uploaded_file is not None:
                 )
 
                 # 4) Trigger Pages build
-                build_ok = trigger_pages_build(
+                trigger_pages_build(
                     effective_github_user,
                     repo_name.strip(),
                     GITHUB_TOKEN,
@@ -1120,31 +1121,11 @@ if uploaded_file is not None:
 
                 st.session_state["iframe_snippet"] = iframe_snippet
 
-                st.success(
-                    f"Repo `{effective_github_user}/{repo_name.strip()}` is ready and "
-                    "`supermoon_table.html` has been uploaded."
-                )
-                st.info(
-                    "Once GitHub Pages finishes building, your widget should be live at:\n\n"
-                    f"`{expected_embed_url}`"
-                )
-
-                if not build_ok:
-                    st.warning(
-                        "Could not confirm a GitHub Pages build via API. "
-                        "If the page never appears, check the Pages settings and build logs in GitHub."
-                    )
-
-                st.subheader("Your iframe embed code")
-                st.code(iframe_snippet, language="html")
+                # Minimal confirmation message only
+                st.success("Widget iframe updated. Open the **Embed help** tab to copy it.")
 
             except Exception as e:
                 st.error(f"GitHub publish failed: {e}")
-
-    # If a previous run already produced an iframe, keep showing it
-    if iframe_snippet:
-        st.subheader("Current iframe embed code")
-        st.code(iframe_snippet, language="html")
 
     st.markdown("---")
 
@@ -1167,7 +1148,7 @@ if uploaded_file is not None:
 
     # -------- TAB 2: Configure widget + preview --------
     with tab2:
-        # Widget title/subtitle (no "Widget text" header)
+        # Widget title/subtitle
         title = st.text_input(
             "Widget name",
             value=st.session_state.get("widget_title", default_title),
@@ -1200,7 +1181,7 @@ if uploaded_file is not None:
         st.subheader("How to embed your widget")
         st.markdown(
             "1. Click **Get widget** above.\n"
-            "2. Wait for GitHub Pages to finish building at the URL shown.\n"
+            "2. Wait for GitHub Pages to finish building at the URL shown in the caption.\n"
             "3. Paste the iframe code into your article or CMS.\n"
         )
         if st.session_state.get("iframe_snippet"):
