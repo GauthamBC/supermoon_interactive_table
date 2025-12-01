@@ -643,93 +643,6 @@ def generate_html_from_df(
 
     return html
 
-# === 4. GitHub helper functions ======================================
-
-def github_headers(token: str):
-    return {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-    }
-
-def ensure_repo_exists(owner: str, repo: str, token: str) -> bool:
-    """
-    Ensure repo exists.
-    Returns:
-      True  -> repo was just created
-      False -> repo already existed
-    """
-    api_base = "https://api.github.com"
-    headers = github_headers(token)
-
-    r = requests.get(f"{api_base}/repos/{owner}/{repo}", headers=headers)
-    if r.status_code == 200:
-        return False  # already exists
-    if r.status_code != 404:
-        raise RuntimeError(f"Error checking repo: {r.status_code} {r.text}")
-
-    payload = {
-        "name": repo,
-        "auto_init": True,
-        "private": False,
-        "description": "Supermoon visibility widget (auto-created by Streamlit app).",
-    }
-    r = requests.post(f"{api_base}/user/repos", headers=headers, json=payload)
-    if r.status_code not in (200, 201):
-        raise RuntimeError(f"Error creating repo: {r.status_code} {r.text}")
-
-    return True  # newly created
-
-def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main") -> None:
-    api_base = "https://api.github.com"
-    headers = github_headers(token)
-
-    r = requests.get(f"{api_base}/repos/{owner}/{repo}/pages", headers=headers)
-    if r.status_code == 200:
-        return
-    if r.status_code not in (404, 403):
-        raise RuntimeError(f"Error checking GitHub Pages: {r.status_code} {r.text}")
-    if r.status_code == 403:
-        # No permission via API, but don't kill the flow.
-        return
-
-    payload = {"source": {"branch": branch, "path": "/"}}
-    r2 = requests.post(f"{api_base}/repos/{owner}/{repo}/pages", headers=headers, json=payload)
-    if r2.status_code not in (201, 202):
-        raise RuntimeError(f"Error enabling GitHub Pages: {r2.status_code} {r2.text}")
-
-def upload_file_to_github(
-    owner: str,
-    repo: str,
-    token: str,
-    path: str,
-    content: str,
-    message: str,
-) -> None:
-    api_base = "https://api.github.com"
-    headers = github_headers(token)
-
-    get_url = f"{api_base}/repos/{owner}/{repo}/contents/{path}"
-    r = requests.get(get_url, headers=headers)
-    sha = None
-    if r.status_code == 200:
-        sha = r.json().get("sha")
-
-    encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
-
-    payload = {"message": message, "content": encoded}
-    if sha:
-        payload["sha"] = sha
-
-    r = requests.put(get_url, headers=headers, json=payload)
-    if r.status_code not in (200, 201):
-        raise RuntimeError(f"Error uploading file: {r.status_code} {r.text}")
-
-def trigger_pages_build(owner: str, repo: str, token: str) -> bool:
-    api_base = "https://api.github.com"
-    headers = github_headers(token)
-    r = requests.post(f"{api_base}/repos/{owner}/{repo}/pages/builds", headers=headers)
-    return r.status_code in (201, 202)
-
 # === 5. Streamlit App ================================================
 
 st.set_page_config(page_title="Supermoon Table Generator", layout="wide")
@@ -750,32 +663,26 @@ default_subtitle = (
     "moneyline odds."
 )
 
-title = st.text_input("Widget title", value=default_title)
+# Widget name + subtitle
+title = st.text_input("Widget name", value=default_title)
 subtitle = st.text_input("Widget subtitle", value=default_subtitle)
 
-github_username_input = st.text_input(
-    "GitHub username (used to build GitHub Pages URL)",
-    value=GITHUB_USER_DEFAULT or "your-github-username",
-)
+# Username dropdown
+username_options = ["GauthamBC", "ActionNetwork", "MoonWatcher", "SampleUser"]
+if GITHUB_USER_DEFAULT and GITHUB_USER_DEFAULT not in username_options:
+    username_options.insert(0, GITHUB_USER_DEFAULT)
 
+github_username_input = st.selectbox("Username", options=username_options)
+
+# Campaign name (GitHub repo name)
 default_repo_name = "supermoon-visibility-widget"
-repo_name = st.text_input("GitHub repo name (for GitHub Pages)", value=default_repo_name)
-branch_name = st.text_input("GitHub branch for GitHub Pages", value="main")
+repo_name = st.text_input("Campaign name (GitHub repo name)", value=default_repo_name)
 
-github_username_input = github_username_input.strip()
-effective_github_user = (
-    github_username_input
-    if github_username_input and github_username_input != "your-github-username"
-    else (GITHUB_USER_DEFAULT or github_username_input)
-)
-
-if effective_github_user and "your-github-username" not in effective_github_user:
-    expected_embed_url = f"https://{effective_github_user}.github.io/{repo_name}/supermoon_table.html"
-else:
-    expected_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
+effective_github_user = github_username_input.strip()
+expected_embed_url = f"https://{effective_github_user}.github.io/{repo_name}/supermoon_table.html"
 
 st.caption(
-    f"Expected GitHub Pages URL (baked into the widget's Embed button & iframe below): "
+    f"Expected GitHub Pages URL (used in the widget's Embed button & iframe): "
     f"`{expected_embed_url}`"
 )
 
@@ -837,14 +744,14 @@ if uploaded_file is not None:
     st.subheader("Interactive widget preview")
     components.html(html, height=900, scrolling=True)
 
-    st.subheader("Full HTML code (copy & paste)")
+    st.subheader("HTML file contents (copy & paste)")
     st.text_area(
-        "Generated HTML (supermoon_table.html)",
+        "Copy this into a file named `supermoon_table.html`",
         value=html,
         height=400,
     )
 
-    st.subheader("Iframe embed code (using GitHub Pages URL)")
+    st.subheader("Iframe embed code (using URL above)")
     iframe_snippet = f"""<iframe src="{expected_embed_url}"
   title="{title}"
   width="100%" height="750"
@@ -852,72 +759,5 @@ if uploaded_file is not None:
   style="border:0;" loading="lazy"></iframe>"""
     st.code(iframe_snippet, language="html")
 
-    st.subheader("Download HTML file")
-    st.download_button(
-        label="Download supermoon_table.html",
-        data=html.encode("utf-8"),
-        file_name="supermoon_table.html",
-        mime="text/html",
-    )
-
-    st.subheader("Publish to GitHub (optional)")
-
-    if not GITHUB_TOKEN or not effective_github_user or "your-github-username" in effective_github_user:
-        st.info(
-            "To enable GitHub publishing, set `GITHUB_TOKEN` and `GITHUB_USER` in secrets "
-            "and/or provide a real GitHub username above."
-        )
-    else:
-        if st.button("Create / Update repo, upload HTML & trigger GitHub Pages build"):
-            try:
-                st.write(f"Using GitHub user: `{effective_github_user}`, repo: `{repo_name}`")
-
-                # NEW: know if repo existed already
-                created = ensure_repo_exists(effective_github_user, repo_name, GITHUB_TOKEN)
-                if created:
-                    st.success(f"Created new repo `{effective_github_user}/{repo_name}`.")
-                else:
-                    st.info(f"Repo `{effective_github_user}/{repo_name}` already exists – reusing it.")
-
-                try:
-                    ensure_pages_enabled(
-                        effective_github_user, repo_name, GITHUB_TOKEN, branch_name
-                    )
-                except Exception as pages_err:
-                    st.warning(
-                        f"GitHub Pages may need manual setup in the repo settings: {pages_err}"
-                    )
-
-                upload_file_to_github(
-                    effective_github_user,
-                    repo_name,
-                    GITHUB_TOKEN,
-                    "supermoon_table.html",
-                    html,
-                    "Add/update supermoon_table.html from Streamlit app",
-                )
-
-                build_ok = trigger_pages_build(
-                    effective_github_user, repo_name, GITHUB_TOKEN
-                )
-
-                st.success("Uploaded HTML to GitHub and requested a GitHub Pages build.")
-                st.info(
-                    f"Expected GitHub Pages URL: {expected_embed_url}\n\n"
-                    "If it returns 404 right away, GitHub Pages may still be building. "
-                    "Once it’s live, you can use the iframe snippet above."
-                )
-
-                if not build_ok:
-                    st.warning(
-                        "Could not confirm a GitHub Pages build via API. "
-                        "If the page never appears, check the Pages settings and build logs in GitHub."
-                    )
-
-                st.markdown("**Iframe embed code (using that URL):**")
-                st.code(iframe_snippet, language="html")
-
-            except Exception as e:
-                st.error(f"GitHub upload failed: {e}")
 else:
     st.info("Upload a CSV to generate the widget.")
