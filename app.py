@@ -223,13 +223,20 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .sub{margin:0;color:rgba(255,255,255,.92)!important;font-size:12px}
     .vi-compact-embed .meta{margin:4px 0 0;color:rgba(255,255,255,.85)!important;font-size:12px}
 
-    .vi-compact-embed .table{
-      padding:10px 12px;
-      max-height:none;
-      overflow:visible;
-      scrollbar-width:thin;
+   .vi-compact-embed .row{
+      display:grid;
+      grid-template-columns:36px 1fr minmax(240px,48%);
+      gap:8px;
+      align-items:center;
+      margin:6px 0;
+      border:1px solid var(--border)!important;
+      border-radius:12px;
+      padding:8px 10px;
+      background:#fff!important;
+      transition:transform .18s,box-shadow .18s,background-color .15s,border-color .15s;
+      transform-origin:center;
+      min-height:48px;  /* NEW: helps the 20-row max-height behave nicely */
     }
-
     .vi-compact-embed .row{
       display:grid;grid-template-columns:36px 1fr minmax(240px,48%);gap:8px;align-items:center;margin:6px 0;
       border:1px solid var(--border)!important;border-radius:12px;padding:8px 10px;background:#fff!important;
