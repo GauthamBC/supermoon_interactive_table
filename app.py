@@ -27,7 +27,6 @@ def github_headers(token: str):
     }
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    # Optional but recommended:
     headers["X-GitHub-Api-Version"] = "2022-11-28"
     return headers
 
@@ -41,14 +40,12 @@ def ensure_repo_exists(owner: str, repo: str, token: str) -> bool:
     api_base = "https://api.github.com"
     headers = github_headers(token)
 
-    # Check if repo exists
     r = requests.get(f"{api_base}/repos/{owner}/{repo}", headers=headers)
     if r.status_code == 200:
         return False  # already exists
     if r.status_code != 404:
         raise RuntimeError(f"Error checking repo: {r.status_code} {r.text}")
 
-    # Create repo if missing
     payload = {
         "name": repo,
         "auto_init": True,
@@ -69,7 +66,6 @@ def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main"
     api_base = "https://api.github.com"
     headers = github_headers(token)
 
-    # Check if Pages already enabled
     r = requests.get(f"{api_base}/repos/{owner}/{repo}/pages", headers=headers)
     if r.status_code == 200:
         return
@@ -79,7 +75,6 @@ def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main"
         # No permission via API; nothing we can do programmatically.
         return
 
-    # Enable GitHub Pages from the given branch root (legacy mode)
     payload = {"source": {"branch": branch, "path": "/"}}
     r2 = requests.post(f"{api_base}/repos/{owner}/{repo}/pages", headers=headers, json=payload)
     if r2.status_code not in (201, 202):
@@ -762,23 +757,19 @@ st.set_page_config(page_title="Supermoon Table Generator", layout="wide")
 
 st.title("Supermoon Visibility Table Generator")
 st.write(
-    "1. Upload a CSV.\n"
-    "2. Configure widget text, username & campaign name.\n"
-    "3. Generate HTML and publish it to GitHub Pages."
+    "Upload a CSV, then use the tabs below to preview, configure, and publish "
+    "your Supermoon widget via GitHub Pages."
 )
 
-uploaded_file = st.file_uploader("Step 1 – Upload your CSV file", type=["csv"])
+uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
 if uploaded_file is not None:
-    # ========== STEP 2: READ & CLEAN CSV FIRST ==========
+    # --- Step 1: read & clean CSV ---
     try:
         raw_df = pd.read_csv(uploaded_file)
     except Exception as e:
         st.error(f"Error reading CSV: {e}")
         st.stop()
-
-    st.subheader("Detected columns")
-    st.write(list(raw_df.columns))
 
     required_cols = [
         "State",
@@ -796,7 +787,6 @@ if uploaded_file is not None:
 
     df = pd.DataFrame()
     df["state"] = raw_df["State"]
-
     df["probability"] = (
         raw_df["Implied Supermoon Viewing Probability (%)"]
         .astype(str)
@@ -804,7 +794,6 @@ if uploaded_file is not None:
         .str.strip()
         .astype(float)
     )
-
     df["odds"] = (
         raw_df["Supermoon Viewing Odds (Moneyline)"]
         .astype(str)
@@ -812,81 +801,99 @@ if uploaded_file is not None:
         .str.strip()
         .astype(int)
     )
-
     df["clear_days_dec"] = raw_df["Avg. Clear Sky Days (Dec)"].astype(float)
     df["humidity_dec"] = raw_df["Avg. Humidity (Dec)"].astype(float)
     df["elevation_ft"] = raw_df["Avg. Elevation (ft)"].astype(float)
     df["dark_score"] = raw_df["Darkness Score (1–5)"].astype(float)
 
-    st.subheader("Cleaned data preview")
-    st.dataframe(df.head())
-
-    # ========== STEP 3: WIDGET TEXT & GITHUB SETTINGS (AFTER CSV) ==========
-    st.markdown("---")
-    st.subheader("Step 2 – Configure widget text & GitHub details")
-
-    default_title = "Top U.S. States for Supermoon Visibility in 2025"
-    default_subtitle = (
-        "Ranked by visibility factors such as sky clarity, elevation, and "
-        "atmospheric conditions, converted into implied probabilities and "
-        "moneyline odds."
+    # --- Tabs layout ---
+    tab1, tab2, tab3, tab4 = st.tabs(
+        [
+            "Detected columns & data",
+            "Widget preview",
+            "Configure widget",
+            "Create repo & publish",
+        ]
     )
 
-    title = st.text_input("Widget name", value=default_title)
-    subtitle = st.text_input("Widget subtitle", value=default_subtitle)
+    # -------- TAB 1: Detected columns & table preview --------
+    with tab1:
+        st.subheader("Detected columns")
+        st.write(list(raw_df.columns))
 
-    # Username dropdown
-    username_options = ["GauthamBC", "ActionNetwork", "MoonWatcher", "SampleUser"]
-    if GITHUB_USER_DEFAULT and GITHUB_USER_DEFAULT not in username_options:
-        username_options.insert(0, GITHUB_USER_DEFAULT)
+        st.subheader("Cleaned data preview")
+        st.dataframe(df.head())
 
-    github_username_input = st.selectbox("Username", options=username_options)
-    effective_github_user = github_username_input.strip()
+    # -------- TAB 3: Configure widget (we do this before we need HTML) --------
+    with tab3:
+        st.subheader("Widget text")
+        default_title = "Top U.S. States for Supermoon Visibility in 2025"
+        default_subtitle = (
+            "Ranked by visibility factors such as sky clarity, elevation, and "
+            "atmospheric conditions, converted into implied probabilities and "
+            "moneyline odds."
+        )
 
-    repo_name = st.text_input(
-        "Campaign name (GitHub repo name)",
-        value="supermoon-visibility-widget",
-    )
+        title = st.text_input("Widget name", value=default_title, key="widget_title")
+        subtitle = st.text_input("Widget subtitle", value=default_subtitle, key="widget_subtitle")
 
-    # If username or repo missing, use placeholder for preview
-    if effective_github_user and repo_name.strip():
-        expected_embed_url = f"https://{effective_github_user}.github.io/{repo_name.strip()}/supermoon_table.html"
-    else:
-        expected_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
+        st.markdown("---")
+        st.subheader("GitHub settings")
 
-    st.caption(
-        f"Expected GitHub Pages URL (baked into the widget footer & iframe):\n\n"
-        f"`{expected_embed_url}`"
-    )
+        username_options = ["GauthamBC", "ActionNetwork", "MoonWatcher", "SampleUser"]
+        if GITHUB_USER_DEFAULT and GITHUB_USER_DEFAULT not in username_options:
+            username_options.insert(0, GITHUB_USER_DEFAULT)
 
-    # ========== STEP 4: GENERATE HTML (NOW WE HAVE CSV + SETTINGS) ==========
+        github_username_input = st.selectbox(
+            "Username (GitHub username)", options=username_options, key="gh_user"
+        )
+        effective_github_user = github_username_input.strip()
+
+        repo_name = st.text_input(
+            "Campaign name (GitHub repo name)",
+            value="supermoon-visibility-widget",
+            key="gh_repo",
+        )
+
+        if effective_github_user and repo_name.strip():
+            expected_embed_url = (
+                f"https://{effective_github_user}.github.io/{repo_name.strip()}/supermoon_table.html"
+            )
+        else:
+            expected_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
+
+        st.caption(
+            f"Expected GitHub Pages URL (used in widget footer & iframe):\n\n`{expected_embed_url}`"
+        )
+
+    # After tab3 code runs, we have title/subtitle/user/repo -> build HTML once
     html = generate_html_from_df(df, title, subtitle, expected_embed_url)
 
-    st.subheader("Step 3 – Widget preview")
-    components.html(html, height=900, scrolling=True)
+    # -------- TAB 2: Widget preview --------
+    with tab2:
+        st.subheader("Interactive widget preview")
+        components.html(html, height=900, scrolling=True)
 
-    st.subheader("HTML file contents (copy & paste)")
-    st.text_area(
-        "This is the content of `supermoon_table.html`.",
-        value=html,
-        height=400,
-    )
-
-    # ========== STEP 5: ONE BUTTON – CREATE REPO + UPLOAD + PUBLISH ==========
-    st.markdown("---")
-    st.subheader("Step 4 – Create repo, upload HTML & publish via GitHub Pages")
-
-    if not GITHUB_TOKEN:
-        st.info(
-            "Set `GITHUB_TOKEN` in Streamlit secrets (with `repo` scope) to enable automatic GitHub publishing."
+        st.subheader("HTML file contents")
+        st.text_area(
+            "Copy this into `supermoon_table.html` if you’d rather upload manually.",
+            value=html,
+            height=350,
         )
-    else:
-        if st.button("Create repo & publish widget to GitHub Pages"):
-            if not effective_github_user:
-                st.error("Please select a username.")
-            elif not repo_name.strip():
-                st.error("Please enter a campaign name (repo name).")
-            else:
+
+    # -------- TAB 4: Create repo, upload HTML & publish --------
+    with tab4:
+        st.subheader("Create repo, upload HTML & publish via GitHub Pages")
+
+        if not GITHUB_TOKEN:
+            st.info(
+                "Set `GITHUB_TOKEN` in `.streamlit/secrets.toml` (with `repo` scope) "
+                "to enable automatic GitHub publishing."
+            )
+        elif not effective_github_user or not repo_name.strip():
+            st.info("Configure username and campaign name in the **Configure widget** tab first.")
+        else:
+            if st.button("Create repo, upload `supermoon_table.html` & trigger Pages build"):
                 try:
                     # 1) Ensure repo exists
                     created = ensure_repo_exists(
@@ -895,7 +902,7 @@ if uploaded_file is not None:
                         GITHUB_TOKEN,
                     )
 
-                    # 2) Ensure GitHub Pages is enabled (best effort)
+                    # 2) Enable GitHub Pages (best effort)
                     try:
                         ensure_pages_enabled(
                             effective_github_user,
@@ -906,7 +913,7 @@ if uploaded_file is not None:
                     except Exception as pages_err:
                         st.warning(
                             f"Repo exists/created, but enabling GitHub Pages via API may have failed: {pages_err}\n"
-                            "You might need to turn on Pages manually in the repo settings."
+                            "You may need to finalize Pages settings manually in GitHub."
                         )
 
                     # 3) Upload HTML file
@@ -928,10 +935,11 @@ if uploaded_file is not None:
                     )
 
                     st.success(
-                        f"Repo `{effective_github_user}/{repo_name.strip()}` is ready and `supermoon_table.html` is uploaded."
+                        f"Repo `{effective_github_user}/{repo_name.strip()}` is ready and "
+                        "`supermoon_table.html` has been uploaded."
                     )
                     st.info(
-                        f"Once the Pages build finishes, your widget should be live at:\n\n"
+                        f"Once GitHub Pages finishes building, your widget should be live at:\n\n"
                         f"`{expected_embed_url}`"
                     )
 
@@ -941,8 +949,7 @@ if uploaded_file is not None:
                             "If the page never appears, check the Pages settings and build logs in GitHub."
                         )
 
-                    # Final iframe output as you requested
-                    st.subheader("Embed iframe code (final output)")
+                    st.subheader("Final iframe embed code")
                     iframe_snippet = f"""<iframe src="{expected_embed_url}"
   title="{title}"
   width="100%" height="750"
@@ -954,4 +961,4 @@ if uploaded_file is not None:
                     st.error(f"GitHub publish failed: {e}")
 
 else:
-    st.info("Upload a CSV in Step 1 to generate the widget.")
+    st.info("Upload a CSV to unlock the tabs and generate your widget.")
