@@ -254,7 +254,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .bar{position:absolute;inset:0 auto 0 0;border-radius:999px;background:linear-gradient(90deg,var(--brand-600),var(--brand-500))!important;box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)}
     .vi-compact-embed .val{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-variant-numeric:tabular-nums;font-weight:800;font-size:13px;color:#0e1a12!important;background:#fff!important;border:2px solid #e6e9ed!important;border-radius:999px;padding:2px 8px}
 
-    /* Gradient bars by probability band (based on implied probability) */
+    /* Gradient bars by probability band */
     .vi-compact-embed .bar.band-very-high{background:linear-gradient(90deg,#1F5D28,#56C257)!important}  /* >=25% */
     .vi-compact-embed .bar.band-high{background:linear-gradient(90deg,#2E8538,#63CA67)!important}       /* 20–<25% */
     .vi-compact-embed .bar.band-mid{background:linear-gradient(90deg,#3FA94B,#71D279)!important}        /* 15–<20% */
@@ -1046,10 +1046,7 @@ if uploaded_file is not None:
             key="widget_subtitle",
         )
 
-        st.caption(
-            "GitHub username and campaign name live in the **Create Iframe** tab.\n\n"
-            f"Current embed URL used inside the preview widget: `{current_embed_url}`"
-        )
+        # (Caption about GitHub / embed URL removed – handled in Create Iframe tab)
 
         # Preview HTML uses the *current* embed URL (driven by GitHub settings if set)
         html_preview = generate_html_from_df(df, title, subtitle, current_embed_url)
@@ -1065,13 +1062,8 @@ if uploaded_file is not None:
             height=350,
         )
 
-    # -------- TAB 3: Create repo, upload HTML & publish --------
+    # -------- TAB 3: Create iframe / publish --------
     with tab3:
-        st.markdown(
-            "**Please choose your GitHub account. If you don't have one configured in this tool, "
-            "please contact the tool creator, Gautham Marthandan.**"
-        )
-
         # Read latest title/subtitle from session state (so publish uses what you configured)
         title_for_publish = st.session_state.get("widget_title", default_title)
         subtitle_for_publish = st.session_state.get("widget_subtitle", default_subtitle)
@@ -1085,6 +1077,12 @@ if uploaded_file is not None:
             default_idx = username_options.index(saved_gh_user)
         else:
             default_idx = 0
+
+        st.caption(
+            "Please choose your GitHub account below. "
+            "If you don't have one configured in this tool, please contact the tool creator, "
+            "Gautham Marthandan."
+        )
 
         github_username_input = st.selectbox(
             "Username (GitHub username)",
@@ -1108,7 +1106,7 @@ if uploaded_file is not None:
             expected_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
 
         st.caption(
-            f"Expected GitHub Pages URL (used in final widget footer & iframe):\n\n`{expected_embed_url}`"
+            f"Expected GitHub Pages URL (used in the widget footer & iframe):\n\n`{expected_embed_url}`"
         )
 
         if not GITHUB_TOKEN:
@@ -1119,7 +1117,7 @@ if uploaded_file is not None:
         elif not effective_github_user or not repo_name.strip():
             st.info("Fill in username and campaign name above.")
         else:
-            if st.button("Create repo, upload `supermoon_table.html` & trigger Pages build"):
+            if st.button("Get the iframe"):
                 try:
                     # Generate final HTML with the real embed URL
                     html_final = generate_html_from_df(
@@ -1143,7 +1141,8 @@ if uploaded_file is not None:
                         )
                     except Exception as pages_err:
                         st.warning(
-                            f"Repo exists/created, but enabling GitHub Pages via API may have failed: {pages_err}\n"
+                            "Repo exists/created, but enabling GitHub Pages via API may have failed: "
+                            f"{pages_err}\n"
                             "You may need to finalize Pages settings manually in GitHub."
                         )
 
@@ -1170,7 +1169,7 @@ if uploaded_file is not None:
                         "`supermoon_table.html` has been uploaded."
                     )
                     st.info(
-                        f"Once GitHub Pages finishes building, your widget should be live at:\n\n"
+                        "Once GitHub Pages finishes building, your widget should be live at:\n\n"
                         f"`{expected_embed_url}`"
                     )
 
