@@ -4,9 +4,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-# ==============
-# 0. Secrets
-# ==============
+# ============== 0. Secrets ==============
 
 def get_secret(key: str, default: str = "") -> str:
     try:
@@ -253,25 +251,16 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .chip img{width:100%;height:100%;object-fit:cover}
 
     .vi-compact-embed .metric{position:relative;height:28px;border-radius:999px;background:rgba(86,194,87,.10)!important;overflow:hidden}
-    .vi-compact-embed .bar{
-      position:absolute;inset:0 auto 0 0;border-radius:999px;
-      /* use the lightest gradient as the base so 10+ are never darker than 9–10 */
-      background:linear-gradient(90deg,#9FE1B3,#A7E6BA)!important;
-      box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)
-    }
+    .vi-compact-embed .bar{position:absolute;inset:0 auto 0 0;border-radius:999px;background:linear-gradient(90deg,var(--brand-600),var(--brand-500))!important;box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)}
     .vi-compact-embed .val{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-variant-numeric:tabular-nums;font-weight:800;font-size:13px;color:#0e1a12!important;background:#fff!important;border:2px solid #e6e9ed!important;border-radius:999px;padding:2px 8px}
 
-    /* Gradient bars by rank */
-    .vi-compact-embed .row[data-rank="1"]  .bar{background:linear-gradient(90deg,#1F5D28,#56C257)!important}
-    .vi-compact-embed .row[data-rank="2"]  .bar{background:linear-gradient(90deg,#2A7331,#5DC65F)!important}
-    .vi-compact-embed .row[data-rank="3"]  .bar{background:linear-gradient(90deg,#2E8538,#63CA67)!important}
-    .vi-compact-embed .row[data-rank="4"]  .bar{background:linear-gradient(90deg,#379744,#6ACE70)!important}
-    .vi-compact-embed .row[data-rank="5"]  .bar{background:linear-gradient(90deg,#3FA94B,#71D279)!important}
-    .vi-compact-embed .row[data-rank="6"]  .bar{background:linear-gradient(90deg,#52B760,#7AD783)!important}
-    .vi-compact-embed .row[data-rank="7"]  .bar{background:linear-gradient(90deg,#64C274,#84DB8E)!important}
-    .vi-compact-embed .row[data-rank="8"]  .bar{background:linear-gradient(90deg,#76CC88,#8FE099)!important}
-    .vi-compact-embed .row[data-rank="9"]  .bar{background:linear-gradient(90deg,#8AD79D,#9AE5A5)!important}
-    .vi-compact-embed .row[data-rank="10"] .bar{background:linear-gradient(90deg,#9FE1B3,#A7E6BA)!important}
+    /* Gradient bars by probability band (based on implied probability) */
+    .vi-compact-embed .bar.band-very-high{background:linear-gradient(90deg,#1F5D28,#56C257)!important}  /* >=25% */
+    .vi-compact-embed .bar.band-high{background:linear-gradient(90deg,#2E8538,#63CA67)!important}       /* 20–<25% */
+    .vi-compact-embed .bar.band-mid{background:linear-gradient(90deg,#3FA94B,#71D279)!important}        /* 15–<20% */
+    .vi-compact-embed .bar.band-low{background:linear-gradient(90deg,#64C274,#84DB8E)!important}        /* 10–<15% */
+    .vi-compact-embed .bar.band-very-low{background:linear-gradient(90deg,#8AD79D,#9AE5A5)!important}   /* 5–<10% */
+    .vi-compact-embed .bar.band-tiny{background:linear-gradient(90deg,#9FE1B3,#A7E6BA)!important}       /* <5% */
 
     /* Details panel */
     .vi-compact-embed .details{
@@ -654,7 +643,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     <div id="embed-wrapper" class="embed-wrapper">
       <textarea id="embed-code" readonly>&lt;iframe src="[[EMBED_URL]]"
       title="[[TITLE]]"
-      width="100%" height="650"
+      width="100%" height="1140"
       scrolling="no"
       style="border:0;" loading="lazy"&gt;&lt;/iframe&gt;
       </textarea>
@@ -877,6 +866,21 @@ def generate_html_from_df(
 
     max_prob = float(df["probability"].max() or 1.0)
 
+    def band_for_prob(prob: float) -> str:
+        """Map implied probability to a color band class."""
+        if prob >= 25.0:
+            return "band-very-high"
+        elif prob >= 20.0:
+            return "band-high"
+        elif prob >= 15.0:
+            return "band-mid"
+        elif prob >= 10.0:
+            return "band-low"
+        elif prob >= 5.0:
+            return "band-very-low"
+        else:
+            return "band-tiny"
+
     row_snippets = []
     for _, row in df.iterrows():
         state = str(row["state"])
@@ -886,6 +890,7 @@ def generate_html_from_df(
 
         width_pct = prob / max_prob * 100.0
         bar_style = f"width:{width_pct:.2f}%;"
+        band_class = band_for_prob(prob)
 
         flag_url = STATE_FLAG_URLS.get(state, "")
         if flag_url:
@@ -904,7 +909,7 @@ def generate_html_from_df(
         {state}
       </div>
       <div class="metric">
-        <span class="bar" style="{bar_style}"></span>
+        <span class="bar {band_class}" style="{bar_style}"></span>
         <span class="val">{prob:.2f}% (+{odds})</span>
       </div>
     </div>""".rstrip()
@@ -1051,7 +1056,7 @@ if uploaded_file is not None:
 
         st.markdown("---")
         st.subheader("Interactive widget preview")
-        components.html(html_preview, height=650, scrolling=True)
+        components.html(html_preview, height=1140, scrolling=True)
 
         st.subheader("HTML file contents (preview)")
         st.text_area(
@@ -1178,7 +1183,7 @@ if uploaded_file is not None:
                     st.subheader("Final iframe embed code")
                     iframe_snippet = f"""<iframe src="{expected_embed_url}"
   title="{title_for_publish}"
-  width="100%" height="650"
+  width="100%" height="1140"
   scrolling="no"
   style="border:0;" loading="lazy"></iframe>"""
                     st.code(iframe_snippet, language="html")
