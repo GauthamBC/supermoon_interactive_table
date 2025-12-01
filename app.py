@@ -643,7 +643,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     <div id="embed-wrapper" class="embed-wrapper">
       <textarea id="embed-code" readonly>&lt;iframe src="[[EMBED_URL]]"
       title="[[TITLE]]"
-      width="100%" height="1140"
+      width="100%" height="650"
       scrolling="no"
       style="border:0;" loading="lazy"&gt;&lt;/iframe&gt;
       </textarea>
@@ -1056,7 +1056,7 @@ if uploaded_file is not None:
 
         st.markdown("---")
         st.subheader("Interactive widget preview")
-        components.html(html_preview, height=1140, scrolling=True)
+        components.html(html_preview, height=650, scrolling=True)
 
         st.subheader("HTML file contents (preview)")
         st.text_area(
@@ -1183,7 +1183,7 @@ if uploaded_file is not None:
                     st.subheader("Final iframe embed code")
                     iframe_snippet = f"""<iframe src="{expected_embed_url}"
   title="{title_for_publish}"
-  width="100%" height="1140"
+  width="100%" height="650"
   scrolling="no"
   style="border:0;" loading="lazy"></iframe>"""
                     st.code(iframe_snippet, language="html")
