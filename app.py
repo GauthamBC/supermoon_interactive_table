@@ -1,5 +1,6 @@
 import base64
 import time
+import re
 import requests
 import pandas as pd
 import streamlit as st
@@ -126,6 +127,61 @@ def trigger_pages_build(owner: str, repo: str, token: str) -> bool:
     r = requests.post(f"{api_base}/repos/{owner}/{repo}/pages/builds", headers=headers)
     return r.status_code in (201, 202)
 
+# --- New helpers for availability check -------------------------------
+
+def check_repo_exists(owner: str, repo: str, token: str) -> bool:
+    api_base = "https://api.github.com"
+    headers = github_headers(token)
+    r = requests.get(f"{api_base}/repos/{owner}/{repo}", headers=headers)
+    if r.status_code == 200:
+        return True
+    if r.status_code == 404:
+        return False
+    raise RuntimeError(f"Error checking repo: {r.status_code} {r.text}")
+
+def check_file_exists(owner: str, repo: str, token: str, path: str, branch: str = "main") -> bool:
+    api_base = "https://api.github.com"
+    headers = github_headers(token)
+    r = requests.get(
+        f"{api_base}/repos/{owner}/{repo}/contents/{path}",
+        headers=headers,
+        params={"ref": branch},
+    )
+    if r.status_code == 200:
+        return True
+    if r.status_code == 404:
+        return False
+    raise RuntimeError(f"Error checking file: {r.status_code} {r.text}")
+
+def find_next_widget_filename(owner: str, repo: str, token: str, branch: str = "main") -> str:
+    """
+    Look at the root of the repo and find the next available wN.html filename.
+    Returns 'w1.html' if none are found or on fallback.
+    """
+    api_base = "https://api.github.com"
+    headers = github_headers(token)
+    r = requests.get(
+        f"{api_base}/repos/{owner}/{repo}/contents",
+        headers=headers,
+        params={"ref": branch},
+    )
+    if r.status_code != 200:
+        return "w1.html"
+
+    max_n = 0
+    try:
+        items = r.json()
+        for item in items:
+            if item.get("type") == "file":
+                name = item.get("name", "")
+                m = re.fullmatch(r"w(\d+)\.html", name)
+                if m:
+                    max_n = max(max_n, int(m.group(1)))
+    except Exception:
+        return "w1.html"
+
+    return f"w{max_n + 1}.html" if max_n >= 0 else "w1.html"
+
 # === 1. State -> flag URL mapping =====================================
 STATE_FLAG_URLS = {
     "Alabama": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Alabama.svg",
@@ -181,6 +237,7 @@ STATE_FLAG_URLS = {
 }
 
 # === 2. HTML template =================================================
+# (unchanged HTML_TEMPLATE – omitted comment-wise, but full content kept)
 HTML_TEMPLATE = r"""<!doctype html>
 <html lang="en">
 <head>
@@ -1003,7 +1060,7 @@ if uploaded_file is not None:
         "based on sky clarity, elevation, darkness, and atmospheric conditions."
     )
 
-    # ---------- Widget text (always visible, not part of output tabs) ----------
+    # ---------- Widget text ----------
     widget_title = st.text_input(
         "Widget name",
         value=st.session_state.get("widget_title", default_title),
@@ -1015,7 +1072,7 @@ if uploaded_file is not None:
         key="widget_subtitle",
     )
 
-    # ---------- GitHub & campaign settings (always visible) ----------
+    # ---------- GitHub & campaign settings ----------
     st.subheader("GitHub & campaign settings")
 
     saved_gh_user = st.session_state.get("gh_user", "")
@@ -1044,12 +1101,17 @@ if uploaded_file is not None:
         key="gh_repo",
     )
 
-    if effective_github_user and repo_name.strip():
-        expected_embed_url = (
-            f"https://{effective_github_user}.github.io/{repo_name.strip()}/supermoon_table.html"
-        )
-    else:
-        expected_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
+    base_filename = "supermoon_table.html"
+    widget_file_name = st.session_state.get("widget_file_name", base_filename)
+
+    def compute_expected_embed_url(user: str, repo: str, fname: str) -> str:
+        if user and repo.strip():
+            return f"https://{user}.github.io/{repo.strip()}/{fname}"
+        return "https://example.github.io/your-repo/widget.html"
+
+    expected_embed_url = compute_expected_embed_url(
+        effective_github_user, repo_name, widget_file_name
+    )
 
     st.caption(
         f"Expected GitHub Pages URL (used in widget footer & iframe):\n\n`{expected_embed_url}`"
@@ -1057,107 +1119,209 @@ if uploaded_file is not None:
 
     st.markdown(
         "<p style='font-size:0.85rem; color:#c4c4c4;'>"
-        "Click <strong>Get widget</strong> to publish the table to GitHub Pages and then "
-        "see the preview and embed options below."
+        "Use <strong>Page availability check</strong> to see whether a page already exists "
+        "for this campaign, then click <strong>Get widget</strong> to publish."
         "</p>",
         unsafe_allow_html=True,
     )
 
     iframe_snippet = st.session_state.get("iframe_snippet")
 
-    # ---------- Get widget button (with short loading bar) ----------
+    # ---------- Button row: Page availability check & Get widget ----------
+    col_check, col_get = st.columns([1, 1])
+
     if not GITHUB_TOKEN:
-        st.info(
-            "Set `GITHUB_TOKEN` in `.streamlit/secrets.toml` (with `repo` scope) "
-            "to enable automatic GitHub publishing."
-        )
+        with col_get:
+            st.info(
+                "Set `GITHUB_TOKEN` in `.streamlit/secrets.toml` (with `repo` scope) "
+                "to enable automatic GitHub publishing."
+            )
     elif not effective_github_user or not repo_name.strip():
-        st.info("Fill in username and campaign name above.")
+        with col_get:
+            st.info("Fill in username and campaign name above.")
     else:
-        if st.button("Get widget"):
-            try:
-                # Progress bar placeholder
-                progress_placeholder = st.empty()
-                progress = progress_placeholder.progress(0)
-
-                # Small staged progress before the actual work
-                for pct in (20, 45, 70):
-                    time.sleep(0.12)
-                    progress.progress(pct)
-
-                title_for_publish = st.session_state.get("widget_title", default_title)
-                subtitle_for_publish = st.session_state.get("widget_subtitle", default_subtitle)
-
-                # Generate final HTML with the real embed URL
-                html_final = generate_html_from_df(
-                    df, title_for_publish, subtitle_for_publish, expected_embed_url
-                )
-
-                progress.progress(80)
-
-                # 1) Ensure repo exists
-                ensure_repo_exists(
-                    effective_github_user,
-                    repo_name.strip(),
-                    GITHUB_TOKEN,
-                )
-
-                progress.progress(90)
-
-                # 2) Enable GitHub Pages (best effort)
+        # --- Page availability check button ---
+        with col_check:
+            if st.button("Page availability check"):
                 try:
-                    ensure_pages_enabled(
+                    repo_exists = check_repo_exists(
                         effective_github_user,
                         repo_name.strip(),
                         GITHUB_TOKEN,
+                    )
+                    file_exists = False
+                    next_fname = None
+                    if repo_exists:
+                        file_exists = check_file_exists(
+                            effective_github_user,
+                            repo_name.strip(),
+                            GITHUB_TOKEN,
+                            base_filename,
+                        )
+                        if file_exists:
+                            next_fname = find_next_widget_filename(
+                                effective_github_user,
+                                repo_name.strip(),
+                                GITHUB_TOKEN,
+                            )
+
+                    st.session_state["availability"] = {
+                        "repo_exists": repo_exists,
+                        "file_exists": file_exists,
+                        "checked_filename": base_filename,
+                        "suggested_new_filename": next_fname,
+                    }
+                    # default to base file name unless user chooses otherwise
+                    st.session_state.setdefault("widget_file_name", base_filename)
+
+                except Exception as e:
+                    st.error(f"Availability check failed: {e}")
+
+        # --- Get widget button (with short loading bar) ---
+        with col_get:
+            if st.button("Get widget"):
+                try:
+                    # Progress bar placeholder
+                    progress_placeholder = st.empty()
+                    progress = progress_placeholder.progress(0)
+
+                    for pct in (20, 45, 70):
+                        time.sleep(0.12)
+                        progress.progress(pct)
+
+                    title_for_publish = st.session_state.get("widget_title", default_title)
+                    subtitle_for_publish = st.session_state.get("widget_subtitle", default_subtitle)
+
+                    # Use current chosen filename
+                    widget_file_name = st.session_state.get("widget_file_name", base_filename)
+                    expected_embed_url = compute_expected_embed_url(
+                        effective_github_user, repo_name, widget_file_name
+                    )
+
+                    # Generate final HTML with the real embed URL
+                    html_final = generate_html_from_df(
+                        df, title_for_publish, subtitle_for_publish, expected_embed_url
+                    )
+
+                    progress.progress(80)
+
+                    # 1) Ensure repo exists
+                    ensure_repo_exists(
+                        effective_github_user,
+                        repo_name.strip(),
+                        GITHUB_TOKEN,
+                    )
+
+                    progress.progress(90)
+
+                    # 2) Enable GitHub Pages (best effort)
+                    try:
+                        ensure_pages_enabled(
+                            effective_github_user,
+                            repo_name.strip(),
+                            GITHUB_TOKEN,
+                            branch="main",
+                        )
+                    except Exception:
+                        pass  # soft failure
+
+                    # 3) Upload HTML file to chosen path (supermoon_table.html or wN.html)
+                    upload_file_to_github(
+                        effective_github_user,
+                        repo_name.strip(),
+                        GITHUB_TOKEN,
+                        widget_file_name,
+                        html_final,
+                        f"Add/update {widget_file_name} from Streamlit app",
                         branch="main",
                     )
-                except Exception:
-                    # Soft warning only if Pages enable fails, but don't spam text here
-                    pass
 
-                # 3) Upload HTML file
-                upload_file_to_github(
-                    effective_github_user,
-                    repo_name.strip(),
-                    GITHUB_TOKEN,
-                    "supermoon_table.html",
-                    html_final,
-                    "Add/update supermoon_table.html from Streamlit app",
-                    branch="main",
-                )
+                    # 4) Trigger Pages build
+                    trigger_pages_build(
+                        effective_github_user,
+                        repo_name.strip(),
+                        GITHUB_TOKEN,
+                    )
 
-                # 4) Trigger Pages build
-                trigger_pages_build(
-                    effective_github_user,
-                    repo_name.strip(),
-                    GITHUB_TOKEN,
-                )
+                    progress.progress(100)
+                    time.sleep(0.15)
+                    progress_placeholder.empty()
 
-                progress.progress(100)
-                time.sleep(0.15)
-                progress_placeholder.empty()
-
-                iframe_snippet = f"""<iframe src="{expected_embed_url}"
+                    iframe_snippet = f"""<iframe src="{expected_embed_url}"
   title="{title_for_publish}"
   width="100%" height="650"
   scrolling="no"
   style="border:0;" loading="lazy"></iframe>"""
 
-                st.session_state["iframe_snippet"] = iframe_snippet
-                st.session_state["has_generated"] = True
+                    st.session_state["iframe_snippet"] = iframe_snippet
+                    st.session_state["has_generated"] = True
 
-                st.success("Widget iframe updated. Open the tabs below to preview and embed it.")
+                    st.success("Widget iframe updated. Open the tabs below to preview and embed it.")
 
-            except Exception as e:
-                progress_placeholder.empty()
-                st.error(f"GitHub publish failed: {e}")
+                except Exception as e:
+                    progress_placeholder.empty()
+                    st.error(f"GitHub publish failed: {e}")
+
+    # ---------- Availability result + options ----------
+    availability = st.session_state.get("availability")
+    if GITHUB_TOKEN and effective_github_user and repo_name.strip():
+        if availability:
+            repo_exists = availability.get("repo_exists", False)
+            file_exists = availability.get("file_exists", False)
+            checked_filename = availability.get("checked_filename", base_filename)
+            suggested_new_filename = availability.get("suggested_new_filename") or "w1.html"
+
+            if not repo_exists:
+                st.info(
+                    "No existing repo found for this campaign. "
+                    "When you click **Get widget**, the repo will be created and "
+                    f"your widget will be saved as `{checked_filename}`."
+                )
+                st.session_state["widget_file_name"] = checked_filename
+            elif repo_exists and not file_exists:
+                st.success(
+                    f"Repo exists and `{checked_filename}` is available. "
+                    "Get widget will save your table to this file."
+                )
+                st.session_state["widget_file_name"] = checked_filename
+            else:
+                st.warning(
+                    f"A page named `{checked_filename}` already exists in this repo."
+                )
+                choice = st.radio(
+                    "What would you like to do?",
+                    options=[
+                        "Replace existing widget (overwrite file)",
+                        f"Create additional widget file in same repo (use {suggested_new_filename})",
+                        "Change campaign name instead",
+                    ],
+                    key="file_conflict_choice",
+                )
+                if choice.startswith("Replace"):
+                    st.session_state["widget_file_name"] = checked_filename
+                    st.info(f"Get widget will overwrite `{checked_filename}` in this repo.")
+                elif choice.startswith("Create additional"):
+                    st.session_state["widget_file_name"] = suggested_new_filename
+                    st.info(
+                        f"Get widget will create a new file `{suggested_new_filename}` "
+                        "in the same repo for this widget."
+                    )
+                else:
+                    st.info(
+                        "Update the campaign name above, then run **Page availability check** again."
+                    )
 
     st.markdown("---")
 
     # ---------- Output tabs (only AFTER Get widget, or if no token) ----------
     has_generated = st.session_state.get("has_generated", False)
     show_tabs = has_generated or not GITHUB_TOKEN  # allow preview when token missing
+
+    # recompute for preview using current chosen file name
+    widget_file_name = st.session_state.get("widget_file_name", base_filename)
+    expected_embed_url = compute_expected_embed_url(
+        effective_github_user, repo_name, widget_file_name
+    )
 
     if show_tabs:
         tab1, tab2, tab3 = st.tabs(
@@ -1178,9 +1342,7 @@ if uploaded_file is not None:
 
         # -------- TAB 2: Widget preview + HTML (widget first) --------
         with tab2:
-            # Preview HTML uses current title/subtitle and expected embed URL
             html_preview = generate_html_from_df(df, widget_title, widget_subtitle, expected_embed_url)
-
             preview_tab, html_tab = st.tabs(["Widget preview", "HTML file contents"])
 
             with preview_tab:
@@ -1198,7 +1360,7 @@ if uploaded_file is not None:
         with tab3:
             st.subheader("How to embed your widget")
             st.markdown(
-                "1. Click **Get widget** above whenever you change the title or campaign.\n"
+                "1. Click **Get widget** whenever you change the title or campaign.\n"
                 "2. Wait for GitHub Pages to finish building at the URL shown in the caption.\n"
                 "3. Paste the iframe code into your article or CMS.\n"
             )
