@@ -254,7 +254,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .bar{position:absolute;inset:0 auto 0 0;border-radius:999px;background:linear-gradient(90deg,var(--brand-600),var(--brand-500))!important;box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)}
     .vi-compact-embed .val{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-variant-numeric:tabular-nums;font-weight:800;font-size:13px;color:#0e1a12!important;background:#fff!important;border:2px solid #e6e9ed!important;border-radius:999px;padding:2px 8px}
 
-    /* Gradient bars by probability band */
+    /* Gradient bars by probability band (based on implied probability) */
     .vi-compact-embed .bar.band-very-high{background:linear-gradient(90deg,#1F5D28,#56C257)!important}  /* >=25% */
     .vi-compact-embed .bar.band-high{background:linear-gradient(90deg,#2E8538,#63CA67)!important}       /* 20–<25% */
     .vi-compact-embed .bar.band-mid{background:linear-gradient(90deg,#3FA94B,#71D279)!important}        /* 15–<20% */
@@ -1033,8 +1033,7 @@ if uploaded_file is not None:
 
     # -------- TAB 2: Configure widget + preview --------
     with tab2:
-        st.subheader("Widget text")
-
+        # No "Widget text" header per your request
         title = st.text_input(
             "Widget name",
             value=st.session_state.get("widget_title", default_title),
@@ -1046,24 +1045,34 @@ if uploaded_file is not None:
             key="widget_subtitle",
         )
 
-        # (Caption about GitHub / embed URL removed – handled in Create Iframe tab)
-
-        # Preview HTML uses the *current* embed URL (driven by GitHub settings if set)
+        # Build preview HTML with the *current* embed URL (from saved GH settings if set)
         html_preview = generate_html_from_df(df, title, subtitle, current_embed_url)
 
-        st.markdown("---")
-        st.subheader("Interactive widget preview")
-        components.html(html_preview, height=650, scrolling=True)
+        # Inner tabs: Widget preview / HTML contents
+        preview_tab, html_tab = st.tabs(["Widget preview", "HTML file contents"])
 
-        st.subheader("HTML file contents (preview)")
-        st.text_area(
-            "Preview only – when you change GitHub settings, this embed URL updates on the next run.",
-            value=html_preview,
-            height=350,
+        with preview_tab:
+            components.html(html_preview, height=650, scrolling=True)
+
+        with html_tab:
+            st.text_area(
+                label="",
+                value=html_preview,
+                height=350,
+                label_visibility="collapsed",
+            )
+
+    # -------- TAB 3: Create repo, upload HTML & publish (Create Iframe) --------
+    with tab3:
+        # Smaller guidance text instead of big subheaders
+        st.markdown(
+            "<p style='font-size:0.85rem; color:#c4c4c4;'>"
+            "Please choose your GitHub account. If you don't have one configured in this tool, "
+            "please contact the tool creator, <strong>Gautham Marthandan</strong>."
+            "</p>",
+            unsafe_allow_html=True,
         )
 
-    # -------- TAB 3: Create iframe / publish --------
-    with tab3:
         # Read latest title/subtitle from session state (so publish uses what you configured)
         title_for_publish = st.session_state.get("widget_title", default_title)
         subtitle_for_publish = st.session_state.get("widget_subtitle", default_subtitle)
@@ -1077,12 +1086,6 @@ if uploaded_file is not None:
             default_idx = username_options.index(saved_gh_user)
         else:
             default_idx = 0
-
-        st.caption(
-            "Please choose your GitHub account below. "
-            "If you don't have one configured in this tool, please contact the tool creator, "
-            "Gautham Marthandan."
-        )
 
         github_username_input = st.selectbox(
             "Username (GitHub username)",
@@ -1106,7 +1109,7 @@ if uploaded_file is not None:
             expected_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
 
         st.caption(
-            f"Expected GitHub Pages URL (used in the widget footer & iframe):\n\n`{expected_embed_url}`"
+            f"Expected GitHub Pages URL (used in final widget footer & iframe):\n\n`{expected_embed_url}`"
         )
 
         if not GITHUB_TOKEN:
@@ -1117,6 +1120,7 @@ if uploaded_file is not None:
         elif not effective_github_user or not repo_name.strip():
             st.info("Fill in username and campaign name above.")
         else:
+            # Shorter button label
             if st.button("Get the iframe"):
                 try:
                     # Generate final HTML with the real embed URL
@@ -1125,7 +1129,7 @@ if uploaded_file is not None:
                     )
 
                     # 1) Ensure repo exists
-                    created = ensure_repo_exists(
+                    ensure_repo_exists(
                         effective_github_user,
                         repo_name.strip(),
                         GITHUB_TOKEN,
@@ -1141,8 +1145,7 @@ if uploaded_file is not None:
                         )
                     except Exception as pages_err:
                         st.warning(
-                            "Repo exists/created, but enabling GitHub Pages via API may have failed: "
-                            f"{pages_err}\n"
+                            f"Repo exists/created, but enabling GitHub Pages via API may have failed: {pages_err}\n"
                             "You may need to finalize Pages settings manually in GitHub."
                         )
 
@@ -1179,7 +1182,7 @@ if uploaded_file is not None:
                             "If the page never appears, check the Pages settings and build logs in GitHub."
                         )
 
-                    st.subheader("Final iframe embed code")
+                    st.subheader("Your iframe embed code")
                     iframe_snippet = f"""<iframe src="{expected_embed_url}"
   title="{title_for_publish}"
   width="100%" height="650"
