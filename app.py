@@ -806,12 +806,19 @@ if uploaded_file is not None:
     df["elevation_ft"] = raw_df["Avg. Elevation (ft)"].astype(float)
     df["dark_score"] = raw_df["Darkness Score (1–5)"].astype(float)
 
+    # Defaults for widget text
+    default_title = "Top U.S. States for Supermoon Visibility in 2025"
+    default_subtitle = (
+        "Ranked by visibility factors such as sky clarity, elevation, and "
+        "atmospheric conditions, converted into implied probabilities and "
+        "moneyline odds."
+    )
+
     # --- Tabs layout ---
-    tab1, tab2, tab3, tab4 = st.tabs(
+    tab1, tab2, tab3 = st.tabs(
         [
             "Detected columns & data",
-            "Widget preview",
-            "Configure widget",
+            "Configure & preview widget",
             "Create repo & publish",
         ]
     )
@@ -824,43 +831,47 @@ if uploaded_file is not None:
         st.subheader("Cleaned data preview")
         st.dataframe(df.head())
 
-    # -------- TAB 3: Configure widget (title & subtitle only) --------
-    with tab3:
+    # -------- TAB 2: Configure widget + preview --------
+    with tab2:
         st.subheader("Widget text")
-        default_title = "Top U.S. States for Supermoon Visibility in 2025"
-        default_subtitle = (
-            "Ranked by visibility factors such as sky clarity, elevation, and "
-            "atmospheric conditions, converted into implied probabilities and "
-            "moneyline odds."
+
+        title = st.text_input(
+            "Widget name",
+            value=st.session_state.get("widget_title", default_title),
+            key="widget_title",
+        )
+        subtitle = st.text_input(
+            "Widget subtitle",
+            value=st.session_state.get("widget_subtitle", default_subtitle),
+            key="widget_subtitle",
         )
 
-        title = st.text_input("Widget name", value=default_title, key="widget_title")
-        subtitle = st.text_input("Widget subtitle", value=default_subtitle, key="widget_subtitle")
-
-        st.info(
+        st.caption(
             "GitHub username and campaign name live in the **Create repo & publish** tab."
         )
 
-    # Build a preview HTML using a placeholder URL
-    placeholder_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
-    html_preview = generate_html_from_df(df, title, subtitle, placeholder_embed_url)
+        # Use placeholder embed URL for preview; real URL will be used on publish
+        placeholder_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
+        html_preview = generate_html_from_df(df, title, subtitle, placeholder_embed_url)
 
-    # -------- TAB 2: Widget preview --------
-    with tab2:
+        st.markdown("---")
         st.subheader("Interactive widget preview")
         components.html(html_preview, height=900, scrolling=True)
 
         st.subheader("HTML file contents (preview)")
         st.text_area(
-            "This uses a placeholder embed URL. The final HTML (with real GitHub Pages URL) "
-            "will be generated when you publish in the last tab.",
+            "Preview only – the final HTML will use your real GitHub Pages URL when you publish.",
             value=html_preview,
             height=350,
         )
 
-    # -------- TAB 4: Create repo, upload HTML & publish (GitHub fields here) --------
-    with tab4:
+    # -------- TAB 3: Create repo, upload HTML & publish --------
+    with tab3:
         st.subheader("GitHub settings")
+
+        # Read latest title/subtitle from session state (so publish uses what you configured)
+        title_for_publish = st.session_state.get("widget_title", default_title)
+        subtitle_for_publish = st.session_state.get("widget_subtitle", default_subtitle)
 
         username_options = ["GauthamBC", "ActionNetwork", "MoonWatcher", "SampleUser"]
         if GITHUB_USER_DEFAULT and GITHUB_USER_DEFAULT not in username_options:
@@ -902,7 +913,9 @@ if uploaded_file is not None:
             if st.button("Create repo, upload `supermoon_table.html` & trigger Pages build"):
                 try:
                     # Generate final HTML with the real embed URL
-                    html_final = generate_html_from_df(df, title, subtitle, expected_embed_url)
+                    html_final = generate_html_from_df(
+                        df, title_for_publish, subtitle_for_publish, expected_embed_url
+                    )
 
                     # 1) Ensure repo exists
                     created = ensure_repo_exists(
@@ -960,7 +973,7 @@ if uploaded_file is not None:
 
                     st.subheader("Final iframe embed code")
                     iframe_snippet = f"""<iframe src="{expected_embed_url}"
-  title="{title}"
+  title="{title_for_publish}"
   width="100%" height="750"
   scrolling="no"
   style="border:0;" loading="lazy"></iframe>"""
