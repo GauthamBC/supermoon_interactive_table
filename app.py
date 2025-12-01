@@ -1,5 +1,3 @@
-Here’s the full updated script with:
-
 * Single clean `.row` rule
 * Scrollable `.table` with slim green scrollbar
 * JS that measures the *real* row height and clamps to ~20 visible rows
