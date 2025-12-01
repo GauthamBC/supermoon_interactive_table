@@ -1,3 +1,4 @@
+
 import base64
 import requests
 import pandas as pd
@@ -17,7 +18,7 @@ def get_secret(key: str, default: str = "") -> str:
     return default
 
 GITHUB_TOKEN = get_secret("GITHUB_TOKEN", "")
-GITHUB_USER_DEFAULT = get_secret("GITHUB_USER", "")
+DEFAULT_GITHUB_USER = get_secret("GITHUB_USER", "GauthamBC")
 
 # === 1. State -> flag URL mapping =====================================
 STATE_FLAG_URLS = {
@@ -281,7 +282,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     <!-- Shared details panel -->
     <div id="az-details" class="details" aria-hidden="true" role="region" aria-labelledby="az-metrics-title">
-      <h4 id="az-metrics-title" class="metrics-title">Supermoon Viewing Factors</h4>
+      <h4 id="az-metrics-title" class="metrics-title">Supermoon Viewing Factors</</h4>
       <div class="metrics-grid">
         <div class="metric-card">
           <div class="metric-label">Avg. Elevation</div>
@@ -572,6 +573,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 """
 
 # === 3. Generator: build rows + DATA ==================================
+
 def generate_html_from_df(
     df: pd.DataFrame,
     title: str,
@@ -640,7 +642,6 @@ def generate_html_from_df(
         .replace("[[SUBTITLE]]", subtitle)
         .replace("[[EMBED_URL]]", embed_url)
     )
-
     return html
 
 # === 4. GitHub helper functions ======================================
@@ -689,7 +690,7 @@ def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main"
     if r.status_code not in (404, 403):
         raise RuntimeError(f"Error checking GitHub Pages: {r.status_code} {r.text}")
     if r.status_code == 403:
-        # No permission via API, but don't kill the flow.
+        # No permission via API; user may need to configure Pages manually.
         return
 
     payload = {"source": {"branch": branch, "path": "/"}}
@@ -724,6 +725,37 @@ def upload_file_to_github(
     if r.status_code not in (200, 201):
         raise RuntimeError(f"Error uploading file: {r.status_code} {r.text}")
 
+def list_root_files(owner: str, repo: str, token: str):
+    api_base = "https://api.github.com"
+    headers = github_headers(token)
+    r = requests.get(f"{api_base}/repos/{owner}/{repo}/contents", headers=headers)
+    if r.status_code == 200:
+        items = r.json()
+        names = []
+        for item in items:
+            if isinstance(item, dict) and item.get("type") == "file":
+                names.append(item.get("name", ""))
+        return names
+    if r.status_code == 404:
+        return []
+    raise RuntimeError(f"Error listing repo contents: {r.status_code} {r.text}")
+
+def get_next_widget_filename(owner: str, repo: str, token: str) -> str:
+    """
+    Find next available widget file name: widget1.html, widget2.html, ...
+    """
+    names = list_root_files(owner, repo, token)
+    prefix = "widget"
+    suffix = ".html"
+    indices = []
+    for name in names:
+        if name.startswith(prefix) and name.endswith(suffix):
+            middle = name[len(prefix):-len(suffix)]
+            if middle.isdigit():
+                indices.append(int(middle))
+    next_index = (max(indices) + 1) if indices else 1
+    return f"{prefix}{next_index}.html"
+
 def trigger_pages_build(owner: str, repo: str, token: str) -> bool:
     api_base = "https://api.github.com"
     headers = github_headers(token)
@@ -735,6 +767,7 @@ def trigger_pages_build(owner: str, repo: str, token: str) -> bool:
 st.set_page_config(page_title="Supermoon Table Generator", layout="wide")
 
 st.title("Supermoon Visibility Table Generator")
+
 st.write(
     "Upload a CSV with columns like **State**, "
     "**Implied Supermoon Viewing Probability (%)**, "
@@ -742,6 +775,8 @@ st.write(
     "**Avg. Clear Sky Days (Dec)**, **Avg. Humidity (Dec)**, "
     "**Avg. Elevation (ft)**, **Darkness Score (1–5)**."
 )
+
+# --- Minimal controls you requested -----------------------------------
 
 default_title = "Top U.S. States for Supermoon Visibility in 2025"
 default_subtitle = (
@@ -753,37 +788,31 @@ default_subtitle = (
 title = st.text_input("Widget title", value=default_title)
 subtitle = st.text_input("Widget subtitle", value=default_subtitle)
 
-github_username_input = st.text_input(
-    "GitHub username (used to build GitHub Pages URL)",
-    value=GITHUB_USER_DEFAULT or "your-github-username",
+username_choices = ["GauthamBC", "AmieBC", "BenBC", "KathyBC"]
+default_user = DEFAULT_GITHUB_USER if DEFAULT_GITHUB_USER in username_choices else "GauthamBC"
+github_username = st.selectbox("GitHub username", username_choices, index=username_choices.index(default_user))
+
+campaign_name = st.text_input(
+    "Campaign name (used as GitHub repo name)",
+    value="supermoon-visibility-widget",
 )
+campaign_name = campaign_name.strip()
+repo_name = campaign_name if campaign_name else "supermoon-visibility-widget"
 
-default_repo_name = "supermoon-visibility-widget"
-repo_name = st.text_input("GitHub repo name (for GitHub Pages)", value=default_repo_name)
-branch_name = st.text_input("GitHub branch for GitHub Pages", value="main")
-
-github_username_input = github_username_input.strip()
-effective_github_user = (
-    github_username_input
-    if github_username_input and github_username_input != "your-github-username"
-    else (GITHUB_USER_DEFAULT or github_username_input)
-)
-
-if effective_github_user and "your-github-username" not in effective_github_user:
-    expected_embed_url = f"https://{effective_github_user}.github.io/{repo_name}/supermoon_table.html"
-else:
-    expected_embed_url = "https://example.github.io/your-repo/supermoon_table.html"
+# Default preview file name & URL (used before publishing)
+preview_filename = "supermoon_table.html"
+preview_embed_url = f"https://{github_username}.github.io/{repo_name}/{preview_filename}"
 
 st.caption(
-    f"Expected GitHub Pages URL (baked into the widget's Embed button & iframe below): "
-    f"`{expected_embed_url}`"
+    f"Preview GitHub Pages URL baked into the widget's embed button (before publishing): "
+    f"`{preview_embed_url}`"
 )
 
-uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
+upload = st.file_uploader("Upload your CSV file", type=["csv"])
 
-if uploaded_file is not None:
+if upload is not None:
     try:
-        raw_df = pd.read_csv(uploaded_file)
+        raw_df = pd.read_csv(upload)
     except Exception as e:
         st.error(f"Error reading CSV: {e}")
         st.stop()
@@ -832,92 +861,123 @@ if uploaded_file is not None:
     st.subheader("Cleaned data preview")
     st.dataframe(df.head())
 
-    html = generate_html_from_df(df, title, subtitle, expected_embed_url)
+    # Generate HTML for preview (using preview_embed_url)
+    preview_html = generate_html_from_df(df, title, subtitle, preview_embed_url)
 
     st.subheader("Interactive widget preview")
-    components.html(html, height=900, scrolling=True)
+    components.html(preview_html, height=900, scrolling=True)
 
     st.subheader("Full HTML code (copy & paste)")
     st.text_area(
         "Generated HTML (supermoon_table.html)",
-        value=html,
+        value=preview_html,
         height=400,
     )
 
-    st.subheader("Iframe embed code (using GitHub Pages URL)")
-    iframe_snippet = f"""<iframe src="{expected_embed_url}"
+    st.subheader("Iframe embed code (using preview URL)")
+    preview_iframe_snippet = f"""<iframe src="{preview_embed_url}"
   title="{title}"
   width="100%" height="750"
   scrolling="no"
   style="border:0;" loading="lazy"></iframe>"""
-    st.code(iframe_snippet, language="html")
+    st.code(preview_iframe_snippet, language="html")
 
     st.subheader("Download HTML file")
     st.download_button(
         label="Download supermoon_table.html",
-        data=html.encode("utf-8"),
-        file_name="supermoon_table.html",
+        data=preview_html.encode("utf-8"),
+        file_name=preview_filename,
         mime="text/html",
     )
 
+    # --- GitHub publishing --------------------------------------------
     st.subheader("Publish to GitHub (optional)")
 
-    if not GITHUB_TOKEN or not effective_github_user or "your-github-username" in effective_github_user:
-        st.info(
-            "To enable GitHub publishing, set `GITHUB_TOKEN` and `GITHUB_USER` in secrets "
-            "and/or provide a real GitHub username above."
-        )
-    else:
-        if st.button("Create / Update repo, upload HTML & trigger GitHub Pages build"):
-            try:
-                st.write(f"Using GitHub user: `{effective_github_user}`, repo: `{repo_name}`")
+    publish_mode = st.radio(
+        "If this campaign repo already exists, what should we do?",
+        [
+            "Replace main widget file (supermoon_table.html)",
+            "Create a new widget file (widget1.html, widget2.html, ...)",
+        ],
+    )
 
-                # NEW: know if repo existed already
-                created = ensure_repo_exists(effective_github_user, repo_name, GITHUB_TOKEN)
+    if not GITHUB_TOKEN:
+        st.info("To enable GitHub publishing, add `GITHUB_TOKEN` to your Streamlit secrets.")
+    else:
+        if st.button("Publish to GitHub (create/update repo & trigger Pages build)"):
+            try:
+                st.write(f"Using GitHub user: `{github_username}`, campaign repo: `{repo_name}`")
+
+                created = ensure_repo_exists(github_username, repo_name, GITHUB_TOKEN)
                 if created:
-                    st.success(f"Created new repo `{effective_github_user}/{repo_name}`.")
+                    st.success(f"Created new campaign repo `{github_username}/{repo_name}`.")
                 else:
-                    st.info(f"Repo `{effective_github_user}/{repo_name}` already exists – reusing it.")
+                    st.warning(
+                        f"Campaign repo `{github_username}/{repo_name}` already exists. "
+                        "Using your choice below to decide what to upload."
+                    )
+
+                # Decide target filename based on publish_mode
+                if publish_mode.startswith("Replace"):
+                    target_filename = "supermoon_table.html"
+                else:
+                    # Create new widget file name
+                    target_filename = get_next_widget_filename(github_username, repo_name, GITHUB_TOKEN)
+
+                final_embed_url = f"https://{github_username}.github.io/{repo_name}/{target_filename}"
+                final_html = generate_html_from_df(df, title, subtitle, final_embed_url)
 
                 try:
-                    ensure_pages_enabled(
-                        effective_github_user, repo_name, GITHUB_TOKEN, branch_name
-                    )
-                except Exception as pages_err:
+                    ensure_pages_enabled(github_username, repo_name, GITHUB_TOKEN, branch="main")
+                except Exception as e_pages:
                     st.warning(
-                        f"GitHub Pages may need manual setup in the repo settings: {pages_err}"
+                        f"Could not fully configure GitHub Pages via API. "
+                        f"You may need to check the repo's Pages settings. Details: {e_pages}"
                     )
 
                 upload_file_to_github(
-                    effective_github_user,
+                    github_username,
                     repo_name,
                     GITHUB_TOKEN,
-                    "supermoon_table.html",
-                    html,
-                    "Add/update supermoon_table.html from Streamlit app",
+                    target_filename,
+                    final_html,
+                    f"Add/update {target_filename} from Streamlit app",
                 )
 
-                build_ok = trigger_pages_build(
-                    effective_github_user, repo_name, GITHUB_TOKEN
-                )
+                build_ok = trigger_pages_build(github_username, repo_name, GITHUB_TOKEN)
 
-                st.success("Uploaded HTML to GitHub and requested a GitHub Pages build.")
+                st.success(
+                    f"Uploaded `{target_filename}` to `{github_username}/{repo_name}` "
+                    "and requested a GitHub Pages build."
+                )
                 st.info(
-                    f"Expected GitHub Pages URL: {expected_embed_url}\n\n"
-                    "If it returns 404 right away, GitHub Pages may still be building. "
-                    "Once it’s live, you can use the iframe snippet above."
+                    f"Expected GitHub Pages URL for this widget:\n\n`{final_embed_url}`\n\n"
+                    "Once Pages has finished building, this URL should serve your table."
+                )
+
+                final_iframe_snippet = f"""<iframe src="{final_embed_url}"
+  title="{title}"
+  width="100%" height="750"
+  scrolling="no"
+  style="border:0;" loading="lazy"></iframe>"""
+
+                st.markdown("**Iframe embed code for this published widget:**")
+                st.code(final_iframe_snippet, language="html")
+
+                st.markdown("**HTML that was uploaded to GitHub:**")
+                st.text_area(
+                    f"{target_filename}",
+                    value=final_html,
+                    height=350,
                 )
 
                 if not build_ok:
                     st.warning(
                         "Could not confirm a GitHub Pages build via API. "
-                        "If the page never appears, check the Pages settings and build logs in GitHub."
+                        "If the URL doesn’t load, check the Pages settings and build logs in GitHub."
                     )
 
-                st.markdown("**Iframe embed code (using that URL):**")
-                st.code(iframe_snippet, language="html")
-
             except Exception as e:
-                st.error(f"GitHub upload failed: {e}")
+                st.error(f"GitHub publish failed: {e}")
 else:
     st.info("Upload a CSV to generate the widget.")
