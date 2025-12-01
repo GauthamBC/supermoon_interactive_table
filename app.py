@@ -1,3 +1,4 @@
+import base64
 import requests
 import pandas as pd
 import streamlit as st
@@ -21,10 +22,14 @@ GITHUB_USER_DEFAULT = get_secret("GITHUB_USER", "")
 # === GitHub helpers ===================================================
 
 def github_headers(token: str):
-    return {
-        "Authorization": f"Bearer {token}",
+    headers = {
         "Accept": "application/vnd.github+json",
     }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    # Optional but recommended:
+    headers["X-GitHub-Api-Version"] = "2022-11-28"
+    return headers
 
 def ensure_repo_exists(owner: str, repo: str, token: str) -> bool:
     """
@@ -71,14 +76,61 @@ def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main"
     if r.status_code not in (404, 403):
         raise RuntimeError(f"Error checking GitHub Pages: {r.status_code} {r.text}")
     if r.status_code == 403:
-        # No permission via API, but don't kill the flow.
+        # No permission via API; nothing we can do programmatically.
         return
 
-    # Enable GitHub Pages from the given branch root
+    # Enable GitHub Pages from the given branch root (legacy mode)
     payload = {"source": {"branch": branch, "path": "/"}}
     r2 = requests.post(f"{api_base}/repos/{owner}/{repo}/pages", headers=headers, json=payload)
     if r2.status_code not in (201, 202):
         raise RuntimeError(f"Error enabling GitHub Pages: {r2.status_code} {r2.text}")
+
+def upload_file_to_github(
+    owner: str,
+    repo: str,
+    token: str,
+    path: str,
+    content: str,
+    message: str,
+    branch: str = "main",
+) -> None:
+    """
+    Create or update a file in the repo at the given path.
+    """
+    api_base = "https://api.github.com"
+    headers = github_headers(token)
+
+    get_url = f"{api_base}/repos/{owner}/{repo}/contents/{path}"
+    params = {"ref": branch}
+    r = requests.get(get_url, headers=headers, params=params)
+    sha = None
+    if r.status_code == 200:
+        sha = r.json().get("sha")
+    elif r.status_code not in (404,):
+        raise RuntimeError(f"Error checking file: {r.status_code} {r.text}")
+
+    encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
+
+    payload = {
+        "message": message,
+        "content": encoded,
+        "branch": branch,
+    }
+    if sha:
+        payload["sha"] = sha
+
+    r = requests.put(get_url, headers=headers, json=payload)
+    if r.status_code not in (200, 201):
+        raise RuntimeError(f"Error uploading file: {r.status_code} {r.text}")
+
+def trigger_pages_build(owner: str, repo: str, token: str) -> bool:
+    """
+    Ask GitHub to build the Pages site (legacy mode).
+    """
+    api_base = "https://api.github.com"
+    headers = github_headers(token)
+    r = requests.post(f"{api_base}/repos/{owner}/{repo}/pages/builds", headers=headers)
+    return r.status_code in (201, 202)
 
 # === 1. State -> flag URL mapping =====================================
 STATE_FLAG_URLS = {
@@ -785,15 +837,11 @@ with col_btn:
                 if created:
                     st.success(
                         f"✅ `{effective_github_user}/{repo_name.strip()}` did not exist, "
-                        f"so I created the repo and attempted to enable GitHub Pages.\n\n"
-                        f"Once you add `supermoon_table.html` to that repo on the `main` branch, "
-                        f"it should be served at:\n"
-                        f"`https://{effective_github_user}.github.io/{repo_name.strip()}/supermoon_table.html`"
+                        f"so I created the repo and attempted to enable GitHub Pages."
                     )
                 else:
-                    st.error(
-                        f"❌ Repo `{effective_github_user}/{repo_name.strip()}` already exists.\n"
-                        "Use a different campaign name, or reuse this repo manually."
+                    st.info(
+                        f"ℹ️ Repo `{effective_github_user}/{repo_name.strip()}` already exists."
                     )
             except Exception as e:
                 st.error(f"GitHub check/creation failed: {e}")
@@ -870,6 +918,57 @@ if uploaded_file is not None:
         value=html,
         height=400,
     )
+
+    # New: Upload HTML directly to GitHub
+    st.subheader("Upload HTML to GitHub & trigger Pages build")
+    if not GITHUB_TOKEN:
+        st.info("Set `GITHUB_TOKEN` in Streamlit secrets to enable automatic upload.")
+    elif not effective_github_user or not repo_name.strip():
+        st.info("Select a username and campaign name first.")
+    else:
+        if st.button("Upload `supermoon_table.html` to GitHub"):
+            try:
+                # Make sure repo exists first
+                ensure_repo_exists(
+                    effective_github_user,
+                    repo_name.strip(),
+                    GITHUB_TOKEN,
+                )
+
+                # Upload HTML file
+                upload_file_to_github(
+                    effective_github_user,
+                    repo_name.strip(),
+                    GITHUB_TOKEN,
+                    "supermoon_table.html",
+                    html,
+                    "Add/update supermoon_table.html from Streamlit app",
+                    branch="main",
+                )
+
+                # Trigger Pages build (best-effort)
+                build_ok = trigger_pages_build(
+                    effective_github_user,
+                    repo_name.strip(),
+                    GITHUB_TOKEN,
+                )
+
+                st.success(
+                    f"Uploaded `supermoon_table.html` to `{effective_github_user}/{repo_name.strip()}` "
+                    f"and requested a GitHub Pages build."
+                )
+                st.info(
+                    f"Once the build finishes, your widget should be live at:\n\n"
+                    f"`{expected_embed_url}`"
+                )
+
+                if not build_ok:
+                    st.warning(
+                        "Could not confirm a GitHub Pages build via API. "
+                        "If the page never appears, check the Pages settings and build logs in GitHub."
+                    )
+            except Exception as e:
+                st.error(f"GitHub upload failed: {e}")
 
     st.subheader("Iframe embed code (using URL above)")
     iframe_snippet = f"""<iframe src="{expected_embed_url}"
