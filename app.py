@@ -209,7 +209,9 @@ HTML_TEMPLATE = r"""<!doctype html>
       --brand-500:#56C257; --brand-600:#3FA94B; --brand-700:#2E8538; --brand-900:#1F5D28;
       --ink:#181a1f; --muted:#666b73; --border:#DCEFE6;
       --hover-tint: rgba(86,194,87,.12); --hover-ring:#BCE5D6; --hover-shadow:0 10px 24px rgba(86,194,87,.18);
-      --viz-h:48px;
+      --viz-h: 48px;              /* row height */
+      --rows-visible-desktop: 15; /* rows before scroll on desktop */
+      --rows-visible-mobile: 10;  /* rows before scroll on mobile */
       --card-h:150px;
     }
 
@@ -226,11 +228,17 @@ HTML_TEMPLATE = r"""<!doctype html>
     /* Scrollable table area with thin green scrollbar */
     .vi-compact-embed .table{
       padding:10px 12px;
-      max-height:720px; /* JS will refine this based on 20 rows */
+      max-height: calc(var(--rows-visible-desktop) * var(--viz-h));
       overflow-y:auto;
       overflow-x:hidden;
       scrollbar-width:thin;
       scrollbar-color:var(--brand-600) #f3faf6;
+    }
+
+    @media (max-width:640px){
+      .vi-compact-embed .table{
+        max-height: calc(var(--rows-visible-mobile) * var(--viz-h));
+      }
     }
 
     .vi-compact-embed .table::-webkit-scrollbar{
@@ -260,7 +268,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       background:#fff!important;
       transition:transform .18s,box-shadow .18s,background-color .15s,border-color .15s;
       transform-origin:center;
-      min-height:48px;
+      min-height:var(--viz-h);
     }
     .vi-compact-embed .row:hover,.vi-compact-embed .row:focus-within{
       background:linear-gradient(0deg,var(--hover-tint),var(--hover-tint)),#fff!important;
@@ -500,7 +508,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     <div id="embed-wrapper" class="embed-wrapper">
       <textarea id="embed-code" readonly>&lt;iframe src="[[EMBED_URL]]"
       title="[[TITLE]]"
-      width="100%" height="750"
+      width="100%" height="1140"
       scrolling="no"
       style="border:0;" loading="lazy"&gt;&lt;/iframe&gt;
       </textarea>
@@ -516,17 +524,6 @@ HTML_TEMPLATE = r"""<!doctype html>
       const rows   = document.querySelectorAll('.vi-compact-embed .row.is-clickable[data-state]');
       const panel  = document.getElementById('az-details');
       const closeB = document.getElementById('az-close');
-      const tableEl = document.querySelector('.vi-compact-embed .table');
-
-      // Dynamically size scroll area so about 20 rows are visible
-      window.addEventListener('load', () => {
-        if (tableEl && rows.length) {
-          const firstRect = rows[0].getBoundingClientRect();
-          const rowHeight = firstRect.height || 60;
-          const visibleRows = 20;
-          tableEl.style.maxHeight = (rowHeight * visibleRows) + 'px';
-        }
-      });
 
       const allElev = Object.values(DATA).map(d=>d.elev);
       const elevMin = Math.min(...allElev);
@@ -659,18 +656,6 @@ HTML_TEMPLATE = r"""<!doctype html>
       const ta      = document.getElementById('embed-code');
       const status  = document.getElementById('copy-status');
 
-      function sendHeightToParent() {
-        try {
-          const height = document.body.scrollHeight;
-          window.parent.postMessage({ type: "resize-iframe", height: height, src: window.location.href }, "*");
-        } catch (e) {}
-      }
-
-      window.addEventListener("load", sendHeightToParent);
-      window.addEventListener("resize", sendHeightToParent);
-      const observer = new MutationObserver(sendHeightToParent);
-      observer.observe(document.body, { childList: true, subtree: true, attributes: true });
-
       if (btn && ta && wrapper && status) {
         btn.addEventListener('click', () => {
           const isHidden = wrapper.style.display === 'none' || wrapper.style.display === '';
@@ -686,7 +671,6 @@ HTML_TEMPLATE = r"""<!doctype html>
           } else {
             btn.focus();
           }
-          sendHeightToParent();
         });
 
         document.addEventListener('click', (e)=>{
@@ -695,7 +679,6 @@ HTML_TEMPLATE = r"""<!doctype html>
             wrapper.style.display = 'none';
             btn.setAttribute('aria-expanded','false');
             btn.textContent = '🔗 Embed This Table';
-            sendHeightToParent();
           }
         });
 
@@ -705,7 +688,6 @@ HTML_TEMPLATE = r"""<!doctype html>
             btn.setAttribute('aria-expanded','false');
             btn.textContent = '🔗 Embed This Table';
             btn.focus();
-            sendHeightToParent();
           }
         });
       }
@@ -1031,7 +1013,7 @@ if uploaded_file is not None:
                     st.subheader("Final iframe embed code")
                     iframe_snippet = f"""<iframe src="{expected_embed_url}"
   title="{title_for_publish}"
-  width="100%" height="750"
+  width="100%" height="1140"
   scrolling="no"
   style="border:0;" loading="lazy"></iframe>"""
                     st.code(iframe_snippet, language="html")
