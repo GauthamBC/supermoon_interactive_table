@@ -617,10 +617,10 @@ HTML_TEMPLATE = r"""<!doctype html>
     
     /* Brand-specific logo sizes (desktop) */
     section.vi-compact-embed.brand-actionnetwork .vi-footer img {
-      height: 44px;  /* bumped up */
+      height: 54px;  /* bumped up */
     }
     section.vi-compact-embed.brand-vegasinsider .vi-footer img {
-      height: 36px;  /* leave as-is – already looks good */
+      height: 32px;  /* leave as-is – already looks good */
     }
     section.vi-compact-embed.brand-canadasb .vi-footer img {
       height: 40px;  /* bumped up from 30px */
