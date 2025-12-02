@@ -201,7 +201,7 @@ def get_brand_meta(brand: str) -> dict:
         "brand_class": "brand-actionnetwork",
     }
 
-        # Brand-specific overrides
+    # Brand-specific overrides
     if brand_clean == "Action Network":
         meta["brand_class"] = "brand-actionnetwork"
         meta["logo_url"] = "https://i.postimg.cc/x1nG117r/AN-final2-logo.png"
@@ -329,7 +329,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
     /* (Canada Sports Betting / RotoGrinders can get their own overrides later) */
 
-   section.vi-compact-embed.brand-canadasb{
+    section.vi-compact-embed.brand-canadasb{
       /* CSB red palette based on your Datawrapper table */
       --brand-50:#FEF2F2;
       --brand-100:#FEE2E2;
@@ -342,12 +342,8 @@ HTML_TEMPLATE = r"""<!doctype html>
       --hover-tint:#FBE9E9;
       --hover-ring:#FECACA;
       --hover-shadow:0 10px 24px rgba(127,29,29,.32);
-    } 
-    /* Reduce CSB logo size */
-    section.vi-compact-embed.brand-canadasb .vi-footer img {
-        height: 30px !important;
-        width: auto !important;
     }
+
     /* Header */
     .vi-compact-embed .head{
       padding:14px 16px;border-bottom:1px solid var(--border)!important;color:#fff!important;
@@ -385,12 +381,11 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .chip{width:18px;height:18px;border-radius:50%;overflow:hidden;border:1px solid #cfe4da;background:#fff;flex-shrink:0}
     .vi-compact-embed .chip img{width:100%;height:100%;object-fit:cover}
 
-   .vi-compact-embed .metric{
+    .vi-compact-embed .metric{
       position: relative;
       height: 28px;
       border-radius: 999px;
-      /* Much paler track so the gold bar stands out */
-      background: #FFFDF5 !important;  /* near-white with a tiny warm tint */
+      background: #FFFDF5 !important;
       overflow: hidden;
     }
     .vi-compact-embed .bar{position:absolute;inset:0 auto 0 0;border-radius:999px;background:linear-gradient(90deg,var(--brand-600),var(--brand-500))!important;box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)}
@@ -398,7 +393,6 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     /* Gradient bars by probability band (based on implied probability) */
     .vi-compact-embed .bar.band-very-high{
-      /* top band: darkest → strong */
       background: linear-gradient(90deg,var(--brand-900),var(--brand-600)) !important;
     }  /* >=25% */
     
@@ -573,6 +567,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       display: block !important;
       text-align: center;
       padding: 6px 0;
+      min-height: 64px;  /* keep footer strip same height across brands */
       border-top: 1px solid var(--border);
       background:
         radial-gradient(120% 140% at 85% 10%, rgba(255,255,255,.10) 0%, transparent 60%),
@@ -601,16 +596,23 @@ HTML_TEMPLATE = r"""<!doctype html>
       border-color: var(--brand-700);
     }
     .vi-compact-embed .vi-footer img {
-      height: 52px;
+      height: 40px;            /* base logo size (Action Network) */
       width: auto;
       display: inline-block;
       filter: brightness(0) invert(1);
     }
-    
-    /* Make the VegasInsider logo a bit smaller on desktop */
-    section.vi-compact-embed.brand-vegasinsider .vi-footer img {
-      height: 36px;  /* tweak to 38–42px until it feels right */
+
+    /* Brand-specific logo sizes (desktop) */
+    section.vi-compact-embed.brand-actionnetwork .vi-footer img {
+      height: 40px;
     }
+    section.vi-compact-embed.brand-vegasinsider .vi-footer img {
+      height: 36px;
+    }
+    section.vi-compact-embed.brand-canadasb .vi-footer img {
+      height: 30px;
+    }
+
     .vi-compact-embed .embed-wrapper{
       position: absolute;
       bottom: calc(100% + 10px);
