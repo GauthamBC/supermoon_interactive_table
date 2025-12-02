@@ -182,6 +182,26 @@ def find_next_widget_filename(owner: str, repo: str, token: str, branch: str = "
 
     return f"w{max_n + 1}.html" if max_n >= 0 else "w1.html"
 
+# === Brand metadata ===================================================
+
+def get_brand_meta(brand: str) -> dict:
+    """
+    Simple brand metadata – for now all brands share the same logo URL,
+    but alt text is brand-specific. When you have brand-specific colours /
+    logos we can plug them in here.
+    """
+    default_logo = "https://i.postimg.cc/x1nG117r/AN-final2-logo.png"
+    brand_clean = (brand or "").strip()
+
+    if not brand_clean:
+        brand_clean = "Action Network"
+
+    return {
+        "name": brand_clean,
+        "logo_url": default_logo,
+        "logo_alt": f"{brand_clean} logo",
+    }
+
 # === 1. State -> flag URL mapping =====================================
 STATE_FLAG_URLS = {
     "Alabama": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Alabama.svg",
@@ -237,7 +257,6 @@ STATE_FLAG_URLS = {
 }
 
 # === 2. HTML template =================================================
-# (unchanged HTML_TEMPLATE – omitted comment-wise, but full content kept)
 HTML_TEMPLATE = r"""<!doctype html>
 <html lang="en">
 <head>
@@ -693,8 +712,8 @@ HTML_TEMPLATE = r"""<!doctype html>
   <div class="vi-footer">
     <div class="footer-inner">
       <button id="copy-embed-btn" class="embed-btn" aria-controls="embed-wrapper" aria-expanded="false">🔗 Embed This Table</button>
-      <img src="https://i.postimg.cc/x1nG117r/AN-final2-logo.png"
-           alt="The Action Network logo"
+      <img src="[[BRAND_LOGO_URL]]"
+           alt="[[BRAND_LOGO_ALT]]"
            width="120" height="auto" loading="lazy" decoding="async" />
     </div>
 
@@ -917,6 +936,8 @@ def generate_html_from_df(
     title: str,
     subtitle: str,
     embed_url: str,
+    brand_logo_url: str,
+    brand_logo_alt: str,
 ) -> str:
     df = df.copy()
     df = df.sort_values("probability", ascending=False).reset_index(drop=True)
@@ -994,6 +1015,8 @@ def generate_html_from_df(
         .replace("[[TITLE]]", title)
         .replace("[[SUBTITLE]]", subtitle)
         .replace("[[EMBED_URL]]", embed_url)
+        .replace("[[BRAND_LOGO_URL]]", brand_logo_url)
+        .replace("[[BRAND_LOGO_ALT]]", brand_logo_alt)
     )
 
     return html
@@ -1004,8 +1027,8 @@ st.set_page_config(page_title="Supermoon Table Generator", layout="wide")
 
 st.title("Supermoon Visibility Table Generator")
 st.write(
-    "Upload a CSV, choose your GitHub campaign, then click **Get widget** to "
-    "publish your Supermoon table via GitHub Pages."
+    "Upload a CSV, choose a brand and GitHub campaign, then click **Get widget** "
+    "to publish your Supermoon table via GitHub Pages."
 )
 
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
@@ -1060,6 +1083,25 @@ if uploaded_file is not None:
         "based on sky clarity, elevation, darkness, and atmospheric conditions."
     )
 
+    # ---------- Brand selection ----------
+    brand_options = [
+        "Action Network",
+        "VegasInsider",
+        "Canada Sports Betting",
+        "RotoGrinders",
+    ]
+    default_brand = st.session_state.get("brand", "Action Network")
+    if default_brand not in brand_options:
+        default_brand = "Action Network"
+
+    brand = st.selectbox(
+        "Choose a brand",
+        options=brand_options,
+        index=brand_options.index(default_brand),
+        key="brand",
+    )
+    brand_meta = get_brand_meta(brand)
+
     # ---------- Widget text ----------
     widget_title = st.text_input(
         "Widget name",
@@ -1072,8 +1114,8 @@ if uploaded_file is not None:
         key="widget_subtitle",
     )
 
-    # ---------- GitHub & iFrame settings ----------
-    st.subheader("iFrame settings")
+    # ---------- GitHub & campaign settings ----------
+    st.subheader("GitHub & campaign settings")
 
     saved_gh_user = st.session_state.get("gh_user", "")
     saved_gh_repo = st.session_state.get("gh_repo", "supermoon-visibility-widget")
@@ -1096,7 +1138,7 @@ if uploaded_file is not None:
     effective_github_user = github_username_input.strip()
 
     repo_name = st.text_input(
-        "Enter a repository name (use letters, numbers, or underscores; no spaces).",
+        "Campaign name (GitHub repo name)",
         value=saved_gh_repo,
         key="gh_repo",
     )
@@ -1191,6 +1233,8 @@ if uploaded_file is not None:
 
                     title_for_publish = st.session_state.get("widget_title", default_title)
                     subtitle_for_publish = st.session_state.get("widget_subtitle", default_subtitle)
+                    brand_for_publish = st.session_state.get("brand", brand)
+                    brand_meta_publish = get_brand_meta(brand_for_publish)
 
                     # Use current chosen filename
                     widget_file_name = st.session_state.get("widget_file_name", base_filename)
@@ -1200,7 +1244,12 @@ if uploaded_file is not None:
 
                     # Generate final HTML with the real embed URL
                     html_final = generate_html_from_df(
-                        df, title_for_publish, subtitle_for_publish, expected_embed_url
+                        df,
+                        title_for_publish,
+                        subtitle_for_publish,
+                        expected_embed_url,
+                        brand_meta_publish["logo_url"],
+                        brand_meta_publish["logo_alt"],
                     )
 
                     progress.progress(80)
@@ -1317,11 +1366,12 @@ if uploaded_file is not None:
     has_generated = st.session_state.get("has_generated", False)
     show_tabs = has_generated or not GITHUB_TOKEN  # allow preview when token missing
 
-    # recompute for preview using current chosen file name
+    # recompute for preview using current chosen file name and brand
     widget_file_name = st.session_state.get("widget_file_name", base_filename)
     expected_embed_url = compute_expected_embed_url(
         effective_github_user, repo_name, widget_file_name
     )
+    brand_meta_preview = get_brand_meta(st.session_state.get("brand", brand))
 
     if show_tabs:
         tab1, tab2, tab3 = st.tabs(
@@ -1342,7 +1392,14 @@ if uploaded_file is not None:
 
         # -------- TAB 2: Widget preview + HTML (widget first) --------
         with tab2:
-            html_preview = generate_html_from_df(df, widget_title, widget_subtitle, expected_embed_url)
+            html_preview = generate_html_from_df(
+                df,
+                widget_title,
+                widget_subtitle,
+                expected_embed_url,
+                brand_meta_preview["logo_url"],
+                brand_meta_preview["logo_alt"],
+            )
             preview_tab, html_tab = st.tabs(["Widget preview", "HTML file contents"])
 
             with preview_tab:
@@ -1360,7 +1417,7 @@ if uploaded_file is not None:
         with tab3:
             st.subheader("How to embed your widget")
             st.markdown(
-                "1. Click **Get widget** whenever you change the title or campaign.\n"
+                "1. Click **Get widget** whenever you change the title, brand, or campaign.\n"
                 "2. Wait for GitHub Pages to finish building at the URL shown in the caption.\n"
                 "3. Paste the iframe code into your article or CMS.\n"
             )
