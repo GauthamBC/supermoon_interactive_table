@@ -310,6 +310,13 @@ HTML_TEMPLATE = r"""<!doctype html>
       --brand-500:#56C257; --brand-600:#3FA94B; --brand-700:#2E8538; --brand-900:#1F5D28;
       --ink:#181a1f; --muted:#666b73; --border:#DCEFE6; --viz-h:88px;
       --hover-tint: rgba(86,194,87,.12); --hover-ring:#BCE5D6; --hover-shadow:0 10px 24px rgba(86,194,87,.18);
+
+      /* Shared viz tokens */
+      --viz-soft-bg:#e6f4ee;
+      --viz-soft-bg-2:#eaf5ee;
+      --viz-soft-bar-bg:rgba(86,194,87,.16);
+      --viz-needle-color:#2E8538;
+      --metric-bg:#FFFDF5;   /* long oval background */
     }
 
     /* === Brand overrides ============================================= */
@@ -326,6 +333,12 @@ HTML_TEMPLATE = r"""<!doctype html>
       --hover-tint: rgba(242,194,58,.20);
       --hover-ring:#F2C23A;
       --hover-shadow:0 10px 24px rgba(0,0,0,.40);
+
+      --viz-soft-bg:#FFF4D9;
+      --viz-soft-bg-2:#FFF0C6;
+      --viz-soft-bar-bg:rgba(242,194,58,.18);
+      --viz-needle-color:var(--brand-700);
+      --metric-bg:var(--brand-50);
     }
 
     section.vi-compact-embed.brand-canadasb{
@@ -341,6 +354,12 @@ HTML_TEMPLATE = r"""<!doctype html>
       --hover-tint:#FBE9E9;
       --hover-ring:#FECACA;
       --hover-shadow:0 10px 24px rgba(127,29,29,.32);
+
+      --viz-soft-bg:#FEE2E2;
+      --viz-soft-bg-2:#FDE8E8;
+      --viz-soft-bar-bg:rgba(239,68,68,.18);
+      --viz-needle-color:var(--brand-600);
+      --metric-bg:var(--brand-50);
     }
 
     section.vi-compact-embed.brand-rotogrinders{
@@ -357,6 +376,12 @@ HTML_TEMPLATE = r"""<!doctype html>
       --hover-tint:rgba(1,65,161,.12);
       --hover-ring:#2F7DF3;
       --hover-shadow:0 10px 24px rgba(1,65,161,.35);
+
+      --viz-soft-bg:#E3EEFF;
+      --viz-soft-bg-2:#D9E7FF;
+      --viz-soft-bar-bg:rgba(1,65,161,.20);
+      --viz-needle-color:var(--brand-600);
+      --metric-bg:var(--brand-50);
     }
 
     /* Header */
@@ -400,7 +425,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       position: relative;
       height: 28px;
       border-radius: 999px;
-      background: #FFFDF5 !important;
+      background: var(--metric-bg) !important;
       overflow: hidden;
     }
     .vi-compact-embed .bar{position:absolute;inset:0 auto 0 0;border-radius:999px;background:linear-gradient(90deg,var(--brand-600),var(--brand-500))!important;box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)}
@@ -454,15 +479,15 @@ HTML_TEMPLATE = r"""<!doctype html>
     /* Sparkline (elevation) */
     .vi-compact-embed .spark{align-self:center}
     .vi-compact-embed .spark svg{width:100%;height:var(--viz-h)}
-    .vi-compact-embed .spark-base{stroke:#e6f1ec;stroke-width:3;fill:none}
+    .vi-compact-embed .spark-base{stroke:var(--viz-soft-bg);stroke-width:3;fill:none}
     .vi-compact-embed .spark-line{stroke:url(#az-elev-grad);stroke-width:4;fill:none;stroke-linecap:round;transition:stroke-dashoffset .6s ease}
     .vi-compact-embed .spark-dot{fill:var(--brand-500);stroke:#fff;stroke-width:2}
     .vi-compact-embed .donut > div{display:contents}
-    .vi-compact-embed .donut circle.bg{stroke:#e6f4ee;stroke-width:10;fill:none}
+    .vi-compact-embed .donut circle.bg{stroke:var(--viz-soft-bg);stroke-width:10;fill:none}
     .vi-compact-embed .donut circle.fg{stroke:var(--brand-600);stroke-width:10;fill:none;stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset .7s ease}
 
     /* Mini bars (clear days & humidity) */
-    .vi-compact-embed .mini-bar{height:10px;border-radius:999px;background:rgba(86,194,87,.16);overflow:hidden;align-self:center}
+    .vi-compact-embed .mini-bar{height:10px;border-radius:999px;background:var(--viz-soft-bar-bg);overflow:hidden;align-self:center}
     .vi-compact-embed .mini-bar .fill{display:block;height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,var(--brand-600),var(--brand-500));transition:width .6s ease}
 
     /* Clickable hint */
@@ -509,7 +534,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       height:var(--cal-h); display:grid; grid-template-columns:repeat(6,1fr);
       grid-auto-rows:1fr; gap:6px; align-self:center;
     }
-    .vi-compact-embed .calendar .day{ border-radius:6px; background:#eaf5ee; position:relative; overflow:hidden }
+    .vi-compact-embed .calendar .day{ border-radius:6px; background:var(--viz-soft-bg-2); position:relative; overflow:hidden }
     .vi-compact-embed .calendar .day.filled{ background:linear-gradient(180deg,var(--brand-600),var(--brand-500)) }
     .vi-compact-embed .calendar .day.partial::after{
       content:""; position:absolute; inset:0; width:calc(var(--part,0)*100%);
@@ -558,10 +583,10 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     /* Darkness gauge (styles only) */
     .vi-compact-embed .gauge-svg{ width:100%; height:var(--viz-row-h) }
-    .vi-compact-embed .gauge-track{ stroke:#e6f4ee; stroke-width:10; fill:none; stroke-linecap:round }
+    .vi-compact-embed .gauge-track{ stroke:var(--viz-soft-bg); stroke-width:10; fill:none; stroke-linecap:round }
     .vi-compact-embed .gauge-value{ stroke:url(#az-gauge-grad); stroke-width:10; fill:none; stroke-linecap:round; transition:stroke-dashoffset .7s ease }
     .vi-compact-embed .gauge-needle{ transform-origin:70px 70px; transition:transform .6s cubic-bezier(.2,.8,.2,1) }
-    .vi-compact-embed .gauge-needle line{ stroke:#2E8538; stroke-width:3; stroke-linecap:round }
+    .vi-compact-embed .gauge-needle line{ stroke:var(--viz-needle-color); stroke-width:3; stroke-linecap:round }
     .vi-compact-embed .gauge-needle circle{ fill:#fff; stroke:#cfe4da }
 
     /* Humidity droplet */
@@ -944,7 +969,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 
       function renderState(name){
         const d = DATA[name]; if(!d) return;
-        const title = document.getElementById('az-metrics-title'); if(title) title.textContent = name+' — Supermoon Viewing Factors';
+        const title = document.getElementById('az-metrics-title'); if(title) title.textContent = name+' \u2014 Supermoon Viewing Factors';
         const ez = document.getElementById('az-elev-val');   if(ez) ez.textContent = d.elev.toLocaleString()+' ft';
         const dz = document.getElementById('az-dark-val');   if(dz) dz.textContent = d.dark.toFixed(2)+' / 5';
         const cz = document.getElementById('az-clear-val');  if(cz) cz.textContent = d.clear.toFixed(1)+' days';
@@ -1022,7 +1047,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         btn.addEventListener('click', () => {
           const isHidden = wrapper.style.display === 'none' || wrapper.style.display === '';
           wrapper.style.display = isHidden ? 'block' : 'none';
-          btn.textContent = isHidden ? 'Hide Embed Code' : '🔗 Embed This Table';
+          btn.textContent = isHidden ? 'Hide Embed Code' : '\ud83d\udd17 Embed This Table';
           btn.setAttribute('aria-expanded', String(isHidden));
           if (isHidden) {
             ta.focus();
@@ -1042,7 +1067,7 @@ HTML_TEMPLATE = r"""<!doctype html>
           if (open && !wrapper.contains(e.target) && !btn.contains(e.target)) {
             wrapper.style.display = 'none';
             btn.setAttribute('aria-expanded','false');
-            btn.textContent = '🔗 Embed This Table';
+            btn.textContent = '\ud83d\udd17 Embed This Table';
             sendHeightToParent();
           }
         });
@@ -1052,7 +1077,7 @@ HTML_TEMPLATE = r"""<!doctype html>
           if (e.key === 'Escape' && wrapper.style.display === 'block') {
             wrapper.style.display = 'none';
             btn.setAttribute('aria-expanded','false');
-            btn.textContent = '🔗 Embed This Table';
+            btn.textContent = '\ud83d\udd17 Embed This Table';
             btn.focus();
             sendHeightToParent();
           }
