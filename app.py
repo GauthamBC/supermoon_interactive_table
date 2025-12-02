@@ -590,7 +590,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     
     /* Make the VegasInsider logo a bit smaller on desktop */
     section.vi-compact-embed.brand-vegasinsider .vi-footer img {
-      height: 40px;  /* tweak to 38–42px until it feels right */
+      height: 36px;  /* tweak to 38–42px until it feels right */
     }
     .vi-compact-embed .embed-wrapper{
       position: absolute;
