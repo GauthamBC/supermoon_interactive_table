@@ -577,11 +577,19 @@ HTML_TEMPLATE = r"""<!doctype html>
       overflow: visible; /* allow popup to show above on mobile */
     }
     .vi-compact-embed .footer-inner {
-      display: flex; justify-content: center; align-items: center; gap: 12px; position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      position: relative;
     }
+    
+    /* Desktop: vertically center the embed button in the footer strip */
     .vi-compact-embed .embed-btn {
       position: absolute;
       left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
       background: var(--brand-600);
       color: #fff;
       border: 1px solid var(--brand-600);
@@ -596,23 +604,27 @@ HTML_TEMPLATE = r"""<!doctype html>
       border-color: var(--brand-700);
     }
     .vi-compact-embed .vi-footer img {
-      height: 40px;            /* base logo size (Action Network) */
+      height: 40px;  /* base */
       width: auto;
       display: inline-block;
       filter: brightness(0) invert(1);
     }
-
+    
+    /* Helps keep logos centered within the flex area */
+    .vi-compact-embed .footer-inner img {
+      margin: 0 auto;
+    }
+    
     /* Brand-specific logo sizes (desktop) */
     section.vi-compact-embed.brand-actionnetwork .vi-footer img {
-      height: 40px;
+      height: 44px;  /* bumped up */
     }
     section.vi-compact-embed.brand-vegasinsider .vi-footer img {
-      height: 36px;
+      height: 36px;  /* leave as-is – already looks good */
     }
     section.vi-compact-embed.brand-canadasb .vi-footer img {
-      height: 30px;
+      height: 40px;  /* bumped up from 30px */
     }
-
     .vi-compact-embed .embed-wrapper{
       position: absolute;
       bottom: calc(100% + 10px);
