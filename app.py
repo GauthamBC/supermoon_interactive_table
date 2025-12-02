@@ -201,13 +201,26 @@ def get_brand_meta(brand: str) -> dict:
         "brand_class": "brand-actionnetwork",
     }
 
-    if brand_clean == "VegasInsider":
-        # Uses black + gold palette via CSS overrides
+        # Brand-specific overrides
+    if brand_clean == "Action Network":
+        meta["brand_class"] = "brand-actionnetwork"
+        meta["logo_url"] = "https://i.postimg.cc/x1nG117r/AN-final2-logo.png"
+        meta["logo_alt"] = "Action Network logo"
+
+    elif brand_clean == "VegasInsider":
         meta["brand_class"] = "brand-vegasinsider"
+        meta["logo_url"] = "https://i.postimg.cc/kGVJyXc1/VI-logo-final.png"
+        meta["logo_alt"] = "VegasInsider logo"
+
     elif brand_clean == "Canada Sports Betting":
         meta["brand_class"] = "brand-canadasb"
+        meta["logo_url"] = "YOUR_CSB_LOGO_URL_HERE"
+        meta["logo_alt"] = "Canada Sports Betting logo"
+
     elif brand_clean == "RotoGrinders":
         meta["brand_class"] = "brand-rotogrinders"
+        meta["logo_url"] = "YOUR_RG_LOGO_URL_HERE"
+        meta["logo_alt"] = "RotoGrinders logo"
 
     return meta
 
