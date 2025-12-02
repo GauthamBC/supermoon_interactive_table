@@ -566,7 +566,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .vi-footer {
       display: block !important;
       text-align: center;
-      padding: 8px 0;
+      padding: 12px 0 4px;
       min-height: 64px;  /* keep footer strip same height across brands */
       border-top: 1px solid var(--border);
       background:
