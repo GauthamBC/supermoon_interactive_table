@@ -1496,6 +1496,7 @@ if uploaded_file is not None:
     )
 
     if show_tabs:
+        # Main tabs
         tab_config, tab_embed = st.tabs(
             [
                 "Configure & preview widget",
@@ -1503,28 +1504,28 @@ if uploaded_file is not None:
             ]
         )
 
-        # -------- CONFIG TAB: only widget preview --------
+        # -------- TAB 1: Configure & preview widget --------
         with tab_config:
-            # --- 1) Controls on top (same row) ---
+            # controls on top
             col_title, col_sub = st.columns(2)
-        
+
             with col_title:
                 widget_title = st.text_input(
                     "Widget name",
                     value=st.session_state.get("widget_title", default_title),
                     key="widget_title",
                 )
-        
+
             with col_sub:
                 widget_subtitle = st.text_input(
                     "Widget subtitle",
                     value=st.session_state.get("widget_subtitle", default_subtitle),
                     key="widget_subtitle",
                 )
-        
-            # --- 2) Preview below the fields ---
+
+            # preview below
             brand_meta_preview = get_brand_meta(st.session_state.get("brand", brand))
-        
+
             html_preview = generate_html_from_df(
                 df,
                 widget_title,
@@ -1534,24 +1535,24 @@ if uploaded_file is not None:
                 brand_meta_preview["logo_alt"],
                 brand_meta_preview["brand_class"],
             )
-        
+
             components.html(html_preview, height=650, scrolling=True)
 
-        # -------- EMBED TAB: HTML + iframe, no instructions --------
+        # -------- TAB 2: Widgets HTML/Iframe --------
         with tab_embed:
-            st.subheader("HTML file contents")
-            st.text_area(
-                label="",
-                value=html_preview,
-                height=350,
-                label_visibility="collapsed",
-            )
+            subtab_html, subtab_iframe = st.tabs(["HTML file contents", "Iframe code"])
 
-            if st.session_state.get("iframe_snippet"):
+            with subtab_html:
+                st.text_area(
+                    label="",
+                    value=html_preview,
+                    height=350,
+                    label_visibility="collapsed",
+                )
+
+            with subtab_iframe:
                 st.markdown("**Current iframe code:**")
-                st.code(st.session_state["iframe_snippet"], language="html")
-            else:
-                st.info("No iframe yet – click **Update widget** above to generate it.")
-
-else:
-    st.info("Upload a CSV to configure and generate your widget.")
+                if st.session_state.get("iframe_snippet"):
+                    st.code(st.session_state["iframe_snippet"], language="html")
+                else:
+                    st.info("No iframe yet – click **Update widget** above to generate it.")
