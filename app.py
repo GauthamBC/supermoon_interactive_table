@@ -1505,9 +1505,7 @@ if uploaded_file is not None:
 
         # -------- CONFIG TAB: only widget preview --------
         with tab_config:
-            preview_placeholder = st.empty()
-        
-            # Two inputs on the same row
+            # --- 1) Controls on top (same row) ---
             col_title, col_sub = st.columns(2)
         
             with col_title:
@@ -1524,8 +1522,9 @@ if uploaded_file is not None:
                     key="widget_subtitle",
                 )
         
+            # --- 2) Preview below the fields ---
             brand_meta_preview = get_brand_meta(st.session_state.get("brand", brand))
-
+        
             html_preview = generate_html_from_df(
                 df,
                 widget_title,
@@ -1535,9 +1534,8 @@ if uploaded_file is not None:
                 brand_meta_preview["logo_alt"],
                 brand_meta_preview["brand_class"],
             )
-
-            with preview_placeholder:
-                components.html(html_preview, height=650, scrolling=True)
+        
+            components.html(html_preview, height=650, scrolling=True)
 
         # -------- EMBED TAB: HTML + iframe, no instructions --------
         with tab_embed:
