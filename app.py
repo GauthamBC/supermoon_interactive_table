@@ -338,12 +338,16 @@ HTML_TEMPLATE = r"""<!doctype html>
       --brand-600:#DC2626;
       --brand-700:#B91C1C;
       --brand-900:#7F1D1D;
-    
       --border:#FECACA;
       --hover-tint:#FBE9E9;
       --hover-ring:#FECACA;
       --hover-shadow:0 10px 24px rgba(127,29,29,.32);
     } 
+    /* Reduce CSB logo size */
+    section.vi-compact-embed.brand-canadasb .vi-footer img {
+        height: 40px !important;
+        width: auto !important;
+    }
     /* Header */
     .vi-compact-embed .head{
       padding:14px 16px;border-bottom:1px solid var(--border)!important;color:#fff!important;
