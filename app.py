@@ -642,7 +642,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       height: 40px;
     }
     section.vi-compact-embed.brand-rotogrinders .vi-footer img {
-      height: 40px;
+      height: 32px;
     }
     .vi-compact-embed .embed-wrapper{
       position: absolute;
