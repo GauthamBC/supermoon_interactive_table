@@ -1239,8 +1239,6 @@ if uploaded_file is not None:
     )
 
     # ---------- GitHub / hosting settings ----------
-    # (no visible subheader – kept simple)
-
     saved_gh_user = st.session_state.get("gh_user", "")
     saved_gh_repo = st.session_state.get("gh_repo", "supermoon-visibility-widget")
 
@@ -1501,59 +1499,50 @@ if uploaded_file is not None:
         tab_config, tab_embed = st.tabs(
             [
                 "Configure & preview widget",
-                "Embed help",
+                "Widgets HTML/Iframe",
             ]
         )
 
-        # -------- CONFIG TAB: Widget preview + HTML --------
+        # -------- CONFIG TAB: only widget preview --------
         with tab_config:
-            preview_tab, html_tab = st.tabs(["Widget preview", "HTML file contents"])
+            preview_placeholder = st.empty()
 
-            with preview_tab:
-                preview_placeholder = st.empty()
-
-                widget_title = st.text_input(
-                    "Widget name",
-                    value=st.session_state.get("widget_title", default_title),
-                    key="widget_title",
-                )
-                widget_subtitle = st.text_input(
-                    "Widget subtitle",
-                    value=st.session_state.get("widget_subtitle", default_subtitle),
-                    key="widget_subtitle",
-                )
-
-                brand_meta_preview = get_brand_meta(st.session_state.get("brand", brand))
-
-                html_preview = generate_html_from_df(
-                    df,
-                    widget_title,
-                    widget_subtitle,
-                    expected_embed_url,
-                    brand_meta_preview["logo_url"],
-                    brand_meta_preview["logo_alt"],
-                    brand_meta_preview["brand_class"],
-                )
-
-                with preview_placeholder:
-                    components.html(html_preview, height=650, scrolling=True)
-
-            with html_tab:
-                st.text_area(
-                    label="",
-                    value=html_preview,
-                    height=350,
-                    label_visibility="collapsed",
-                )
-
-        # -------- EMBED TAB: Simple embed help --------
-        with tab_embed:
-            st.subheader("How to embed your widget")
-            st.markdown(
-                "1. Click **Update widget** whenever you change the title, brand, or campaign.\n"
-                "2. Wait for GitHub Pages to finish building at the URL shown in the caption.\n"
-                "3. Paste the iframe code into your article or CMS.\n"
+            widget_title = st.text_input(
+                "Widget name",
+                value=st.session_state.get("widget_title", default_title),
+                key="widget_title",
             )
+            widget_subtitle = st.text_input(
+                "Widget subtitle",
+                value=st.session_state.get("widget_subtitle", default_subtitle),
+                key="widget_subtitle",
+            )
+
+            brand_meta_preview = get_brand_meta(st.session_state.get("brand", brand))
+
+            html_preview = generate_html_from_df(
+                df,
+                widget_title,
+                widget_subtitle,
+                expected_embed_url,
+                brand_meta_preview["logo_url"],
+                brand_meta_preview["logo_alt"],
+                brand_meta_preview["brand_class"],
+            )
+
+            with preview_placeholder:
+                components.html(html_preview, height=650, scrolling=True)
+
+        # -------- EMBED TAB: HTML + iframe, no instructions --------
+        with tab_embed:
+            st.subheader("HTML file contents")
+            st.text_area(
+                label="",
+                value=html_preview,
+                height=350,
+                label_visibility="collapsed",
+            )
+
             if st.session_state.get("iframe_snippet"):
                 st.markdown("**Current iframe code:**")
                 st.code(st.session_state["iframe_snippet"], language="html")
