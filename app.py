@@ -329,6 +329,21 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
     /* (Canada Sports Betting / RotoGrinders can get their own overrides later) */
 
+   section.vi-compact-embed.brand-canadasb{
+      /* CSB red palette based on your Datawrapper table */
+      --brand-50:#FEF2F2;
+      --brand-100:#FEE2E2;
+      --brand-300:#FECACA;
+      --brand-500:#EF4444;
+      --brand-600:#DC2626;
+      --brand-700:#B91C1C;
+      --brand-900:#7F1D1D;
+    
+      --border:#FECACA;
+      --hover-tint:#FBE9E9;
+      --hover-ring:#FECACA;
+      --hover-shadow:0 10px 24px rgba(127,29,29,.32);
+    } 
     /* Header */
     .vi-compact-embed .head{
       padding:14px 16px;border-bottom:1px solid var(--border)!important;color:#fff!important;
