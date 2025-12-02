@@ -307,22 +307,37 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       --footer-border:color-mix(in oklab,var(--brand-600) 40%, transparent);
     }
 
-    /* Header block (title + subtitle) */
+    /* Header block (title + subtitle inline) */
     .vi-table-embed .vi-table-header{
       padding:10px 16px 6px;
       border-bottom:1px solid var(--brand-100);
       background:linear-gradient(90deg,var(--brand-50),#ffffff);
+      display:flex;
+      align-items:baseline;
+      gap:10px;
+      justify-content:flex-start;
+      flex-wrap:wrap;
+    }
+    .vi-table-embed .vi-table-header.centered{
+      justify-content:center;
+      text-align:center;
     }
     .vi-table-embed .vi-table-header .title{
       margin:0;
-      font-size:clamp(16px,2.1vw,20px);
+      font-size:clamp(18px,2.3vw,22px);
       font-weight:750;
       color:#111827;
+      display:inline-block;
     }
     .vi-table-embed .vi-table-header .subtitle{
-      margin:4px 0 0;
+      margin:0;
       font-size:13px;
       color:#6b7280;
+      display:inline-block;
+    }
+    .vi-table-embed .vi-table-header.centered .title,
+    .vi-table-embed .vi-table-header.centered .subtitle{
+      text-align:center;
     }
 
     /* Container for table block */
@@ -440,8 +455,10 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
     #bt-block tbody td {
       padding: 12px 10px;
       overflow: hidden;
+      text-align:center;
     }
     #bt-block thead th { white-space: nowrap; }
+
     #bt-block tbody td:nth-child(2) {
       white-space: normal;
       word-break: keep-all;
@@ -535,6 +552,44 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       display:inline-block;
     }
 
+    /* Brand-specific logo recolor */
+    .vi-table-embed.brand-actionnetwork .vi-footer img{
+      filter:
+        brightness(0) saturate(100%)
+        invert(62%) sepia(23%) saturate(1250%) hue-rotate(78deg)
+        brightness(96%) contrast(92%);
+    }
+    .vi-table-embed.brand-vegasinsider .vi-footer img{
+      filter:
+        brightness(0) saturate(100%)
+        invert(83%) sepia(52%) saturate(871%) hue-rotate(9deg)
+        brightness(100%) contrast(97%);
+    }
+    .vi-table-embed.brand-canadasb .vi-footer img{
+      filter:
+        brightness(0) saturate(100%)
+        invert(32%) sepia(85%) saturate(2386%) hue-rotate(347deg)
+        brightness(96%) contrast(104%);
+    }
+    .vi-table-embed.brand-rotogrinders .vi-footer img{
+      filter:
+        brightness(0) saturate(100%)
+        invert(23%) sepia(95%) saturate(1704%) hue-rotate(203deg)
+        brightness(93%) contrast(96%);
+    }
+
+    @media (max-width: 600px){
+      .vi-table-embed .footer-inner{
+        flex-direction:row;
+        justify-content:center;
+        gap:8px;
+      }
+      .vi-table-embed .embed-btn{
+        padding:6px 10px;
+        font-size:12px;
+      }
+    }
+
     .vi-table-embed.brand-vegasinsider .vi-footer img{ height:32px; }
     .vi-table-embed.brand-rotogrinders .vi-footer img{ height:32px; }
 
@@ -563,24 +618,12 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       border:8px solid transparent; border-top-color:#fff;
       filter: drop-shadow(0 1px 1px rgba(0,0,0,.08));
     }
-
-    @media (max-width: 600px){
-      .vi-table-embed .footer-inner{
-        flex-direction:row;
-        justify-content:center;
-        gap:8px;
-      }
-      .vi-table-embed .embed-btn{
-        padding:6px 10px;
-        font-size:12px;
-      }
-    }
   </style>
 
   <!-- Header -->
-  <div class="vi-table-header">
-    <h3 class="title">[[TITLE]]</h3>
-    <p class="subtitle">[[SUBTITLE]]</p>
+  <div class="vi-table-header [[HEADER_ALIGN_CLASS]]">
+    <span class="title">[[TITLE]]</span>
+    <span class="subtitle">[[SUBTITLE]]</span>
   </div>
 
   <!-- Table block -->
@@ -894,6 +937,7 @@ def generate_table_html_from_df(
     brand_logo_alt: str,
     brand_class: str,
     striped: bool = True,
+    center_titles: bool = False,
 ) -> str:
     df = df.copy()
 
@@ -931,6 +975,8 @@ def generate_table_html_from_df(
     #bt-block tbody tr:nth-child(even){background:#ffffff;}
 """
 
+    header_class = "centered" if center_titles else ""
+
     html = (
         HTML_TEMPLATE_TABLE
         .replace("[[TABLE_HEAD]]", table_head_html)
@@ -943,6 +989,7 @@ def generate_table_html_from_df(
         .replace("[[BRAND_LOGO_ALT]]", html_mod.escape(brand_logo_alt))
         .replace("[[BRAND_CLASS]]", brand_class or "")
         .replace("[[STRIPE_CSS]]", stripe_css)
+        .replace("[[HEADER_ALIGN_CLASS]]", header_class)
     )
     return html
 
@@ -987,8 +1034,8 @@ if uploaded_file is not None:
         st.error("Uploaded CSV has no rows.")
         st.stop()
 
-    default_title = "Branded Data Table"
-    default_subtitle = "Sortable, searchable table with brand styling."
+    default_title = "Table 1"
+    default_subtitle = "Subheading"
 
     # ---------- GitHub / hosting settings ----------
     saved_gh_user = st.session_state.get("bt_gh_user", "")
@@ -1104,6 +1151,7 @@ if uploaded_file is not None:
                     title_for_publish = st.session_state.get("bt_widget_title", default_title)
                     subtitle_for_publish = st.session_state.get("bt_widget_subtitle", default_subtitle)
                     striped_for_publish = st.session_state.get("bt_striped_rows", True)
+                    center_titles_for_publish = st.session_state.get("bt_center_titles", False)
                     brand_meta_publish = get_brand_meta(st.session_state.get("brand_table", brand))
 
                     widget_file_name = st.session_state.get("bt_widget_file_name", base_filename)
@@ -1120,6 +1168,7 @@ if uploaded_file is not None:
                         brand_meta_publish["logo_alt"],
                         brand_meta_publish["brand_class"],
                         striped=striped_for_publish,
+                        center_titles=center_titles_for_publish,
                     )
 
                     progress.progress(80)
@@ -1245,24 +1294,34 @@ if uploaded_file is not None:
         )
 
         with tab_config:
-            col_l, col_r = st.columns([2, 1])
-
-            with col_l:
+            # First row: title + subtitle in same row
+            row1_col1, row1_col2 = st.columns(2)
+            with row1_col1:
                 widget_title = st.text_input(
-                    "Table title (shown in header & iframe title)",
+                    "Table title",
                     value=st.session_state.get("bt_widget_title", default_title),
                     key="bt_widget_title",
                 )
+            with row1_col2:
                 widget_subtitle = st.text_input(
-                    "Table subtitle (optional, shown under title)",
+                    "Table subtitle",
                     value=st.session_state.get("bt_widget_subtitle", default_subtitle),
                     key="bt_widget_subtitle",
                 )
-            with col_r:
+
+            # Second row: striped rows + center header checkboxes
+            row2_col1, row2_col2 = st.columns(2)
+            with row2_col1:
                 striped_rows = st.checkbox(
                     "Striped rows",
                     value=st.session_state.get("bt_striped_rows", True),
                     key="bt_striped_rows",
+                )
+            with row2_col2:
+                center_titles = st.checkbox(
+                    "Center title & subtitle",
+                    value=st.session_state.get("bt_center_titles", False),
+                    key="bt_center_titles",
                 )
 
             brand_meta_preview = get_brand_meta(st.session_state.get("brand_table", brand))
@@ -1276,6 +1335,7 @@ if uploaded_file is not None:
                 brand_meta_preview["logo_alt"],
                 brand_meta_preview["brand_class"],
                 striped=striped_rows,
+                center_titles=center_titles,
             )
 
             components.html(html_preview, height=650, scrolling=True)
