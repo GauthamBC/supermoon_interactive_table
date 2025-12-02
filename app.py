@@ -217,7 +217,7 @@ def get_brand_meta(brand: str) -> dict:
         meta["logo_url"] = "https://i.postimg.cc/ZKbrbPCJ/CSB-FN.png"
         meta["logo_alt"] = "Canada Sports Betting logo"
 
-   elif brand_clean == "RotoGrinders":
+    elif brand_clean == "RotoGrinders":
         meta["brand_class"] = "brand-rotogrinders"
         meta["logo_url"] = "https://i.postimg.cc/D0dkNXTx/Rotogrinders-final-logo.png"
         meta["logo_alt"] = "RotoGrinders logo"
