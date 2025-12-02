@@ -76,9 +76,9 @@ def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main"
         return
 
     payload = {"source": {"branch": branch, "path": "/"}}
-    r2 = requests.post(f"{api_base}/repos/{owner}/{repo}/pages", headers=headers, json=payload)
-    if r2.status_code not in (201, 202):
-        raise RuntimeError(f"Error enabling GitHub Pages: {r2.status_code} {r2.text}")
+    r = requests.post(f"{api_base}/repos/{owner}/{repo}/pages", headers=headers, json=payload)
+    if r.status_code not in (201, 202):
+        raise RuntimeError(f"Error enabling GitHub Pages: {r.status_code} {r.text}")
 
 def upload_file_to_github(
     owner: str,
@@ -186,21 +186,30 @@ def find_next_widget_filename(owner: str, repo: str, token: str, branch: str = "
 
 def get_brand_meta(brand: str) -> dict:
     """
-    Simple brand metadata – for now all brands share the same logo URL,
-    but alt text is brand-specific. When you have brand-specific colours /
-    logos we can plug them in here.
+    Brand metadata: name, logo, alt text, and a CSS class
+    used to theme the widget.
     """
+    # Default to Action Network palette & logo
     default_logo = "https://i.postimg.cc/x1nG117r/AN-final2-logo.png"
-    brand_clean = (brand or "").strip()
+    brand_clean = (brand or "").strip() or "Action Network"
 
-    if not brand_clean:
-        brand_clean = "Action Network"
-
-    return {
+    # Default mapping
+    meta = {
         "name": brand_clean,
         "logo_url": default_logo,
         "logo_alt": f"{brand_clean} logo",
+        "brand_class": "brand-actionnetwork",
     }
+
+    if brand_clean == "VegasInsider":
+        # Uses black + gold palette via CSS overrides
+        meta["brand_class"] = "brand-vegasinsider"
+    elif brand_clean == "Canada Sports Betting":
+        meta["brand_class"] = "brand-canadasb"
+    elif brand_clean == "RotoGrinders":
+        meta["brand_class"] = "brand-rotogrinders"
+
+    return meta
 
 # === 1. State -> flag URL mapping =====================================
 STATE_FLAG_URLS = {
@@ -267,7 +276,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 
 <body style="margin:0;">
 
-<section class="vi-compact-embed" role="region" aria-labelledby="vi-compact-embed-title"
+<section class="vi-compact-embed [[BRAND_CLASS]]" role="region" aria-labelledby="vi-compact-embed-title"
   style="max-width:860px;margin:16px auto;font:14px/1.35 Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
          color:#181a1f;background:#ffffff;border:1px solid #DCEFE6;border-radius:12px;
          box-shadow:0 1px 2px rgba(0,0,0,.04),0 6px 16px rgba(86,194,87,.10);">
@@ -289,6 +298,23 @@ HTML_TEMPLATE = r"""<!doctype html>
       --ink:#181a1f; --muted:#666b73; --border:#DCEFE6; --viz-h:88px;
       --hover-tint: rgba(86,194,87,.12); --hover-ring:#BCE5D6; --hover-shadow:0 10px 24px rgba(86,194,87,.18);
     }
+
+    /* === Brand overrides ============================================= */
+    section.vi-compact-embed.brand-vegasinsider{
+      /* Gold + black palette from your sample */
+      --brand-50:#FFF7DC;
+      --brand-100:#FFE8AA;
+      --brand-300:#FFE8AA;
+      --brand-500:#F2C23A;
+      --brand-600:#D9A72A;
+      --brand-700:#B9851A;
+      --brand-900:#111111;
+      --border:#F2C23A;
+      --hover-tint: rgba(242,194,58,.20);
+      --hover-ring:#F2C23A;
+      --hover-shadow:0 10px 24px rgba(0,0,0,.40);
+    }
+    /* (Canada Sports Betting / RotoGrinders can get their own overrides later) */
 
     /* Header */
     .vi-compact-embed .head{
@@ -938,6 +964,7 @@ def generate_html_from_df(
     embed_url: str,
     brand_logo_url: str,
     brand_logo_alt: str,
+    brand_class: str,
 ) -> str:
     df = df.copy()
     df = df.sort_values("probability", ascending=False).reset_index(drop=True)
@@ -1017,6 +1044,7 @@ def generate_html_from_df(
         .replace("[[EMBED_URL]]", embed_url)
         .replace("[[BRAND_LOGO_URL]]", brand_logo_url)
         .replace("[[BRAND_LOGO_ALT]]", brand_logo_alt)
+        .replace("[[BRAND_CLASS]]", brand_class or "")
     )
 
     return html
@@ -1250,6 +1278,7 @@ if uploaded_file is not None:
                         expected_embed_url,
                         brand_meta_publish["logo_url"],
                         brand_meta_publish["logo_alt"],
+                        brand_meta_publish["brand_class"],
                     )
 
                     progress.progress(80)
@@ -1399,6 +1428,7 @@ if uploaded_file is not None:
                 expected_embed_url,
                 brand_meta_preview["logo_url"],
                 brand_meta_preview["logo_alt"],
+                brand_meta_preview["brand_class"],
             )
             preview_tab, html_tab = st.tabs(["Widget preview", "HTML file contents"])
 
