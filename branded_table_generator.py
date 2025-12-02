@@ -128,7 +128,7 @@ def trigger_pages_build(owner: str, repo: str, token: str) -> bool:
     r = requests.post(f"{api_base}/repos/{owner}/{repo}/pages/builds", headers=headers)
     return r.status_code in (201, 202)
 
-# --- New helpers for availability check -------------------------------
+# --- Helpers for availability check -------------------------------
 
 def check_repo_exists(owner: str, repo: str, token: str) -> bool:
     api_base = "https://api.github.com"
@@ -307,6 +307,24 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       --footer-border:color-mix(in oklab,var(--brand-600) 40%, transparent);
     }
 
+    /* Header block (title + subtitle) */
+    .vi-table-embed .vi-table-header{
+      padding:10px 16px 6px;
+      border-bottom:1px solid var(--brand-100);
+      background:linear-gradient(90deg,var(--brand-50),#ffffff);
+    }
+    .vi-table-embed .vi-table-header .title{
+      margin:0;
+      font-size:clamp(16px,2.1vw,20px);
+      font-weight:750;
+      color:#111827;
+    }
+    .vi-table-embed .vi-table-header .subtitle{
+      margin:4px 0 0;
+      font-size:13px;
+      color:#6b7280;
+    }
+
     /* Container for table block */
     #bt-block, #bt-block * { box-sizing:border-box; }
     #bt-block{
@@ -319,7 +337,7 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       --vbar-w: 6px; --vbar-w-hover: 8px;
 
       padding: 8px var(--gutter);
-      padding-top: 10px;
+      padding-top: 8px;
     }
 
     /* Controls layout: header = search + pager (no logo) */
@@ -438,10 +456,16 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       transform: translateZ(0);
     }
 
-    /* Body rows */
-    #bt-block tbody td{ text-align:center; vertical-align:middle; background:transparent!important; border:0; transition:background-color .12s }
-    #bt-block tbody tr:nth-child(odd){background:var(--stripe)}
-    #bt-block tbody tr:hover{background:var(--hover); box-shadow:inset 3px 0 0 var(--brand-500)}
+    /* Body rows – zebra + hover injected here */
+    [[STRIPE_CSS]]
+
+    #bt-block tbody tr:hover{
+      background:var(--hover);
+      box-shadow:inset 3px 0 0 var(--brand-500);
+      transform:translateY(-1px);
+      transition:background-color .12s ease, box-shadow .12s ease, transform .08s ease;
+    }
+
     #bt-block thead th{position:sticky; top:0; z-index:5}
 
     /* Scrollbars + height */
@@ -455,11 +479,6 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
     #bt-block .dw-scroll::-webkit-scrollbar-thumb{
       background:var(--scroll-thumb); border-radius:9999px; border:2px solid transparent; background-clip:content-box;
     }
-
-    /* Dynamic zebra */
-    #bt-block tbody tr{background:transparent!important}
-    #bt-block tbody tr.dw-zebra{background:var(--stripe)!important}
-    #bt-block tbody td.is-sorted{background:var(--hover)!important; font-weight:600}
 
     /* Empty row */
     #bt-block tr.dw-empty td{text-align:center; color:#6b7280; font-style:italic; padding:18px 14px; background:linear-gradient(0deg,#fff,var(--brand-50))}
@@ -481,7 +500,7 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       #bt-block .dw-btn{width:32px; height:32px; padding:0; border-radius:12px; display:inline-flex; align-items:center; justify-content:center;}
     }
 
-    /* ========= Footer with logo + embed button (shared across brands) ======== */
+    /* ========= Footer with logo + embed button ======== */
     .vi-table-embed .vi-footer {
       display:block;
       padding:10px 14px 8px;
@@ -557,6 +576,12 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       }
     }
   </style>
+
+  <!-- Header -->
+  <div class="vi-table-header">
+    <h3 class="title">[[TITLE]]</h3>
+    <p class="subtitle">[[SUBTITLE]]</p>
+  </div>
 
   <!-- Table block -->
   <div id="bt-block" data-dw="table">
@@ -644,7 +669,7 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
 
     Array.from(tb.rows).forEach((r,i)=>{ if(!r.classList.contains('dw-empty')) r.dataset.idx=i; });
 
-    let pageSize = parseInt(sizeSel.value,10) or 10;
+    let pageSize = parseInt(sizeSel.value,10) || 10;  // 0 = All
     let page = 1;
     let filter = '';
 
@@ -661,26 +686,21 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
     });
 
     function textOf(tr,i){ return (tr.children[i].innerText||'').trim(); }
-    function clearSortedClasses(){
-      heads.forEach(h=>h.classList.remove('is-sorted'));
-      Array.from(tb.rows).forEach(r=>Array.from(r.cells).forEach(c=>c.classList.remove('is-sorted')));
-    }
-    function markSortedColumn(colIdx){
-      heads[colIdx]?.classList.add('is-sorted');
-      Array.from(tb.rows).forEach(r=>{ const c=r.cells[colIdx]; if(c) c.classList.add('is-sorted'); });
-    }
 
     function sortBy(colIdx, type, th){
       const rows = Array.from(tb.rows).filter(r=>!r.classList.contains('dw-empty'));
       const current = th.dataset.sort || 'none';
       const next = current==='none' ? 'asc' : current==='asc' ? 'desc' : 'none';
 
-      heads.forEach(h=>{ h.dataset.sort='none'; h.setAttribute('aria-sort','none'); h.classList.remove('is-sorted'); });
+      heads.forEach(h=>{
+        h.dataset.sort='none';
+        h.setAttribute('aria-sort','none');
+        h.classList.remove('is-sorted');
+      });
 
       if(next === 'none'){
         rows.sort((a,b)=>(+a.dataset.idx)-(+b.dataset.idx));
         rows.forEach(r=>tb.insertBefore(r, emptyRow));
-        clearSortedClasses();
         renderPage();
         return;
       }
@@ -694,33 +714,39 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
         if((type||'text')==='num'){
           v1=parseFloat(v1.replace(/[^0-9.\-]/g,'')); if(isNaN(v1)) v1=-Infinity;
           v2=parseFloat(v2.replace(/[^0-9.\-]/g,'')); if(isNaN(v2)) v2=-Infinity;
-        }else{ v1=(v1+'').toLowerCase(); v2=(v2+'').toLowerCase(); }
-        if(v1>v2) return 1*mul; if(v1<v2) return -1*mul; return 0;
+        }else{
+          v1=(v1+'').toLowerCase();
+          v2=(v2+'').toLowerCase();
+        }
+        if(v1>v2) return 1*mul;
+        if(v1<v2) return -1*mul;
+        return 0;
       });
       rows.forEach(r=>tb.insertBefore(r, emptyRow));
-      clearSortedClasses(); markSortedColumn(colIdx);
+      th.classList.add('is-sorted');
       renderPage();
     }
 
-    function applyZebra(shown){
-      Array.from(tb.rows).forEach(r=>r.classList.remove('dw-zebra'));
-      shown.forEach((r,idx)=>{ if(idx % 2 === 0) r.classList.add('dw-zebra'); });
+    function matchesFilter(tr){
+      return !tr.classList.contains('dw-empty') &&
+             tr.innerText.toLowerCase().includes(filter);
     }
-
-    function matchesFilter(tr){ return !tr.classList.contains('dw-empty') && tr.innerText.toLowerCase().includes(filter); }
 
     function renderPage(){
       const ordered = Array.from(tb.rows).filter(r=>!r.classList.contains('dw-empty'));
       const visible = ordered.filter(matchesFilter);
       const total = visible.length;
 
-      ordered.forEach(r=>r.style.display='none');
+      ordered.forEach(r=>{ r.style.display='none'; });
       let shown = [];
 
       if(total===0){
-        if(emptyRow){ emptyRow.style.display='table-row'; emptyRow.firstElementChild.colSpan = heads.length; }
+        if(emptyRow){
+          emptyRow.style.display='table-row';
+          emptyRow.firstElementChild.colSpan = heads.length;
+        }
         if(statusEl) statusEl.textContent = "";
-        prevBtn.disabled = nextBtn.disabled = True;
+        prevBtn.disabled = nextBtn.disabled = true;
       }else{
         if(emptyRow) emptyRow.style.display='none';
         if(pageSize===0){
@@ -730,15 +756,16 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
         }else{
           const pages = Math.max(1, Math.ceil(total / pageSize));
           page = Math.min(Math.max(1, page), pages);
-          const start = (page-1)*pageSize, end = start + pageSize;
+          const start = (page-1)*pageSize;
+          const end = start + pageSize;
           shown = visible.slice(start,end);
           if(statusEl) statusEl.textContent = "";
-          prevBtn.disabled = page<=1; nextBtn.disabled = page>=pages;
+          prevBtn.disabled = page<=1;
+          nextBtn.disabled = page>=pages;
         }
       }
 
-      shown.forEach(r=>r.style.display='table-row');
-      applyZebra(shown);
+      shown.forEach(r=>{ r.style.display='table-row'; });
     }
 
     /* search + clear */
@@ -747,15 +774,36 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
     searchInput.addEventListener('input', e=>{
       syncClearBtn();
       clearTimeout(t);
-      t=setTimeout(()=>{ filter=(e.target.value||'').toLowerCase().trim(); page=1; renderPage(); },120);
+      t=setTimeout(()=>{
+        filter=(e.target.value||'').toLowerCase().trim();
+        page=1;
+        renderPage();
+      },120);
     });
-    clearBtn.addEventListener('click', ()=>{ searchInput.value=''; syncClearBtn(); filter=''; page=1; renderPage(); searchInput.focus(); });
+    clearBtn.addEventListener('click', ()=>{
+      searchInput.value='';
+      syncClearBtn();
+      filter='';
+      page=1;
+      renderPage();
+      searchInput.focus();
+    });
     syncClearBtn();
 
     /* page size + nav */
-    sizeSel.addEventListener('change', e=>{ pageSize = parseInt(e.target.value,10) || 0; page=1; renderPage(); });
-    prevBtn.addEventListener('click', ()=>{ page--; renderPage(); });
-    nextBtn.addEventListener('click', ()=>{ page++; renderPage(); });
+    sizeSel.addEventListener('change', e=>{
+      pageSize = parseInt(e.target.value,10) || 0;
+      page=1;
+      renderPage();
+    });
+    prevBtn.addEventListener('click', ()=>{
+      page--;
+      renderPage();
+    });
+    nextBtn.addEventListener('click', ()=>{
+      page++;
+      renderPage();
+    });
 
     renderPage();
 
@@ -822,10 +870,8 @@ def guess_column_type(series: pd.Series) -> str:
     """
     Rough heuristic: return 'num' if the column is mostly numeric-ish, else 'text'.
     """
-    # If pandas already thinks it's numeric, done
     if pd.api.types.is_numeric_dtype(series):
         return "num"
-    # Try stripping common non-numeric chars and parsing a sample
     sample = series.dropna().astype(str).head(20)
     if sample.empty:
         return "text"
@@ -842,19 +888,19 @@ def guess_column_type(series: pd.Series) -> str:
 def generate_table_html_from_df(
     df: pd.DataFrame,
     title: str,
+    subtitle: str,
     embed_url: str,
     brand_logo_url: str,
     brand_logo_alt: str,
     brand_class: str,
+    striped: bool = True,
 ) -> str:
     df = df.copy()
 
     # Build table head
     head_cells = []
-    col_types = {}
     for col in df.columns:
         col_type = guess_column_type(df[col])
-        col_types[col] = col_type
         safe_label = html_mod.escape(str(col))
         head_cells.append(
             f'<th scope="col" data-type="{col_type}">{safe_label}</th>'
@@ -868,11 +914,22 @@ def generate_table_html_from_df(
         for col in df.columns:
             val = "" if pd.isna(row[col]) else str(row[col])
             cells.append(f"<td>{html_mod.escape(val)}</td>")
-        row_html = "  <tr>" + "".join(cells) + "</tr>"
+        row_html = "            <tr>" + "".join(cells) + "</tr>"
         row_html_snippets.append(row_html)
 
-    table_rows_html = "\n  ".join(row_html_snippets)
+    table_rows_html = "\n".join(row_html_snippets)
     colspan = str(len(df.columns))
+
+    if striped:
+        stripe_css = """
+    #bt-block tbody tr:nth-child(odd){background:var(--stripe);}
+    #bt-block tbody tr:nth-child(even){background:#ffffff;}
+"""
+    else:
+        stripe_css = """
+    #bt-block tbody tr:nth-child(odd),
+    #bt-block tbody tr:nth-child(even){background:#ffffff;}
+"""
 
     html = (
         HTML_TEMPLATE_TABLE
@@ -880,10 +937,12 @@ def generate_table_html_from_df(
         .replace("[[TABLE_ROWS]]", table_rows_html)
         .replace("[[COLSPAN]]", colspan)
         .replace("[[TITLE]]", html_mod.escape(title))
+        .replace("[[SUBTITLE]]", html_mod.escape(subtitle or ""))
         .replace("[[EMBED_URL]]", html_mod.escape(embed_url))
         .replace("[[BRAND_LOGO_URL]]", brand_logo_url)
         .replace("[[BRAND_LOGO_ALT]]", html_mod.escape(brand_logo_alt))
         .replace("[[BRAND_CLASS]]", brand_class or "")
+        .replace("[[STRIPE_CSS]]", stripe_css)
     )
     return html
 
@@ -897,7 +956,7 @@ st.write(
     "to publish a branded, searchable table via GitHub Pages."
 )
 
-# Brand selection (same set as Supermoon app)
+# Brand selection
 brand_options = [
     "Action Network",
     "VegasInsider",
@@ -929,6 +988,7 @@ if uploaded_file is not None:
         st.stop()
 
     default_title = "Branded Data Table"
+    default_subtitle = "Sortable, searchable table with brand styling."
 
     # ---------- GitHub / hosting settings ----------
     saved_gh_user = st.session_state.get("bt_gh_user", "")
@@ -1042,6 +1102,8 @@ if uploaded_file is not None:
                         progress.progress(pct)
 
                     title_for_publish = st.session_state.get("bt_widget_title", default_title)
+                    subtitle_for_publish = st.session_state.get("bt_widget_subtitle", default_subtitle)
+                    striped_for_publish = st.session_state.get("bt_striped_rows", True)
                     brand_meta_publish = get_brand_meta(st.session_state.get("brand_table", brand))
 
                     widget_file_name = st.session_state.get("bt_widget_file_name", base_filename)
@@ -1052,10 +1114,12 @@ if uploaded_file is not None:
                     html_final = generate_table_html_from_df(
                         df,
                         title_for_publish,
+                        subtitle_for_publish,
                         expected_embed_url,
                         brand_meta_publish["logo_url"],
                         brand_meta_publish["logo_alt"],
                         brand_meta_publish["brand_class"],
+                        striped=striped_for_publish,
                     )
 
                     progress.progress(80)
@@ -1181,21 +1245,37 @@ if uploaded_file is not None:
         )
 
         with tab_config:
-            widget_title = st.text_input(
-                "Table title (for <title> + iframe)",
-                value=st.session_state.get("bt_widget_title", default_title),
-                key="bt_widget_title",
-            )
+            col_l, col_r = st.columns([2, 1])
+
+            with col_l:
+                widget_title = st.text_input(
+                    "Table title (shown in header & iframe title)",
+                    value=st.session_state.get("bt_widget_title", default_title),
+                    key="bt_widget_title",
+                )
+                widget_subtitle = st.text_input(
+                    "Table subtitle (optional, shown under title)",
+                    value=st.session_state.get("bt_widget_subtitle", default_subtitle),
+                    key="bt_widget_subtitle",
+                )
+            with col_r:
+                striped_rows = st.checkbox(
+                    "Striped rows",
+                    value=st.session_state.get("bt_striped_rows", True),
+                    key="bt_striped_rows",
+                )
 
             brand_meta_preview = get_brand_meta(st.session_state.get("brand_table", brand))
 
             html_preview = generate_table_html_from_df(
                 df,
                 widget_title,
+                widget_subtitle,
                 expected_embed_url,
                 brand_meta_preview["logo_url"],
                 brand_meta_preview["logo_alt"],
                 brand_meta_preview["brand_class"],
+                striped=striped_rows,
             )
 
             components.html(html_preview, height=650, scrolling=True)
