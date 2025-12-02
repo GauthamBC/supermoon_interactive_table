@@ -1132,8 +1132,26 @@ st.set_page_config(page_title="Supermoon Table Generator", layout="wide")
 
 st.title("Supermoon Visibility Table Generator")
 st.write(
-    "Upload a CSV, choose a brand and GitHub campaign, then click **Get widget** "
+    "Upload a CSV, choose a brand and GitHub campaign, then click **Update widget** "
     "to publish your Supermoon table via GitHub Pages."
+)
+
+# ---------- Brand selection (moved to top, before CSV upload) ----------
+brand_options = [
+    "Action Network",
+    "VegasInsider",
+    "Canada Sports Betting",
+    "RotoGrinders",
+]
+default_brand = st.session_state.get("brand", "Action Network")
+if default_brand not in brand_options:
+    default_brand = "Action Network"
+
+brand = st.selectbox(
+    "Choose a brand",
+    options=brand_options,
+    index=brand_options.index(default_brand),
+    key="brand",
 )
 
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
@@ -1188,39 +1206,8 @@ if uploaded_file is not None:
         "based on sky clarity, elevation, darkness, and atmospheric conditions."
     )
 
-    # ---------- Brand selection ----------
-    brand_options = [
-        "Action Network",
-        "VegasInsider",
-        "Canada Sports Betting",
-        "RotoGrinders",
-    ]
-    default_brand = st.session_state.get("brand", "Action Network")
-    if default_brand not in brand_options:
-        default_brand = "Action Network"
-
-    brand = st.selectbox(
-        "Choose a brand",
-        options=brand_options,
-        index=brand_options.index(default_brand),
-        key="brand",
-    )
-    brand_meta = get_brand_meta(brand)
-
-    # ---------- Widget text ----------
-    widget_title = st.text_input(
-        "Widget name",
-        value=st.session_state.get("widget_title", default_title),
-        key="widget_title",
-    )
-    widget_subtitle = st.text_input(
-        "Widget subtitle",
-        value=st.session_state.get("widget_subtitle", default_subtitle),
-        key="widget_subtitle",
-    )
-
-    # ---------- GitHub & campaign settings ----------
-    st.subheader("GitHub & campaign settings")
+    # ---------- Iframe / GitHub settings (renamed heading) ----------
+    st.subheader("Iframe settings")
 
     saved_gh_user = st.session_state.get("gh_user", "")
     saved_gh_repo = st.session_state.get("gh_repo", "supermoon-visibility-widget")
@@ -1243,7 +1230,7 @@ if uploaded_file is not None:
     effective_github_user = github_username_input.strip()
 
     repo_name = st.text_input(
-        "Campaign name (GitHub repo name)",
+        "Widget hosting repository name (leave no spaces between the text; text, numbers and underscores acceptable)",
         value=saved_gh_repo,
         key="gh_repo",
     )
@@ -1267,14 +1254,14 @@ if uploaded_file is not None:
     st.markdown(
         "<p style='font-size:0.85rem; color:#c4c4c4;'>"
         "Use <strong>Page availability check</strong> to see whether a page already exists "
-        "for this campaign, then click <strong>Get widget</strong> to publish."
+        "for this campaign, then click <strong>Update widget</strong> to publish."
         "</p>",
         unsafe_allow_html=True,
     )
 
     iframe_snippet = st.session_state.get("iframe_snippet")
 
-    # ---------- Button row: Page availability check & Get widget ----------
+    # ---------- Button row: Page availability check & Update widget ----------
     col_check, col_get = st.columns([1, 1])
 
     if not GITHUB_TOKEN:
@@ -1324,9 +1311,9 @@ if uploaded_file is not None:
                 except Exception as e:
                     st.error(f"Availability check failed: {e}")
 
-        # --- Get widget button (with short loading bar) ---
+        # --- Update widget button (publishes to GitHub) ---
         with col_get:
-            if st.button("Get widget"):
+            if st.button("Update widget"):
                 try:
                     # Progress bar placeholder
                     progress_placeholder = st.empty()
@@ -1429,14 +1416,14 @@ if uploaded_file is not None:
             if not repo_exists:
                 st.info(
                     "No existing repo found for this campaign. "
-                    "When you click **Get widget**, the repo will be created and "
+                    "When you click **Update widget**, the repo will be created and "
                     f"your widget will be saved as `{checked_filename}`."
                 )
                 st.session_state["widget_file_name"] = checked_filename
             elif repo_exists and not file_exists:
                 st.success(
                     f"Repo exists and `{checked_filename}` is available. "
-                    "Get widget will save your table to this file."
+                    "Update widget will save your table to this file."
                 )
                 st.session_state["widget_file_name"] = checked_filename
             else:
@@ -1454,11 +1441,11 @@ if uploaded_file is not None:
                 )
                 if choice.startswith("Replace"):
                     st.session_state["widget_file_name"] = checked_filename
-                    st.info(f"Get widget will overwrite `{checked_filename}` in this repo.")
+                    st.info(f"Update widget will overwrite `{checked_filename}` in this repo.")
                 elif choice.startswith("Create additional"):
                     st.session_state["widget_file_name"] = suggested_new_filename
                     st.info(
-                        f"Get widget will create a new file `{suggested_new_filename}` "
+                        f"Update widget will create a new file `{suggested_new_filename}` "
                         "in the same repo for this widget."
                     )
                 else:
@@ -1468,7 +1455,7 @@ if uploaded_file is not None:
 
     st.markdown("---")
 
-    # ---------- Output tabs (only AFTER Get widget, or if no token) ----------
+    # ---------- Output tabs (only AFTER first publish, or if no token) ----------
     has_generated = st.session_state.get("has_generated", False)
     show_tabs = has_generated or not GITHUB_TOKEN  # allow preview when token missing
 
@@ -1477,7 +1464,6 @@ if uploaded_file is not None:
     expected_embed_url = compute_expected_embed_url(
         effective_github_user, repo_name, widget_file_name
     )
-    brand_meta_preview = get_brand_meta(st.session_state.get("brand", brand))
 
     if show_tabs:
         tab1, tab2, tab3 = st.tabs(
@@ -1496,21 +1482,39 @@ if uploaded_file is not None:
             st.subheader("Cleaned data preview")
             st.dataframe(df.head())
 
-        # -------- TAB 2: Widget preview + HTML (widget first) --------
+        # -------- TAB 2: Widget preview + HTML --------
         with tab2:
-            html_preview = generate_html_from_df(
-                df,
-                widget_title,
-                widget_subtitle,
-                expected_embed_url,
-                brand_meta_preview["logo_url"],
-                brand_meta_preview["logo_alt"],
-                brand_meta_preview["brand_class"],
-            )
             preview_tab, html_tab = st.tabs(["Widget preview", "HTML file contents"])
 
+            # Widget fields are now under the preview (inside this tab)
             with preview_tab:
-                components.html(html_preview, height=650, scrolling=True)
+                preview_placeholder = st.empty()
+
+                widget_title = st.text_input(
+                    "Widget name",
+                    value=st.session_state.get("widget_title", default_title),
+                    key="widget_title",
+                )
+                widget_subtitle = st.text_input(
+                    "Widget subtitle",
+                    value=st.session_state.get("widget_subtitle", default_subtitle),
+                    key="widget_subtitle",
+                )
+
+                brand_meta_preview = get_brand_meta(st.session_state.get("brand", brand))
+
+                html_preview = generate_html_from_df(
+                    df,
+                    widget_title,
+                    widget_subtitle,
+                    expected_embed_url,
+                    brand_meta_preview["logo_url"],
+                    brand_meta_preview["logo_alt"],
+                    brand_meta_preview["brand_class"],
+                )
+
+                with preview_placeholder:
+                    components.html(html_preview, height=650, scrolling=True)
 
             with html_tab:
                 st.text_area(
@@ -1524,7 +1528,7 @@ if uploaded_file is not None:
         with tab3:
             st.subheader("How to embed your widget")
             st.markdown(
-                "1. Click **Get widget** whenever you change the title, brand, or campaign.\n"
+                "1. Click **Update widget** whenever you change the title, brand, or campaign.\n"
                 "2. Wait for GitHub Pages to finish building at the URL shown in the caption.\n"
                 "3. Paste the iframe code into your article or CMS.\n"
             )
@@ -1532,7 +1536,7 @@ if uploaded_file is not None:
                 st.markdown("**Current iframe code:**")
                 st.code(st.session_state["iframe_snippet"], language="html")
             else:
-                st.info("No iframe yet – click **Get widget** above to generate it.")
+                st.info("No iframe yet – click **Update widget** above to generate it.")
 
 else:
     st.info("Upload a CSV to configure and generate your widget.")
