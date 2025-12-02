@@ -358,12 +358,30 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .val{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-variant-numeric:tabular-nums;font-weight:800;font-size:13px;color:#0e1a12!important;background:#fff!important;border:2px solid #e6e9ed!important;border-radius:999px;padding:2px 8px}
 
     /* Gradient bars by probability band (based on implied probability) */
-    .vi-compact-embed .bar.band-very-high{background:linear-gradient(90deg,#1F5D28,#56C257)!important}  /* >=25% */
-    .vi-compact-embed .bar.band-high{background:linear-gradient(90deg,#2E8538,#63CA67)!important}       /* 20–<25% */
-    .vi-compact-embed .bar.band-mid{background:linear-gradient(90deg,#3FA94B,#71D279)!important}        /* 15–<20% */
-    .vi-compact-embed .bar.band-low{background:linear-gradient(90deg,#64C274,#84DB8E)!important}        /* 10–<15% */
-    .vi-compact-embed .bar.band-very-low{background:linear-gradient(90deg,#8AD79D,#9AE5A5)!important}   /* 5–<10% */
-    .vi-compact-embed .bar.band-tiny{background:linear-gradient(90deg,#9FE1B3,#A7E6BA)!important}       /* <5% */
+    .vi-compact-embed .bar.band-very-high{
+      /* top band: darkest → strong */
+      background: linear-gradient(90deg,var(--brand-900),var(--brand-600)) !important;
+    }  /* >=25% */
+    
+    .vi-compact-embed .bar.band-high{
+      background: linear-gradient(90deg,var(--brand-700),var(--brand-500)) !important;
+    }  /* 20–<25% */
+    
+    .vi-compact-embed .bar.band-mid{
+      background: linear-gradient(90deg,var(--brand-600),var(--brand-300)) !important;
+    }  /* 15–<20% */
+    
+    .vi-compact-embed .bar.band-low{
+      background: linear-gradient(90deg,var(--brand-500),var(--brand-100)) !important;
+    }  /* 10–<15% */
+    
+    .vi-compact-embed .bar.band-very-low{
+      background: linear-gradient(90deg,var(--brand-300),var(--brand-50)) !important;
+    }  /* 5–<10% */
+    
+    .vi-compact-embed .bar.band-tiny{
+      background: linear-gradient(90deg,var(--brand-100),var(--brand-50)) !important;
+    }  /* <5% */
 
     /* Details panel */
     .vi-compact-embed .details{
@@ -528,10 +546,21 @@ HTML_TEMPLATE = r"""<!doctype html>
       display: flex; justify-content: center; align-items: center; gap: 12px; position: relative;
     }
     .vi-compact-embed .embed-btn {
-      position: absolute; left: 14px; background: #56C257; color: #fff; border: 1px solid #56C257;
-      border-radius: 8px; padding: 6px 14px; font: 13px/1.2 system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif; cursor: pointer; transition: .2s ease;
+      position: absolute;
+      left: 14px;
+      background: var(--brand-600);
+      color: #fff;
+      border: 1px solid var(--brand-600);
+      border-radius: 8px;
+      padding: 6px 14px;
+      font: 13px/1.2 system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+      cursor: pointer;
+      transition: .2s ease;
     }
-    .vi-compact-embed .embed-btn:hover { background:#3FA94B; border-color:#3FA94B; }
+    .vi-compact-embed .embed-btn:hover {
+      background: var(--brand-700);
+      border-color: var(--brand-700);
+    }
     .vi-compact-embed .vi-footer img {
       height: 52px; width: auto; display: inline-block; filter: brightness(0) invert(1);
     }
