@@ -217,9 +217,9 @@ def get_brand_meta(brand: str) -> dict:
         meta["logo_url"] = "https://i.postimg.cc/ZKbrbPCJ/CSB-FN.png"
         meta["logo_alt"] = "Canada Sports Betting logo"
 
-    elif brand_clean == "RotoGrinders":
+   elif brand_clean == "RotoGrinders":
         meta["brand_class"] = "brand-rotogrinders"
-        meta["logo_url"] = "YOUR_RG_LOGO_URL_HERE"
+        meta["logo_url"] = "https://i.postimg.cc/D0dkNXTx/Rotogrinders-final-logo.png"
         meta["logo_alt"] = "RotoGrinders logo"
 
     return meta
@@ -342,6 +342,22 @@ HTML_TEMPLATE = r"""<!doctype html>
       --hover-tint:#FBE9E9;
       --hover-ring:#FECACA;
       --hover-shadow:0 10px 24px rgba(127,29,29,.32);
+    }
+
+    section.vi-compact-embed.brand-rotogrinders{
+      /* RotoGrinders blue palette built around #0141A1 */
+      --brand-50:#E8F1FF;
+      --brand-100:#D3E3FF;
+      --brand-300:#9ABCF9;
+      --brand-500:#2F7DF3;
+      --brand-600:#0159D1;
+      --brand-700:#0141A1;  /* primary */
+      --brand-900:#011F54;
+    
+      --border:#9ABCF9;
+      --hover-tint:rgba(1,65,161,.12);
+      --hover-ring:#2F7DF3;
+      --hover-shadow:0 10px 24px rgba(1,65,161,.35);
     }
 
     /* Header */
@@ -615,15 +631,18 @@ HTML_TEMPLATE = r"""<!doctype html>
       margin: 0 auto;
     }
     
-    /* Brand-specific logo sizes (desktop) */
+   /* Brand-specific logo sizes (desktop) */
     section.vi-compact-embed.brand-actionnetwork .vi-footer img {
-      height: 54px;  /* bumped up */
+      height: 44px;
     }
     section.vi-compact-embed.brand-vegasinsider .vi-footer img {
-      height: 32px;  /* leave as-is – already looks good */
+      height: 32px;
     }
     section.vi-compact-embed.brand-canadasb .vi-footer img {
-      height: 40px;  /* bumped up from 30px */
+      height: 40px;
+    }
+    section.vi-compact-embed.brand-rotogrinders .vi-footer img {
+      height: 40px;
     }
     .vi-compact-embed .embed-wrapper{
       position: absolute;
