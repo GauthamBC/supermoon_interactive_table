@@ -219,7 +219,7 @@ def get_brand_meta(brand: str) -> dict:
 
     elif brand_clean == "RotoGrinders":
         meta["brand_class"] = "brand-rotogrinders"
-        meta["logo_url"] = "https://i.postimg.cc/fLS0YwNX/Rotogrinders-final-logo.png"
+        meta["logo_url"] = "https://i.postimg.cc/D0dkNXTx/Rotogrinders-final-logo.png"
         meta["logo_alt"] = "RotoGrinders logo"
 
     return meta
@@ -327,7 +327,6 @@ HTML_TEMPLATE = r"""<!doctype html>
       --hover-ring:#F2C23A;
       --hover-shadow:0 10px 24px rgba(0,0,0,.40);
     }
-    /* (Canada Sports Betting / RotoGrinders can get their own overrides later) */
 
     section.vi-compact-embed.brand-canadasb{
       /* CSB red palette based on your Datawrapper table */
@@ -353,7 +352,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       --brand-600:#0159D1;
       --brand-700:#0141A1;  /* primary */
       --brand-900:#011F54;
-    
+
       --border:#9ABCF9;
       --hover-tint:rgba(1,65,161,.12);
       --hover-ring:#2F7DF3;
@@ -411,23 +410,23 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .bar.band-very-high{
       background: linear-gradient(90deg,var(--brand-900),var(--brand-600)) !important;
     }  /* >=25% */
-    
+
     .vi-compact-embed .bar.band-high{
       background: linear-gradient(90deg,var(--brand-700),var(--brand-500)) !important;
     }  /* 20–<25% */
-    
+
     .vi-compact-embed .bar.band-mid{
       background: linear-gradient(90deg,var(--brand-600),var(--brand-300)) !important;
     }  /* 15–<20% */
-    
+
     .vi-compact-embed .bar.band-low{
       background: linear-gradient(90deg,var(--brand-500),var(--brand-100)) !important;
     }  /* 10–<15% */
-    
+
     .vi-compact-embed .bar.band-very-low{
       background: linear-gradient(90deg,var(--brand-300),var(--brand-50)) !important;
     }  /* 5–<10% */
-    
+
     .vi-compact-embed .bar.band-tiny{
       background: linear-gradient(90deg,var(--brand-100),var(--brand-50)) !important;
     }  /* <5% */
@@ -599,7 +598,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       gap: 12px;
       position: relative;
     }
-    
+
     /* Desktop: vertically center the embed button in the footer strip */
     .vi-compact-embed .embed-btn {
       position: absolute;
@@ -625,12 +624,12 @@ HTML_TEMPLATE = r"""<!doctype html>
       display: inline-block;
       filter: brightness(0) invert(1);
     }
-    
+
     /* Helps keep logos centered within the flex area */
     .vi-compact-embed .footer-inner img {
       margin: 0 auto;
     }
-    
+
    /* Brand-specific logo sizes (desktop) */
     section.vi-compact-embed.brand-actionnetwork .vi-footer img {
       height: 44px;
@@ -644,6 +643,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     section.vi-compact-embed.brand-rotogrinders .vi-footer img {
       height: 32px;
     }
+
     .vi-compact-embed .embed-wrapper{
       position: absolute;
       bottom: calc(100% + 10px);
@@ -698,6 +698,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       }
       .vi-compact-embed .embed-btn{
         position:static !important;
+        transform:none !important;
         padding:6px 10px;
         font-size:12px;
         line-height:1.2;
@@ -1237,8 +1238,8 @@ if uploaded_file is not None:
         "based on sky clarity, elevation, darkness, and atmospheric conditions."
     )
 
-    # ---------- Iframe / GitHub settings (renamed heading) ----------
-    st.subheader("Iframe settings")
+    # ---------- GitHub / hosting settings ----------
+    # (no visible subheader – kept simple)
 
     saved_gh_user = st.session_state.get("gh_user", "")
     saved_gh_repo = st.session_state.get("gh_repo", "supermoon-visibility-widget")
@@ -1497,27 +1498,17 @@ if uploaded_file is not None:
     )
 
     if show_tabs:
-        tab1, tab2, tab3 = st.tabs(
+        tab_config, tab_embed = st.tabs(
             [
-                "Detected columns & data",
                 "Configure & preview widget",
                 "Embed help",
             ]
         )
 
-        # -------- TAB 1: Detected columns & table preview --------
-        with tab1:
-            st.subheader("Detected columns")
-            st.write(list(raw_df.columns))
-
-            st.subheader("Cleaned data preview")
-            st.dataframe(df.head())
-
-        # -------- TAB 2: Widget preview + HTML --------
-        with tab2:
+        # -------- CONFIG TAB: Widget preview + HTML --------
+        with tab_config:
             preview_tab, html_tab = st.tabs(["Widget preview", "HTML file contents"])
 
-            # Widget fields are now under the preview (inside this tab)
             with preview_tab:
                 preview_placeholder = st.empty()
 
@@ -1555,8 +1546,8 @@ if uploaded_file is not None:
                     label_visibility="collapsed",
                 )
 
-        # -------- TAB 3: Simple embed help --------
-        with tab3:
+        # -------- EMBED TAB: Simple embed help --------
+        with tab_embed:
             st.subheader("How to embed your widget")
             st.markdown(
                 "1. Click **Update widget** whenever you change the title, brand, or campaign.\n"
