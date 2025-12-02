@@ -372,7 +372,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       transition:max-height .28s ease,opacity .28s ease,transform .28s ease,padding .20s ease,margin .20s ease,border-width .20s ease;
     }
     .vi-compact-embed .details.open{margin:8px 0 12px;padding:12px;border-width:1px;max-height:420px;opacity:1;transform:translateY(0)}
-    .vi-compact-embed .metrics-title{margin:0 0 10px;font-weight:800;font-size:14px;color:var(--brand-900)}
+    .vi-compact-embed .metrics-title{margin:0 0 10px;font-weight:800;font-size:14px;color:var(--brand-700)}
     .vi-compact-embed .metrics-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
     @media (max-width:640px){.vi-compact-embed .metrics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
@@ -666,9 +666,9 @@ HTML_TEMPLATE = r"""<!doctype html>
           <div class="spark" aria-hidden="true">
             <svg id="az-elev-spark" viewBox="0 0 160 60" preserveAspectRatio="none">
               <defs>
-                <linearGradient id="az-elev-grad" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stop-color="#2E8538"></stop>
-                  <stop offset="100%" stop-color="#56C257"></stop>
+               <linearGradient id="az-elev-grad" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" style="stop-color:var(--brand-700);"></stop>
+                  <stop offset="100%" style="stop-color:var(--brand-500);"></stop>
                 </linearGradient>
               </defs>
               <path class="spark-base" d="M0,58 L160,58"></path>
@@ -686,9 +686,9 @@ HTML_TEMPLATE = r"""<!doctype html>
           <div class="gauge" aria-hidden="true">
             <svg class="gauge-svg" viewBox="0 0 140 80" preserveAspectRatio="xMidYMid meet">
               <defs>
-                <linearGradient id="az-gauge-grad" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%"  stop-color="#3FA94B"/>
-                  <stop offset="100%" stop-color="#56C257"/>
+                 <linearGradient id="az-gauge-grad" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%"  style="stop-color:var(--brand-600);"></stop>
+                  <stop offset="100%" style="stop-color:var(--brand-500);"></stop>
                 </linearGradient>
               </defs>
               <path id="az-dark-track" class="gauge-track" d="M10,70 A60,60 0 0 1 130,70"></path>
