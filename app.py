@@ -345,7 +345,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     } 
     /* Reduce CSB logo size */
     section.vi-compact-embed.brand-canadasb .vi-footer img {
-        height: 40px !important;
+        height: 30px !important;
         width: auto !important;
     }
     /* Header */
