@@ -353,7 +353,14 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .chip{width:18px;height:18px;border-radius:50%;overflow:hidden;border:1px solid #cfe4da;background:#fff;flex-shrink:0}
     .vi-compact-embed .chip img{width:100%;height:100%;object-fit:cover}
 
-    .vi-compact-embed .metric{position:relative;height:28px;border-radius:999px;background:rgba(86,194,87,.10)!important;overflow:hidden}
+    .vi-compact-embed .metric{
+      position: relative;
+      height: 28px;
+      border-radius: 999px;
+      /* brand-aware bar background */
+      background: var(--brand-50) !important;
+      overflow: hidden;
+    }
     .vi-compact-embed .bar{position:absolute;inset:0 auto 0 0;border-radius:999px;background:linear-gradient(90deg,var(--brand-600),var(--brand-500))!important;box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)}
     .vi-compact-embed .val{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-variant-numeric:tabular-nums;font-weight:800;font-size:13px;color:#0e1a12!important;background:#fff!important;border:2px solid #e6e9ed!important;border-radius:999px;padding:2px 8px}
 
