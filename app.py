@@ -1506,18 +1506,24 @@ if uploaded_file is not None:
         # -------- CONFIG TAB: only widget preview --------
         with tab_config:
             preview_placeholder = st.empty()
-
-            widget_title = st.text_input(
-                "Widget name",
-                value=st.session_state.get("widget_title", default_title),
-                key="widget_title",
-            )
-            widget_subtitle = st.text_input(
-                "Widget subtitle",
-                value=st.session_state.get("widget_subtitle", default_subtitle),
-                key="widget_subtitle",
-            )
-
+        
+            # Two inputs on the same row
+            col_title, col_sub = st.columns(2)
+        
+            with col_title:
+                widget_title = st.text_input(
+                    "Widget name",
+                    value=st.session_state.get("widget_title", default_title),
+                    key="widget_title",
+                )
+        
+            with col_sub:
+                widget_subtitle = st.text_input(
+                    "Widget subtitle",
+                    value=st.session_state.get("widget_subtitle", default_subtitle),
+                    key="widget_subtitle",
+                )
+        
             brand_meta_preview = get_brand_meta(st.session_state.get("brand", brand))
 
             html_preview = generate_html_from_df(
