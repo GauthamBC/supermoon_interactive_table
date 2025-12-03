@@ -725,20 +725,39 @@ def generate_map_table_html_from_df(
     if value_col not in numeric_cols:
         numeric_cols = [value_col] + numeric_cols
 
-    # Pretty hover template – extra spacing & fake padding
+    # ---- Metrics to show in tooltip (state + up to 3 metrics) ----
+    metrics_for_hover = [value_col] + [c for c in numeric_cols if c != value_col][:2]
+    custom_cols = [state_col] + metrics_for_hover
+
+    # Build map
+    map_scale = brand_meta["map_scale"]
+    accent = brand_meta.get("accent", "#16A34A")
+    accent_soft = brand_meta.get("accent_soft", "#DCFCE7")
+
+    fig = px.choropleth(
+        df,
+        locations="state_abbr",
+        locationmode="USA-states",
+        scope="usa",
+        color=value_col,
+        color_continuous_scale=map_scale,
+        custom_data=df[custom_cols],
+    )
+
+    # ---- Pretty hover template – extra spacing & fake padding ----
     lines = []
     for idx, col in enumerate(metrics_for_hover, start=1):
         label = col.replace("_", " ")
         # leading &nbsp;&nbsp; gives a bit of left “padding”
-        lines.append(f"&nbsp;&nbsp;{html_mod.escape(label)}: %{{customdata[{idx}]}}&nbsp;&nbsp;")
+        lines.append(
+            f"&nbsp;&nbsp;{html_mod.escape(label)}: %{{customdata[{idx}]}}&nbsp;&nbsp;"
+        )
 
     hovertemplate = (
-        # Title
         "<b>%{customdata[0]} (%{location})</b>"
-        "<br><br>"              # extra space after title
-        # Metrics, spaced out
-        + "<br><br>".join(lines)
-        + "<br>"                # a bit of bottom space
+        "<br><br>"                 # extra space after title
+        + "<br><br>".join(lines)   # spaced-out metric lines
+        + "<br>"                   # a bit of bottom space
         + "<extra></extra>"
     )
 
@@ -747,7 +766,7 @@ def generate_map_table_html_from_df(
         hoverlabel=dict(
             bgcolor=accent_soft,          # light brand tint
             bordercolor=accent,           # solid brand border
-            font=dict(color="#0F172A", size=14),  # slightly larger font
+            font=dict(color="#0F172A", size=14),
             align="left",
         ),
         # make state boundaries clearly visible
