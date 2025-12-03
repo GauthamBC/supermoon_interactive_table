@@ -729,8 +729,10 @@ def generate_map_table_html_from_df(
     metrics_for_hover = [value_col] + [c for c in numeric_cols if c != value_col][:2]
     custom_cols = [state_col] + metrics_for_hover
 
-    # Build map
+        # Build map
     map_scale = brand_meta["map_scale"]
+    accent = brand_meta.get("accent", "#16A34A")
+    accent_soft = brand_meta.get("accent_soft", "#DCFCE7")
 
     fig = px.choropleth(
         df,
@@ -747,18 +749,22 @@ def generate_map_table_html_from_df(
     for idx, col in enumerate(metrics_for_hover, start=1):
         label = col.replace("_", " ")
         lines.append(f"{html_mod.escape(label)}: %{{customdata[{idx}]}}")
-    hovertemplate = "<b>%{customdata[0]} (%{location})</b><br>" + "<br>".join(lines) + "<extra></extra>"
+    hovertemplate = (
+        "<b>%{customdata[0]} (%{location})</b><br>"
+        + "<br>".join(lines)
+        + "<extra></extra>"
+    )
 
     fig.update_traces(
         hovertemplate=hovertemplate,
         hoverlabel=dict(
-            bgcolor="white",
-            bordercolor="#CBD5E1",
+            bgcolor=accent_soft,          # light brand tint
+            bordercolor=accent,           # solid brand border
             font=dict(color="#0F172A", size=13),
             align="left",
         ),
         # make state boundaries clearly visible
-        marker_line_color="#F9FAFB",
+        marker_line_color=accent_soft,   # subtle branded outline
         marker_line_width=1.2,
     )
 
