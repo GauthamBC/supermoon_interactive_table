@@ -322,7 +322,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 </head>
 <body style="margin:0;background:#F3F4F6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0F172A;">
 
-<section class="vi-map-card [[BRAND_CLASS]]" style="max-width:960px;margin:16px auto;padding:16px;">
+<section class="vi-map-card [[BRAND_CLASS]]" style="max-width:960px;margin:0 auto;padding:0;">
 
 <style>
 .vi-map-card, .vi-map-card * { box-sizing:border-box; font-family:inherit; }
