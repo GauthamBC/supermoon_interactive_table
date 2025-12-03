@@ -483,35 +483,40 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   font-size:13px;
   color:#111827;
 }
+
+/* Header uses brand accent colors */
 .vi-map-table thead th{
   text-align:left;
   padding:8px 10px;
   font-size:11px;
   text-transform:uppercase;
   letter-spacing:.06em;
-  color:#9CA3AF;
+  color:var(--accent);           /* header text = brand color */
+  background:var(--accent-soft); /* header background = light brand tint */
   border-bottom:1px solid rgba(148,163,184,.35);
-  background:#F9FAFB;
 }
-.vi-map-table thead th:first-child{
-  border-left:4px solid var(--accent-soft);
-}
+
+/* Stripe rows with brand tint (lighter than rank pill) */
 .vi-map-table tbody tr:nth-child(odd){
   background:#FFFFFF;
 }
 .vi-map-table tbody tr:nth-child(even){
-  background:#F9FAFB;
+  background:var(--accent-soft);
 }
+
+/* Slightly darken on hover */
 .vi-map-table tbody tr:hover{
   background:var(--accent-soft);
-  transition:background-color .15s ease;
+  filter:brightness(0.96);
+  transition:background-color .15s ease, filter .15s ease;
 }
+
 .vi-map-table tbody td{
   padding:7px 10px;
   vertical-align:middle;
 }
 
-/* Rank pill */
+/* Rank pill: solid brand color, lighter rows behind it */
 .vi-rank-pill{
   display:inline-flex;
   align-items:center;
@@ -522,8 +527,8 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   border-radius:999px;
   font-size:11px;
   font-weight:600;
-  background:var(--accent-soft);
-  color:var(--accent);
+  background:var(--accent);  /* darker, solid brand color */
+  color:#FFFFFF;             /* white number */
 }
 
 /* Brand recolor for logo if you add it later (optional) */
