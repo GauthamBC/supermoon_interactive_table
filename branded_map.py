@@ -229,7 +229,7 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "logo_alt": "VegasInsider logo",
             "accent": "#F2C23A",
             "accent_soft": "#FFF7DC",
-            "branded_scale": ["#93C5FD", "#F2C23A", "#E6492D"],
+            "branded_scale": ["#FFF3E0", "#FDBA74", "#EA580C"],
         })
     elif brand_clean == "Canada Sports Betting":
         meta.update({
