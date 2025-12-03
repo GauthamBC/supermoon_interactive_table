@@ -259,7 +259,6 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       --scroll-thumb-hover:var(--brand-600);
 
       --footer-border:color-mix(in oklab,var(--brand-500) 35%, transparent);
-      --header-title-color:var(--brand-700);
     }
 
     /* Brand overrides – reuse palettes from the supermoon widget */
@@ -268,7 +267,7 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       --brand-100:#FFE8AA;
       --brand-300:#FFE8AA;
       --brand-500:#F2C23A;
-      --brand-600:#D9A72A;  /* embed + logo accent */
+      --brand-600:#D9A72A;   /* matches embed button + requested yellow */
       --brand-700:#B9851A;
       --brand-900:#111111;
       --header-bg:var(--brand-500);
@@ -276,7 +275,6 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       --hover:var(--brand-100);
       --scroll-thumb:var(--brand-600);
       --footer-border:color-mix(in oklab,var(--brand-500) 40%, transparent);
-      --header-title-color:var(--brand-600);
     }
 
     .vi-table-embed.brand-canadasb{
@@ -292,7 +290,6 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       --hover:var(--brand-100);
       --scroll-thumb:var(--brand-600);
       --footer-border:color-mix(in oklab,var(--brand-600) 40%, transparent);
-      --header-title-color:var(--brand-600);
     }
 
     .vi-table-embed.brand-rotogrinders{
@@ -308,12 +305,11 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       --hover:var(--brand-100);
       --scroll-thumb:var(--brand-600);
       --footer-border:color-mix(in oklab,var(--brand-600) 40%, transparent);
-      --header-title-color:var(--brand-600);
     }
 
     /* Header block (title + subtitle stacked) */
     .vi-table-embed .vi-table-header{
-      padding:10px 16px 10px;
+      padding:10px 16px 8px;
       border-bottom:1px solid var(--brand-100);
       background:linear-gradient(90deg,var(--brand-50),#ffffff);
       display:flex;
@@ -330,14 +326,17 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       font-size:clamp(18px,2.3vw,22px);
       font-weight:750;
       color:#111827;
+      display:block;
     }
-    .vi-table-embed .vi-table-header.brand-title .title{
-      color:var(--header-title-color, var(--header-bg));
+    /* Branded title colour – uses brand-600 for every brand */
+    .vi-table-embed .vi-table-header .title.branded{
+      color:var(--brand-600);
     }
     .vi-table-embed .vi-table-header .subtitle{
       margin:0;
       font-size:13px;
       color:#6b7280;
+      display:block;
     }
 
     /* Container for table block */
@@ -474,7 +473,7 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
     }
 
     /* Body rows – zebra + hover injected here */
-[[STRIPE_CSS]]
+    [[STRIPE_CSS]]
 
     #bt-block tbody tr:hover{
       background:var(--hover);
@@ -526,7 +525,7 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
     }
     .vi-table-embed .footer-inner{
       display:flex;
-      justify-content:space-between;   /* button left, logo right */
+      justify-content:space-between;  /* button left, logo right */
       align-items:center;
       gap:12px;
       position:relative;
@@ -552,7 +551,7 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       display:inline-block;
     }
 
-    /* Brand-specific logo recolor */
+    /* Brand-specific logo recolor (Vegas tuned for #D9A72A) */
     .vi-table-embed.brand-actionnetwork .vi-footer img{
       filter:
         brightness(0) saturate(100%)
@@ -560,10 +559,9 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
         brightness(96%) contrast(92%);
     }
     .vi-table-embed.brand-vegasinsider .vi-footer img{
-      /* tuned toward #D9A72A to match embed button */
       filter:
         brightness(0) saturate(100%)
-        invert(74%) sepia(69%) saturate(878%) hue-rotate(4deg)
+        invert(72%) sepia(63%) saturate(652%) hue-rotate(6deg)
         brightness(95%) contrast(101%);
     }
     .vi-table-embed.brand-canadasb .vi-footer img{
@@ -582,7 +580,7 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
     @media (max-width: 600px){
       .vi-table-embed .footer-inner{
         flex-direction:row;
-        justify-content:space-between;   /* keep button left, logo right on mobile */
+        justify-content:space-between; /* still opposite ends on mobile */
         gap:8px;
       }
       .vi-table-embed .embed-btn{
@@ -622,8 +620,8 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
   </style>
 
   <!-- Header -->
-  <div class="vi-table-header [[HEADER_CLASSES]]">
-    <span class="title">[[TITLE]]</span>
+  <div class="vi-table-header [[HEADER_ALIGN_CLASS]]">
+    <span class="title [[TITLE_CLASS]]">[[TITLE]]</span>
     <span class="subtitle">[[SUBTITLE]]</span>
   </div>
 
@@ -939,7 +937,7 @@ def generate_table_html_from_df(
     brand_class: str,
     striped: bool = True,
     center_titles: bool = False,
-    branded_title: bool = False,
+    branded_title_color: bool = True,
 ) -> str:
     df = df.copy()
 
@@ -977,12 +975,8 @@ def generate_table_html_from_df(
     #bt-block tbody tr:nth-child(even){background:#ffffff;}
 """
 
-    header_classes = []
-    if center_titles:
-        header_classes.append("centered")
-    if branded_title:
-        header_classes.append("brand-title")
-    header_class_str = " ".join(header_classes)
+    header_class = "centered" if center_titles else ""
+    title_class = "branded" if branded_title_color else ""
 
     html = (
         HTML_TEMPLATE_TABLE
@@ -996,7 +990,8 @@ def generate_table_html_from_df(
         .replace("[[BRAND_LOGO_ALT]]", html_mod.escape(brand_logo_alt))
         .replace("[[BRAND_CLASS]]", brand_class or "")
         .replace("[[STRIPE_CSS]]", stripe_css)
-        .replace("[[HEADER_CLASSES]]", header_class_str)
+        .replace("[[HEADER_ALIGN_CLASS]]", header_class)
+        .replace("[[TITLE_CLASS]]", title_class)
     )
     return html
 
@@ -1097,142 +1092,160 @@ if uploaded_file is not None:
 
     iframe_snippet = st.session_state.get("bt_iframe_snippet")
 
+    # --- Buttons row: always visible, disabled when GitHub config missing ---
+    can_run_github = bool(GITHUB_TOKEN and effective_github_user and repo_name.strip())
+
     col_check, col_get = st.columns([1, 1])
+    with col_check:
+        page_check_clicked = st.button(
+            "Page availability check",
+            key="bt_page_check",
+            disabled=not can_run_github,
+        )
+    with col_get:
+        update_clicked = st.button(
+            "Update widget",
+            key="bt_update_widget",
+            disabled=not can_run_github,
+        )
 
+    # Helper info messages if disabled
     if not GITHUB_TOKEN:
-        with col_get:
-            st.info(
-                "Set `GITHUB_TOKEN` in `.streamlit/secrets.toml` (with `repo` scope) "
-                "to enable automatic GitHub publishing."
-            )
+        st.info(
+            "Set `GITHUB_TOKEN` in `.streamlit/secrets.toml` (with `repo` scope) "
+            "to enable automatic GitHub publishing."
+        )
     elif not effective_github_user or not repo_name.strip():
-        with col_get:
-            st.info("Fill in username and campaign name above.")
-    else:
-        # Page availability check
-        with col_check:
-            if st.button("Page availability check"):
-                try:
-                    repo_exists = check_repo_exists(
+        st.info("Fill in username and campaign name above.")
+
+    # --- Page availability logic ---
+    if page_check_clicked:
+        if not can_run_github:
+            st.error("Cannot run availability check – add your GitHub token, username and repo first.")
+        else:
+            try:
+                repo_exists = check_repo_exists(
+                    effective_github_user,
+                    repo_name.strip(),
+                    GITHUB_TOKEN,
+                )
+                file_exists = False
+                next_fname = None
+                if repo_exists:
+                    file_exists = check_file_exists(
                         effective_github_user,
                         repo_name.strip(),
                         GITHUB_TOKEN,
+                        base_filename,
                     )
-                    file_exists = False
-                    next_fname = None
-                    if repo_exists:
-                        file_exists = check_file_exists(
+                    if file_exists:
+                        next_fname = find_next_widget_filename(
                             effective_github_user,
                             repo_name.strip(),
                             GITHUB_TOKEN,
-                            base_filename,
                         )
-                        if file_exists:
-                            next_fname = find_next_widget_filename(
-                                effective_github_user,
-                                repo_name.strip(),
-                                GITHUB_TOKEN,
-                            )
 
-                    st.session_state["bt_availability"] = {
-                        "repo_exists": repo_exists,
-                        "file_exists": file_exists,
-                        "checked_filename": base_filename,
-                        "suggested_new_filename": next_fname,
-                    }
-                    st.session_state.setdefault("bt_widget_file_name", base_filename)
+                st.session_state["bt_availability"] = {
+                    "repo_exists": repo_exists,
+                    "file_exists": file_exists,
+                    "checked_filename": base_filename,
+                    "suggested_new_filename": next_fname,
+                }
+                st.session_state.setdefault("bt_widget_file_name", base_filename)
 
-                except Exception as e:
-                    st.error(f"Availability check failed: {e}")
+            except Exception as e:
+                st.error(f"Availability check failed: {e}")
 
-        # Update widget (publish)
-        with col_get:
-            if st.button("Update widget"):
+    # --- Update widget (publish) logic ---
+    if update_clicked:
+        if not can_run_github:
+            st.error("Cannot update widget – add your GitHub token, username and repo first.")
+        else:
+            try:
+                progress_placeholder = st.empty()
+                progress = progress_placeholder.progress(0)
+                for pct in (20, 45, 70):
+                    time.sleep(0.12)
+                    progress.progress(pct)
+
+                title_for_publish = st.session_state.get("bt_widget_title", default_title)
+                subtitle_for_publish = st.session_state.get("bt_widget_subtitle", default_subtitle)
+                striped_for_publish = st.session_state.get("bt_striped_rows", True)
+                center_titles_for_publish = st.session_state.get("bt_center_titles", False)
+                branded_title_for_publish = st.session_state.get("bt_branded_title_color", True)
+                brand_meta_publish = get_brand_meta(st.session_state.get("brand_table", brand))
+
+                widget_file_name = st.session_state.get("bt_widget_file_name", base_filename)
+                expected_embed_url = compute_expected_embed_url(
+                    effective_github_user, repo_name, widget_file_name
+                )
+
+                html_final = generate_table_html_from_df(
+                    df,
+                    title_for_publish,
+                    subtitle_for_publish,
+                    expected_embed_url,
+                    brand_meta_publish["logo_url"],
+                    brand_meta_publish["logo_alt"],
+                    brand_meta_publish["brand_class"],
+                    striped=striped_for_publish,
+                    center_titles=center_titles_for_publish,
+                    branded_title_color=branded_title_for_publish,
+                )
+
+                progress.progress(80)
+
+                ensure_repo_exists(
+                    effective_github_user,
+                    repo_name.strip(),
+                    GITHUB_TOKEN,
+                )
+
+                progress.progress(90)
+
                 try:
-                    progress_placeholder = st.empty()
-                    progress = progress_placeholder.progress(0)
-                    for pct in (20, 45, 70):
-                        time.sleep(0.12)
-                        progress.progress(pct)
-
-                    title_for_publish = st.session_state.get("bt_widget_title", default_title)
-                    subtitle_for_publish = st.session_state.get("bt_widget_subtitle", default_subtitle)
-                    striped_for_publish = st.session_state.get("bt_striped_rows", True)
-                    center_titles_for_publish = st.session_state.get("bt_center_titles", False)
-                    branded_title_for_publish = st.session_state.get("bt_branded_title", False)
-                    brand_meta_publish = get_brand_meta(st.session_state.get("brand_table", brand))
-
-                    widget_file_name = st.session_state.get("bt_widget_file_name", base_filename)
-                    expected_embed_url = compute_expected_embed_url(
-                        effective_github_user, repo_name, widget_file_name
-                    )
-
-                    html_final = generate_table_html_from_df(
-                        df,
-                        title_for_publish,
-                        subtitle_for_publish,
-                        expected_embed_url,
-                        brand_meta_publish["logo_url"],
-                        brand_meta_publish["logo_alt"],
-                        brand_meta_publish["brand_class"],
-                        striped=striped_for_publish,
-                        center_titles=center_titles_for_publish,
-                        branded_title=branded_title_for_publish,
-                    )
-
-                    progress.progress(80)
-
-                    ensure_repo_exists(
+                    ensure_pages_enabled(
                         effective_github_user,
                         repo_name.strip(),
                         GITHUB_TOKEN,
-                    )
-
-                    progress.progress(90)
-
-                    try:
-                        ensure_pages_enabled(
-                            effective_github_user,
-                            repo_name.strip(),
-                            GITHUB_TOKEN,
-                            branch="main",
-                        )
-                    except Exception:
-                        pass
-
-                    upload_file_to_github(
-                        effective_github_user,
-                        repo_name.strip(),
-                        GITHUB_TOKEN,
-                        widget_file_name,
-                        html_final,
-                        f"Add/update {widget_file_name} from Branded Table app",
                         branch="main",
                     )
+                except Exception:
+                    pass
 
-                    trigger_pages_build(
-                        effective_github_user,
-                        repo_name.strip(),
-                        GITHUB_TOKEN,
-                    )
+                upload_file_to_github(
+                    effective_github_user,
+                    repo_name.strip(),
+                    GITHUB_TOKEN,
+                    widget_file_name,
+                    html_final,
+                    f"Add/update {widget_file_name} from Branded Table app",
+                    branch="main",
+                )
 
-                    progress.progress(100)
-                    time.sleep(0.15)
-                    progress_placeholder.empty()
+                trigger_pages_build(
+                    effective_github_user,
+                    repo_name.strip(),
+                    GITHUB_TOKEN,
+                )
 
-                    iframe_snippet = f"""<iframe src="{expected_embed_url}"
+                progress.progress(100)
+                time.sleep(0.15)
+                progress_placeholder.empty()
+
+                iframe_snippet = f"""<iframe src="{expected_embed_url}"
   title="{title_for_publish}"
   width="100%" height="620"
   style="border:0;" loading="lazy"></iframe>"""
 
-                    st.session_state["bt_iframe_snippet"] = iframe_snippet
-                    st.session_state["bt_has_generated"] = True
+                st.session_state["bt_iframe_snippet"] = iframe_snippet
+                st.session_state["bt_has_generated"] = True
 
-                    st.success("Branded table iframe updated. Open the tabs below to preview and embed it.")
+                st.success("Branded table iframe updated. Open the tabs below to preview and embed it.")
 
-                except Exception as e:
-                    progress_placeholder.empty()
-                    st.error(f"GitHub publish failed: {e}")
+            except Exception as e:
+                progress_placeholder.empty()
+                st.error(f"GitHub publish failed: {e}")
 
     # ---------- Availability result + options ----------
     availability = st.session_state.get("bt_availability")
@@ -1303,7 +1316,7 @@ if uploaded_file is not None:
         )
 
         with tab_config:
-            # Row 1: title + subtitle fields (stacked in preview header)
+            # First row: title + subtitle (separate lines, two big inputs)
             row1_col1, row1_col2 = st.columns(2)
             with row1_col1:
                 widget_title = st.text_input(
@@ -1318,7 +1331,7 @@ if uploaded_file is not None:
                     key="bt_widget_subtitle",
                 )
 
-            # Row 2: striped rows + center header + branded title color
+            # Second row: striped rows + center header + branded title colour
             row2_col1, row2_col2, row2_col3 = st.columns(3)
             with row2_col1:
                 striped_rows = st.checkbox(
@@ -1333,10 +1346,10 @@ if uploaded_file is not None:
                     key="bt_center_titles",
                 )
             with row2_col3:
-                branded_title = st.checkbox(
+                branded_title_color = st.checkbox(
                     "Branded title color",
-                    value=st.session_state.get("bt_branded_title", False),
-                    key="bt_branded_title",
+                    value=st.session_state.get("bt_branded_title_color", True),
+                    key="bt_branded_title_color",
                 )
 
             brand_meta_preview = get_brand_meta(st.session_state.get("brand_table", brand))
@@ -1351,7 +1364,7 @@ if uploaded_file is not None:
                 brand_meta_preview["brand_class"],
                 striped=striped_rows,
                 center_titles=center_titles,
-                branded_title=branded_title,
+                branded_title_color=branded_title_color,
             )
 
             components.html(html_preview, height=650, scrolling=True)
