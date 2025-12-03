@@ -311,7 +311,7 @@ for name, code in STATE_ABBR.items():
     STATE_LOOKUP[code.upper()] = code
     STATE_LOOKUP[code.lower()] = code
 
-# === 2. HTML TEMPLATE: map + tables =======================
+# === 2. HTML TEMPLATE: map + tables (tabbed tables) ===================
 
 HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 <html lang="en">
@@ -403,17 +403,45 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   overflow:hidden;
 }
 
-/* Table titles */
-.vi-map-section-title{
-  margin:20px 0 4px;
-  font-size:15px;
-  font-weight:700;
-  color:#0F172A;
-}
+/* Tables & tabs */
 .vi-map-section-sub{
   margin:0 0 10px;
   font-size:12px;
   color:#6B7280;
+}
+
+.vi-tab-header{
+  display:inline-flex;
+  gap:6px;
+  margin:20px 0 6px;
+  padding:2px;
+  background:#F3F4F6;
+  border-radius:999px;
+}
+.vi-tab-header .vi-tab{
+  border:0;
+  background:transparent;
+  border-radius:999px;
+  padding:6px 12px;
+  font-size:12px;
+  font-weight:600;
+  color:#6B7280;
+  cursor:pointer;
+  transition:background-color .18s ease, color .18s ease, box-shadow .18s ease, transform .06s ease;
+}
+.vi-tab-header .vi-tab.is-active{
+  background:#FFFFFF;
+  color:#111827;
+  box-shadow:0 1px 3px rgba(15,23,42,.18);
+  transform:translateY(-0.5px);
+}
+.vi-tab-header .vi-tab:focus-visible{
+  outline:none;
+  box-shadow:0 0 0 2px var(--accent-soft),0 0 0 4px rgba(15,23,42,.25);
+}
+
+.vi-tab-panel{
+  margin-top:6px;
 }
 
 /* Tables */
@@ -482,18 +510,62 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
     [[MAP_HTML]]
   </div>
 
-  <!-- Highest odds table -->
-  <section class="vi-map-tables">
-    <h2 class="vi-map-section-title">[[HIGH_TITLE]]</h2>
-    <p class="vi-map-section-sub">[[HIGH_SUB]]</p>
-    [[TABLE_HIGH_HTML]]
+  <!-- Tabbed tables -->
+  <section class="vi-map-tables" style="margin-top:4px;">
+    <div class="vi-tab-header" role="tablist" aria-label="State rankings">
+      <button class="vi-tab is-active" data-tab="high" role="tab" aria-selected="true" tabindex="0">
+        [[HIGH_TITLE]]
+      </button>
+      <button class="vi-tab" data-tab="low" role="tab" aria-selected="false" tabindex="-1">
+        [[LOW_TITLE]]
+      </button>
+    </div>
 
-    <h2 class="vi-map-section-title" style="margin-top:22px;">[[LOW_TITLE]]</h2>
-    <p class="vi-map-section-sub">[[LOW_SUB]]</p>
-    [[TABLE_LOW_HTML]]
+    <p class="vi-map-section-sub vi-map-section-sub-tab" data-tab="high">[[HIGH_SUB]]</p>
+    <p class="vi-map-section-sub vi-map-section-sub-tab" data-tab="low" style="display:none;">[[LOW_SUB]]</p>
+
+    <div class="vi-tab-panel" data-panel="high">
+      [[TABLE_HIGH_HTML]]
+    </div>
+    <div class="vi-tab-panel" data-panel="low" style="display:none;">
+      [[TABLE_LOW_HTML]]
+    </div>
   </section>
 
 </div>
+
+<script>
+(function(){
+  var widgets = document.querySelectorAll('.vi-map-card');
+  widgets.forEach(function(root){
+    var tabs = root.querySelectorAll('.vi-tab-header .vi-tab');
+    var panels = root.querySelectorAll('.vi-tab-panel');
+    var subs = root.querySelectorAll('.vi-map-section-sub-tab');
+    if (!tabs.length) return;
+
+    tabs.forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var target = this.getAttribute('data-tab');
+
+        tabs.forEach(function(b){
+          var active = b === btn;
+          b.classList.toggle('is-active', active);
+          b.setAttribute('aria-selected', active ? 'true' : 'false');
+          b.setAttribute('tabindex', active ? '0' : '-1');
+        });
+
+        panels.forEach(function(p){
+          p.style.display = (p.getAttribute('data-panel') === target) ? 'block' : 'none';
+        });
+
+        subs.forEach(function(s){
+          s.style.display = (s.getAttribute('data-tab') === target) ? 'block' : 'none';
+        });
+      });
+    });
+  });
+})();
+</script>
 
 </section>
 </body>
@@ -640,14 +712,14 @@ def generate_map_table_html_from_df(
         coloraxis_showscale=False,
     )
 
-    # IMPORTANT: disable zooming (scroll / pinch), keep hover
+    # Disable zooming / scroll-wheel
     map_html = fig.to_html(
         include_plotlyjs="cdn",
         full_html=False,
         config={
             "displayModeBar": False,
             "responsive": True,
-            "scrollZoom": False,  # <- no zooming
+            "scrollZoom": False,
         },
     )
 
