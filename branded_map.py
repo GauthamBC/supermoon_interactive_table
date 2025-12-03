@@ -591,7 +591,7 @@ def generate_map_table_html_from_df(
         # If everything got filtered out, just return a simple message
         return "<p style='padding:16px;font-family:sans-serif;'>No valid state/metric data to display.</p>"
 
-    # Build map
+    # Build map (all valid rows get colored)
     hover_cols = [c for c in df.columns if c not in ("state_abbr",)]
     fig = px.choropleth(
         df,
@@ -629,7 +629,7 @@ def generate_map_table_html_from_df(
     })
 
     df_high = df_for_tables.sort_values(by=value_col, ascending=False)
-    df_low = df_for_tables.sort_values(by[value_col], ascending=True)
+    df_low = df_for_tables.sort_values(by=value_col, ascending=True)  # <-- fixed
 
     high_table_html = build_ranked_table_html(df_high, value_col=value_col, top_n=top_n)
     low_table_html = build_ranked_table_html(df_low, value_col=value_col, top_n=top_n)
