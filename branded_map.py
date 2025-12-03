@@ -365,23 +365,31 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   overflow-x: hidden;
 }
 
-/* Sleek, slim scrollbar */
+/* Sleek, slim BRAND-COLORED scrollbar */
 .vi-map-shell{
   scrollbar-width: thin;
-  scrollbar-color: rgba(148,163,184,.8) transparent;
+  /* thumb color, track transparent (Firefox) */
+  scrollbar-color: var(--accent) transparent;
 }
 
+/* WebKit (Chrome, Edge, Safari) */
 .vi-map-shell::-webkit-scrollbar{
   width:6px;
+  height:6px;
 }
 
 .vi-map-shell::-webkit-scrollbar-track{
-  background:transparent;
+  background:var(--accent-soft);         /* light brand tint for track */
+  border-radius:999px;
 }
 
 .vi-map-shell::-webkit-scrollbar-thumb{
-  background:rgba(148,163,184,.9);
+  background:var(--accent);              /* solid brand color for thumb */
   border-radius:999px;
+}
+
+.vi-map-shell::-webkit-scrollbar-thumb:hover{
+  filter:brightness(0.9);                /* tiny darken on hover */
 }
 
 /* Top strapline + title */
