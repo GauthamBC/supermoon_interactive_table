@@ -238,7 +238,7 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "logo_alt": "Canada Sports Betting logo",
             "accent": "#DC2626",
             "accent_soft": "#FEE2E2",
-            "branded_scale": ["#FECACA", "#FB7185", "#B91C1C"],
+            "branded_scale": ["#FFF3C7", "#FCBE31", "#B45309"],
         })
     elif brand_clean == "RotoGrinders":
         meta.update({
