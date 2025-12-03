@@ -743,16 +743,18 @@ def generate_map_table_html_from_df(
         color_continuous_scale=map_scale,
         custom_data=df[custom_cols],
     )
-
-    # Pretty hover template
+        # Pretty hover template (with extra spacing / padding feel)
     lines = []
     for idx, col in enumerate(metrics_for_hover, start=1):
         label = col.replace("_", " ")
-        lines.append(f"{html_mod.escape(label)}: %{{customdata[{idx}]}}")
+        # add a couple of non-breaking spaces for left padding
+        lines.append(f"&nbsp;&nbsp;{html_mod.escape(label)}: %{{customdata[{idx}]}}")
+
     hovertemplate = (
-        "<b>%{customdata[0]} (%{location})</b><br>"
-        + "<br>".join(lines)
-        + "<extra></extra>"
+        "<b>%{customdata[0]} (%{location})</b>"
+        "<br><br>"                 # extra line after title = top padding
+        + "<br>".join(lines) +
+        "<br><extra></extra>"      # extra line at bottom = bottom padding
     )
 
     fig.update_traces(
@@ -760,7 +762,7 @@ def generate_map_table_html_from_df(
         hoverlabel=dict(
             bgcolor=accent_soft,          # light brand tint
             bordercolor=accent,           # solid brand border
-            font=dict(color="#0F172A", size=13),
+            font=dict(color="#0F172A", size=14),  # slightly larger font
             align="left",
         ),
         # make state boundaries clearly visible
