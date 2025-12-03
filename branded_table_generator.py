@@ -567,8 +567,8 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       /* tuned to be close to the gold embed button */
       filter:
         brightness(0) saturate(100%)
-        invert(78%) sepia(74%) saturate(780%) hue-rotate(5deg)
-        brightness(102%) contrast(96%);
+        invert(68%) sepia(72%) saturate(540%) hue-rotate(2deg)
+        brightness(96%) contrast(104%);
     }
     .vi-table-embed.brand-canadasb .vi-footer img{
       filter:
