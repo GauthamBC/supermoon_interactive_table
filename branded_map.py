@@ -725,36 +725,21 @@ def generate_map_table_html_from_df(
     if value_col not in numeric_cols:
         numeric_cols = [value_col] + numeric_cols
 
-    # ---- Nice tooltip: state + up to 3 metrics ----
-    metrics_for_hover = [value_col] + [c for c in numeric_cols if c != value_col][:2]
-    custom_cols = [state_col] + metrics_for_hover
-
-        # Build map
-    map_scale = brand_meta["map_scale"]
-    accent = brand_meta.get("accent", "#16A34A")
-    accent_soft = brand_meta.get("accent_soft", "#DCFCE7")
-
-    fig = px.choropleth(
-        df,
-        locations="state_abbr",
-        locationmode="USA-states",
-        scope="usa",
-        color=value_col,
-        color_continuous_scale=map_scale,
-        custom_data=df[custom_cols],
-    )
-        # Pretty hover template (with extra spacing / padding feel)
+    # Pretty hover template – extra spacing & fake padding
     lines = []
     for idx, col in enumerate(metrics_for_hover, start=1):
         label = col.replace("_", " ")
-        # add a couple of non-breaking spaces for left padding
-        lines.append(f"&nbsp;&nbsp;{html_mod.escape(label)}: %{{customdata[{idx}]}}")
+        # leading &nbsp;&nbsp; gives a bit of left “padding”
+        lines.append(f"&nbsp;&nbsp;{html_mod.escape(label)}: %{{customdata[{idx}]}}&nbsp;&nbsp;")
 
     hovertemplate = (
+        # Title
         "<b>%{customdata[0]} (%{location})</b>"
-        "<br><br>"                 # extra line after title = top padding
-        + "<br>".join(lines) +
-        "<br><extra></extra>"      # extra line at bottom = bottom padding
+        "<br><br>"              # extra space after title
+        # Metrics, spaced out
+        + "<br><br>".join(lines)
+        + "<br>"                # a bit of bottom space
+        + "<extra></extra>"
     )
 
     fig.update_traces(
