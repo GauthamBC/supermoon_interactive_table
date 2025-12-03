@@ -696,8 +696,8 @@ def generate_map_table_html_from_df(
             font=dict(color="#0F172A", size=13),
             align="left",
         ),
-        marker_line_color="white",   # <-- state borders
-        marker_line_width=1.2,       # tweak thickness as you like
+        marker_line_color="rgba(0,0,0,0)",  # fully transparent
+        marker_line_width=0,                # no outline at all
     )
 
     fig.update_layout(
