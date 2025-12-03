@@ -335,7 +335,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 /* Card container */
 .vi-map-shell{
   background:#FFFFFF;
-  border-radius:18px;
+  border-radius:0;
   box-shadow:0 8px 24px rgba(15,23,42,.12);
   border:1px solid rgba(148,163,184,.25);
   padding:18px 18px 20px;
