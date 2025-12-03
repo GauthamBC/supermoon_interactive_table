@@ -245,6 +245,21 @@ def get_brand_meta(brand: str) -> dict:
 
     return meta
 
+def get_unbranded_meta() -> dict:
+    """
+    Neutral / unbranded styling for the widget.
+    """
+    return {
+        "name": "Unbranded",
+        "brand_class": "brand-unbranded",
+        "logo_url": "",
+        "logo_alt": "",
+        "accent": "#9CA3AF",
+        "accent_soft": "#E5E7EB",
+        # Neutral blue → yellow → orange
+        "map_scale": ["#93C5FD", "#FACC15", "#FB923C"],
+    }
+
 # === State mapping ====================================================
 
 STATE_ABBR = {
@@ -416,6 +431,9 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 }
 .vi-map-card.brand-rotogrinders .vi-map-legend-bar{
   background:linear-gradient(90deg,#BFDBFE,#38BDF8,#1D4ED8);
+}
+.vi-map-card.brand-unbranded .vi-map-legend-bar{
+  background:linear-gradient(90deg,#93C5FD,#FACC15,#FB923C);
 }
 
 /* Map frame */
@@ -721,8 +739,8 @@ def generate_map_table_html_from_df(
             align="left",
         ),
         # make state boundaries clearly visible
-        marker_line_color="#F9FAFB",   # or "#FFFFFF" if you prefer
-        marker_line_width=1.2,         # bump up/down for more/less separation
+        marker_line_color="#F9FAFB",
+        marker_line_width=1.2,
     )
 
     fig.update_layout(
@@ -1042,7 +1060,12 @@ if uploaded_file is not None:
                     time.sleep(0.12)
                     progress.progress(pct)
 
-                brand_meta_publish = get_brand_meta(st.session_state.get("map_brand", brand))
+                # Use current style mode (Branded / Unbranded) for publishing
+                style_mode = st.session_state.get("map_style_mode", "Branded")
+                if style_mode == "Branded":
+                    brand_meta_publish = get_brand_meta(st.session_state.get("map_brand", brand))
+                else:
+                    brand_meta_publish = get_unbranded_meta()
 
                 widget_file_name = st.session_state.get("map_widget_file_name", base_filename)
                 expected_embed_url = compute_expected_embed_url(
@@ -1115,7 +1138,7 @@ if uploaded_file is not None:
                 st.session_state["map_iframe_snippet"] = iframe_snippet
                 st.session_state["map_has_generated"] = True
 
-                st.success("Branded map widget updated. Open the tabs below to preview and embed it.")
+                st.success("Map widget updated. Open the tabs below to preview and embed it.")
 
             except Exception as e:
                 progress_placeholder.empty()
@@ -1178,25 +1201,6 @@ if uploaded_file is not None:
         effective_github_user, repo_name, widget_file_name
     )
 
-    # Live preview HTML (even before publishing)
-    brand_meta_preview = get_brand_meta(st.session_state.get("map_brand", brand))
-    html_preview = generate_map_table_html_from_df(
-        df,
-        brand_meta_preview,
-        state_col=state_col,
-        value_col=value_col,
-        page_title=page_title,
-        subtitle=subtitle,
-        strapline=strapline,
-        legend_low=legend_low,
-        legend_high=legend_high,
-        high_title=high_title,
-        high_sub=high_sub,
-        low_title=low_title,
-        low_sub=low_sub,
-        top_n=10,
-    )
-
     tab_config, tab_embed = st.tabs(
         [
             "Preview map page",
@@ -1204,16 +1208,70 @@ if uploaded_file is not None:
         ]
     )
 
+    # ------- PREVIEW TAB -------
     with tab_config:
+        style_mode = st.selectbox(
+            "Widget style",
+            options=["Branded", "Unbranded"],
+            index=0 if st.session_state.get("map_style_mode", "Branded") == "Branded" else 1,
+            key="map_style_mode",
+        )
+
+        if style_mode == "Branded":
+            preview_meta = get_brand_meta(st.session_state.get("map_brand", brand))
+        else:
+            preview_meta = get_unbranded_meta()
+
+        html_preview = generate_map_table_html_from_df(
+            df,
+            preview_meta,
+            state_col=state_col,
+            value_col=value_col,
+            page_title=page_title,
+            subtitle=subtitle,
+            strapline=strapline,
+            legend_low=legend_low,
+            legend_high=legend_high,
+            high_title=high_title,
+            high_sub=high_sub,
+            low_title=low_title,
+            low_sub=low_sub,
+            top_n=10,
+        )
+
         components.html(html_preview, height=1000, scrolling=True)
 
+    # ------- HTML / IFRAME TAB -------
     with tab_embed:
+        style_mode = st.session_state.get("map_style_mode", "Branded")
+        if style_mode == "Branded":
+            embed_meta = get_brand_meta(st.session_state.get("map_brand", brand))
+        else:
+            embed_meta = get_unbranded_meta()
+
+        html_for_embed = generate_map_table_html_from_df(
+            df,
+            embed_meta,
+            state_col=state_col,
+            value_col=value_col,
+            page_title=page_title,
+            subtitle=subtitle,
+            strapline=strapline,
+            legend_low=legend_low,
+            legend_high=legend_high,
+            high_title=high_title,
+            high_sub=high_sub,
+            low_title=low_title,
+            low_sub=low_sub,
+            top_n=10,
+        )
+
         subtab_html, subtab_iframe = st.tabs(["HTML file contents", "Iframe code"])
 
         with subtab_html:
             st.text_area(
                 label="",
-                value=html_preview,
+                value=html_for_embed,
                 height=350,
                 label_visibility="collapsed",
             )
