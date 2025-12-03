@@ -209,6 +209,7 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
         "logo_alt": f"{brand_clean} logo",
         "accent": "#16A34A",
         "accent_soft": "#DCFCE7",
+        "accent_softer": "#F3FBF7",
         "branded_scale": UNBRANDED_SCALE,
     }
 
@@ -219,17 +220,19 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "logo_alt": "Action Network logo",
             "accent": "#16A34A",
             "accent_soft": "#DCFCE7",
+            "accent_softer": "#F3FBF7",
             "branded_scale": ["#BBF7D0", "#4ADE80", "#166534"],
         })
     elif brand_clean == "VegasInsider":
-        # Branded VI: cool-to-warm scale like the burnout map
+        # VegasInsider: variations around #FCBE31
         meta.update({
             "brand_class": "brand-vegasinsider",
             "logo_url": "https://i.postimg.cc/kGVJyXc1/VI-logo-final.png",
             "logo_alt": "VegasInsider logo",
-            "accent": "#F2C23A",
-            "accent_soft": "#FFF7DC",
-            "branded_scale": ["#FFF3E0", "#FDBA74", "#EA580C"],
+            "accent": "#FCBE31",
+            "accent_soft": "#FFF3C7",
+            "accent_softer": "#FFF9EC",
+            "branded_scale": ["#FFF9EC", "#FCD34D", "#B45309"],
         })
     elif brand_clean == "Canada Sports Betting":
         meta.update({
@@ -238,7 +241,8 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "logo_alt": "Canada Sports Betting logo",
             "accent": "#DC2626",
             "accent_soft": "#FEE2E2",
-            "branded_scale": ["#FFF3C7", "#FCBE31", "#B45309"],
+            "accent_softer": "#FFF5F5",
+            "branded_scale": ["#FECACA", "#FB7185", "#B91C1C"],
         })
     elif brand_clean == "RotoGrinders":
         meta.update({
@@ -247,6 +251,7 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "logo_alt": "RotoGrinders logo",
             "accent": "#0EA5E9",
             "accent_soft": "#E0F2FE",
+            "accent_softer": "#F3FAFF",
             "branded_scale": ["#BFDBFE", "#38BDF8", "#1D4ED8"],
         })
 
@@ -343,6 +348,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 .vi-map-card{
   --accent:[[ACCENT]];
   --accent-soft:[[ACCENT_SOFT]];
+  --accent-softer:[[ACCENT_SOFTER]];
 }
 
 /* Card container */
@@ -484,19 +490,19 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   color:#111827;
 }
 
-/* Header uses brand accent colors */
+/* Header: very light brand tint so it stands out from stripes */
 .vi-map-table thead th{
   text-align:left;
   padding:8px 10px;
   font-size:11px;
   text-transform:uppercase;
   letter-spacing:.06em;
-  color:var(--accent);           /* header text = brand color */
-  background:var(--accent-soft); /* header background = light brand tint */
+  color:var(--accent);
+  background:var(--accent-softer);
   border-bottom:1px solid rgba(148,163,184,.35);
 }
 
-/* Stripe rows with brand tint (lighter than rank pill) */
+/* Stripe rows with brand tint */
 .vi-map-table tbody tr:nth-child(odd){
   background:#FFFFFF;
 }
@@ -516,7 +522,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   vertical-align:middle;
 }
 
-/* Rank pill: solid brand color, lighter rows behind it */
+/* Rank pill: solid brand color, white number */
 .vi-rank-pill{
   display:inline-flex;
   align-items:center;
@@ -527,8 +533,8 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   border-radius:999px;
   font-size:11px;
   font-weight:600;
-  background:var(--accent);  /* darker, solid brand color */
-  color:#FFFFFF;             /* white number */
+  background:var(--accent);
+  color:#FFFFFF;
 }
 
 /* Brand recolor for logo if you add it later (optional) */
@@ -616,6 +622,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 </body>
 </html>
 """
+
 # === 3. HTML generators ===============================================
 
 def build_ranked_table_html(df: pd.DataFrame, value_col: str, top_n: int = 10) -> str:
@@ -806,6 +813,7 @@ def generate_map_table_html_from_df(
         .replace("[[BRAND_CLASS]]", brand_meta.get("brand_class", ""))
         .replace("[[ACCENT]]", brand_meta.get("accent", "#16A34A"))
         .replace("[[ACCENT_SOFT]]", brand_meta.get("accent_soft", "#DCFCE7"))
+        .replace("[[ACCENT_SOFTER]]", brand_meta.get("accent_softer", "#F3FBF7"))
         .replace("[[SCALE_START]]", scale_start)
         .replace("[[SCALE_MID]]", scale_mid)
         .replace("[[SCALE_END]]", scale_end)
