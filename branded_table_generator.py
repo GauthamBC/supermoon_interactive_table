@@ -377,19 +377,14 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       outline:none; border-color:var(--brand-500);
       box-shadow:0 0 0 3px color-mix(in oklab,var(--brand-500) 25%,transparent); background:#fff;
     }
+    /* simpler select: remove custom chevron so we don't get duplicate icons */
     #bt-block .dw-select{
-      appearance:none; padding-right:34px;
-      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%232E8538' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-      background-repeat:no-repeat; background-position:right 10px center; background-size:14px;
-    }
-    .vi-table-embed.brand-vegasinsider #bt-block .dw-select{
-      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23B9851A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-    }
-    .vi-table-embed.brand-canadasb #bt-block .dw-select{
-      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23B91C1C' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-    }
-    .vi-table-embed.brand-rotogrinders #bt-block .dw-select{
-      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230141A1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      appearance:none;
+      -webkit-appearance:none;
+      -moz-appearance:none;
+      padding-right:26px;
+      background:#fff;
+      background-image:none;
     }
 
     #bt-block .dw-btn{
@@ -676,7 +671,7 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       <div id="bt-embed-wrapper" class="embed-wrapper">
         <textarea id="bt-embed-code" readonly>&lt;iframe src="[[EMBED_URL]]"
   title="[[TITLE]]"
-  width="100%" height="620"
+  width="100%" height="700" scrolling="no"
   style="border:0;" loading="lazy"&gt;&lt;/iframe&gt;</textarea>
         <p id="bt-copy-status">Embed code copied!</p>
       </div>
@@ -1235,7 +1230,7 @@ if uploaded_file is not None:
 
                 iframe_snippet = f"""<iframe src="{expected_embed_url}"
   title="{title_for_publish}"
-  width="100%" height="620"
+  width="100%" height="700" scrolling="no"
   style="border:0;" loading="lazy"></iframe>"""
 
                 st.session_state["bt_iframe_snippet"] = iframe_snippet
