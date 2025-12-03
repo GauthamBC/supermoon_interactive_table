@@ -300,6 +300,17 @@ STATE_ABBR = {
     "Wyoming": "WY",
 }
 
+# Helper lookup that accepts full names or 2-letter codes
+STATE_LOOKUP = {}
+for name, code in STATE_ABBR.items():
+    STATE_LOOKUP[name] = code
+    STATE_LOOKUP[name.title()] = code
+    STATE_LOOKUP[name.upper()] = code
+    STATE_LOOKUP[name.lower()] = code
+    STATE_LOOKUP[code] = code
+    STATE_LOOKUP[code.upper()] = code
+    STATE_LOOKUP[code.lower()] = code
+
 # === 2. HTML TEMPLATE: map + tables =======================
 
 HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
@@ -552,8 +563,33 @@ def generate_map_table_html_from_df(
     # Prepare dataframe
     df = df.copy()
     df[state_col] = df[state_col].astype(str).str.strip()
-    df["state_abbr"] = df[state_col].map(STATE_ABBR)
+
+    # Robust state normalization: works with full names OR 2-letter codes
+    s = df[state_col].astype(str).str.strip()
+    # if length 2 -> treat as code, uppercase; else treat as name, title case
+    name_mask = s.str.len() > 2
+    code_mask = ~name_mask
+    s_norm = s.copy()
+    s_norm.loc[name_mask] = s_norm.loc[name_mask].str.title()
+    s_norm.loc[code_mask] = s_norm.loc[code_mask].str.upper()
+    df["state_abbr"] = s_norm.map(STATE_LOOKUP)
+
+    # Coerce metric to numeric (handles strings like "6.51" or "6.51%")
+    df[value_col] = (
+        df[value_col]
+        .astype(str)
+        .str.replace("%", "", regex=False)
+        .str.replace(",", "", regex=False)
+    )
+    df[value_col] = pd.to_numeric(df[value_col], errors="coerce")
+
+    # Drop rows without a valid state or metric
     df = df[~df["state_abbr"].isna()].copy()
+    df = df[~df[value_col].isna()].copy()
+
+    if df.empty:
+        # If everything got filtered out, just return a simple message
+        return "<p style='padding:16px;font-family:sans-serif;'>No valid state/metric data to display.</p>"
 
     # Build map
     hover_cols = [c for c in df.columns if c not in ("state_abbr",)]
@@ -587,14 +623,13 @@ def generate_map_table_html_from_df(
 
     # Ranked tables
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-    # Put state col first
     df_for_tables = pd.DataFrame({
         state_col: df[state_col],
         **{c: df[c] for c in numeric_cols},
     })
 
     df_high = df_for_tables.sort_values(by=value_col, ascending=False)
-    df_low = df_for_tables.sort_values(by=value_col, ascending=True)
+    df_low = df_for_tables.sort_values(by[value_col], ascending=True)
 
     high_table_html = build_ranked_table_html(df_high, value_col=value_col, top_n=top_n)
     low_table_html = build_ranked_table_html(df_low, value_col=value_col, top_n=top_n)
@@ -664,14 +699,12 @@ if uploaded_file is not None:
     st.subheader("Data configuration")
 
     state_col = st.selectbox(
-        "State column (full U.S. state names)",
+        "State column (full U.S. state names or 2-letter codes)",
         options=list(df.columns),
         key="map_state_col",
     )
 
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-    # If none are numeric yet, don't overcomplicate – just let them pick any,
-    # they can clean in the sheet.
     if not numeric_cols:
         numeric_cols = [c for c in df.columns if c != state_col]
 
