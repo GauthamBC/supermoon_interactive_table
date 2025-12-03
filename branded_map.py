@@ -12,7 +12,6 @@ import plotly.express as px
 
 # ============== 0. Secrets ==============
 
-
 def get_secret(key: str, default: str = "") -> str:
     try:
         if hasattr(st, "secrets") and key in st.secrets:
@@ -21,12 +20,10 @@ def get_secret(key: str, default: str = "") -> str:
         pass
     return default
 
-
 GITHUB_TOKEN = get_secret("GITHUB_TOKEN", "")
 GITHUB_USER_DEFAULT = get_secret("GITHUB_USER", "")
 
 # === GitHub helpers ===================================================
-
 
 def github_headers(token: str):
     headers = {
@@ -36,7 +33,6 @@ def github_headers(token: str):
         headers["Authorization"] = f"Bearer {token}"
     headers["X-GitHub-Api-Version"] = "2022-11-28"
     return headers
-
 
 def ensure_repo_exists(owner: str, repo: str, token: str) -> bool:
     """
@@ -66,7 +62,6 @@ def ensure_repo_exists(owner: str, repo: str, token: str) -> bool:
 
     return True  # newly created
 
-
 def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main") -> None:
     """
     Attempt to enable GitHub Pages on the repo from the given branch root.
@@ -88,7 +83,6 @@ def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main"
     r = requests.post(f"{api_base}/repos/{owner}/{repo}/pages", headers=headers, json=payload)
     if r.status_code not in (201, 202):
         raise RuntimeError(f"Error enabling GitHub Pages: {r.status_code} {r.text}")
-
 
 def upload_file_to_github(
     owner: str,
@@ -128,7 +122,6 @@ def upload_file_to_github(
     if r.status_code not in (200, 201):
         raise RuntimeError(f"Error uploading file: {r.status_code} {r.text}")
 
-
 def trigger_pages_build(owner: str, repo: str, token: str) -> bool:
     """
     Ask GitHub to build the Pages site (legacy mode).
@@ -138,9 +131,7 @@ def trigger_pages_build(owner: str, repo: str, token: str) -> bool:
     r = requests.post(f"{api_base}/repos/{owner}/{repo}/pages/builds", headers=headers)
     return r.status_code in (201, 202)
 
-
 # --- Helpers for availability check -------------------------------
-
 
 def check_repo_exists(owner: str, repo: str, token: str) -> bool:
     api_base = "https://api.github.com"
@@ -151,7 +142,6 @@ def check_repo_exists(owner: str, repo: str, token: str) -> bool:
     if r.status_code == 404:
         return False
     raise RuntimeError(f"Error checking repo: {r.status_code} {r.text}")
-
 
 def check_file_exists(owner: str, repo: str, token: str, path: str, branch: str = "main") -> bool:
     api_base = "https://api.github.com"
@@ -166,7 +156,6 @@ def check_file_exists(owner: str, repo: str, token: str, path: str, branch: str 
     if r.status_code == 404:
         return False
     raise RuntimeError(f"Error checking file: {r.status_code} {r.text}")
-
 
 def find_next_widget_filename(owner: str, repo: str, token: str, branch: str = "main") -> str:
     """
@@ -197,9 +186,7 @@ def find_next_widget_filename(owner: str, repo: str, token: str, branch: str = "
 
     return f"t{max_n + 1}.html" if max_n >= 0 else "t1.html"
 
-
 # === Brand metadata ===================================================
-
 
 def get_brand_meta(brand: str) -> dict:
     """
@@ -216,61 +203,47 @@ def get_brand_meta(brand: str) -> dict:
         "accent": "#16A34A",
         "accent_soft": "#DCFCE7",
         "map_scale": ["#E5F9ED", "#4ADE80", "#166534"],
-        "map_landcolor": "#F3F4F6",
     }
 
     if brand_clean == "Action Network":
-        meta.update(
-            {
-                "brand_class": "brand-actionnetwork",
-                "logo_url": "https://i.postimg.cc/x1nG117r/AN-final2-logo.png",
-                "logo_alt": "Action Network logo",
-                "accent": "#16A34A",
-                "accent_soft": "#DCFCE7",
-                "map_scale": ["#DCFCE7", "#4ADE80", "#166534"],
-                "map_landcolor": "#F3FAF6",  # subtle green tint
-            }
-        )
+        meta.update({
+            "brand_class": "brand-actionnetwork",
+            "logo_url": "https://i.postimg.cc/x1nG117r/AN-final2-logo.png",
+            "logo_alt": "Action Network logo",
+            "accent": "#16A34A",
+            "accent_soft": "#DCFCE7",
+            "map_scale": ["#DCFCE7", "#4ADE80", "#166534"],
+        })
     elif brand_clean == "VegasInsider":
-        meta.update(
-            {
-                "brand_class": "brand-vegasinsider",
-                "logo_url": "https://i.postimg.cc/kGVJyXc1/VI-logo-final.png",
-                "logo_alt": "VegasInsider logo",
-                "accent": "#F2C23A",
-                "accent_soft": "#FFF7DC",
-                # blue → yellow → red like the burnout map
-                "map_scale": ["#7CB3FF", "#F2C23A", "#E6492D"],
-                "map_landcolor": "#FFF8E6",  # warm golden tint
-            }
-        )
+        meta.update({
+            "brand_class": "brand-vegasinsider",
+            "logo_url": "https://i.postimg.cc/kGVJyXc1/VI-logo-final.png",
+            "logo_alt": "VegasInsider logo",
+            "accent": "#F2C23A",
+            "accent_soft": "#FFF7DC",
+            # blue → yellow → red like the burnout map
+            "map_scale": ["#7CB3FF", "#F2C23A", "#E6492D"],
+        })
     elif brand_clean == "Canada Sports Betting":
-        meta.update(
-            {
-                "brand_class": "brand-canadasb",
-                "logo_url": "https://i.postimg.cc/ZKbrbPCJ/CSB-FN.png",
-                "logo_alt": "Canada Sports Betting logo",
-                "accent": "#DC2626",
-                "accent_soft": "#FEE2E2",
-                "map_scale": ["#FEE2E2", "#FB7185", "#B91C1C"],
-                "map_landcolor": "#FEF2F2",  # soft red tint
-            }
-        )
+        meta.update({
+            "brand_class": "brand-canadasb",
+            "logo_url": "https://i.postimg.cc/ZKbrbPCJ/CSB-FN.png",
+            "logo_alt": "Canada Sports Betting logo",
+            "accent": "#DC2626",
+            "accent_soft": "#FEE2E2",
+            "map_scale": ["#FEE2E2", "#FB7185", "#B91C1C"],
+        })
     elif brand_clean == "RotoGrinders":
-        meta.update(
-            {
-                "brand_class": "brand-rotogrinders",
-                "logo_url": "https://i.postimg.cc/PrcJnQtK/RG-logo-Fn.png",
-                "logo_alt": "RotoGrinders logo",
-                "accent": "#0EA5E9",
-                "accent_soft": "#E0F2FE",
-                "map_scale": ["#E0F2FE", "#38BDF8", "#1D4ED8"],
-                "map_landcolor": "#ECF4FF",  # icy blue tint
-            }
-        )
+        meta.update({
+            "brand_class": "brand-rotogrinders",
+            "logo_url": "https://i.postimg.cc/PrcJnQtK/RG-logo-Fn.png",
+            "logo_alt": "RotoGrinders logo",
+            "accent": "#0EA5E9",
+            "accent_soft": "#E0F2FE",
+            "map_scale": ["#E0F2FE", "#38BDF8", "#1D4ED8"],
+        })
 
     return meta
-
 
 # === State mapping ====================================================
 
@@ -338,7 +311,7 @@ for name, code in STATE_ABBR.items():
     STATE_LOOKUP[code.upper()] = code
     STATE_LOOKUP[code.lower()] = code
 
-# === 2. HTML TEMPLATE: map + tables =======================
+# === 2. HTML TEMPLATE: map + tables (tabbed tables) ===================
 
 HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 <html lang="en">
@@ -430,17 +403,45 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   overflow:hidden;
 }
 
-/* Table titles */
-.vi-map-section-title{
-  margin:20px 0 4px;
-  font-size:15px;
-  font-weight:700;
-  color:#0F172A;
-}
+/* Tables & tabs */
 .vi-map-section-sub{
   margin:0 0 10px;
   font-size:12px;
   color:#6B7280;
+}
+
+.vi-tab-header{
+  display:inline-flex;
+  gap:6px;
+  margin:20px 0 6px;
+  padding:2px;
+  background:#F3F4F6;
+  border-radius:999px;
+}
+.vi-tab-header .vi-tab{
+  border:0;
+  background:transparent;
+  border-radius:999px;
+  padding:6px 12px;
+  font-size:12px;
+  font-weight:600;
+  color:#6B7280;
+  cursor:pointer;
+  transition:background-color .18s ease, color .18s ease, box-shadow .18s ease, transform .06s ease;
+}
+.vi-tab-header .vi-tab.is-active{
+  background:#FFFFFF;
+  color:#111827;
+  box-shadow:0 1px 3px rgba(15,23,42,.18);
+  transform:translateY(-0.5px);
+}
+.vi-tab-header .vi-tab:focus-visible{
+  outline:none;
+  box-shadow:0 0 0 2px var(--accent-soft),0 0 0 4px rgba(15,23,42,.25);
+}
+
+.vi-tab-panel{
+  margin-top:6px;
 }
 
 /* Tables */
@@ -509,18 +510,62 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
     [[MAP_HTML]]
   </div>
 
-  <!-- Highest odds table -->
-  <section class="vi-map-tables">
-    <h2 class="vi-map-section-title">[[HIGH_TITLE]]</h2>
-    <p class="vi-map-section-sub">[[HIGH_SUB]]</p>
-    [[TABLE_HIGH_HTML]]
+  <!-- Tabbed tables -->
+  <section class="vi-map-tables" style="margin-top:4px;">
+    <div class="vi-tab-header" role="tablist" aria-label="State rankings">
+      <button class="vi-tab is-active" data-tab="high" role="tab" aria-selected="true" tabindex="0">
+        [[HIGH_TITLE]]
+      </button>
+      <button class="vi-tab" data-tab="low" role="tab" aria-selected="false" tabindex="-1">
+        [[LOW_TITLE]]
+      </button>
+    </div>
 
-    <h2 class="vi-map-section-title" style="margin-top:22px;">[[LOW_TITLE]]</h2>
-    <p class="vi-map-section-sub">[[LOW_SUB]]</p>
-    [[TABLE_LOW_HTML]]
+    <p class="vi-map-section-sub vi-map-section-sub-tab" data-tab="high">[[HIGH_SUB]]</p>
+    <p class="vi-map-section-sub vi-map-section-sub-tab" data-tab="low" style="display:none;">[[LOW_SUB]]</p>
+
+    <div class="vi-tab-panel" data-panel="high">
+      [[TABLE_HIGH_HTML]]
+    </div>
+    <div class="vi-tab-panel" data-panel="low" style="display:none;">
+      [[TABLE_LOW_HTML]]
+    </div>
   </section>
 
 </div>
+
+<script>
+(function(){
+  var widgets = document.querySelectorAll('.vi-map-card');
+  widgets.forEach(function(root){
+    var tabs = root.querySelectorAll('.vi-tab-header .vi-tab');
+    var panels = root.querySelectorAll('.vi-tab-panel');
+    var subs = root.querySelectorAll('.vi-map-section-sub-tab');
+    if (!tabs.length) return;
+
+    tabs.forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var target = this.getAttribute('data-tab');
+
+        tabs.forEach(function(b){
+          var active = b === btn;
+          b.classList.toggle('is-active', active);
+          b.setAttribute('aria-selected', active ? 'true' : 'false');
+          b.setAttribute('tabindex', active ? '0' : '-1');
+        });
+
+        panels.forEach(function(p){
+          p.style.display = (p.getAttribute('data-panel') === target) ? 'block' : 'none';
+        });
+
+        subs.forEach(function(s){
+          s.style.display = (s.getAttribute('data-tab') === target) ? 'block' : 'none';
+        });
+      });
+    });
+  });
+})();
+</script>
 
 </section>
 </body>
@@ -528,7 +573,6 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 """
 
 # === 3. HTML generators ===============================================
-
 
 def build_ranked_table_html(df: pd.DataFrame, value_col: str, top_n: int = 10) -> str:
     """
@@ -545,10 +589,7 @@ def build_ranked_table_html(df: pd.DataFrame, value_col: str, top_n: int = 10) -
     else:
         metric_cols = other_cols
 
-    head_cells = [
-        '<th scope="col">Rank</th>',
-        f'<th scope="col">{html_mod.escape(state_col)}</th>',
-    ]
+    head_cells = ['<th scope="col">Rank</th>', f'<th scope="col">{html_mod.escape(state_col)}</th>']
     for c in metric_cols:
         head_cells.append(f'<th scope="col">{html_mod.escape(str(c))}</th>')
     thead_html = "<tr>" + "".join(head_cells) + "</tr>"
@@ -560,7 +601,7 @@ def build_ranked_table_html(df: pd.DataFrame, value_col: str, top_n: int = 10) -
         for c in metric_cols:
             val = row[c]
             text = "" if pd.isna(val) else str(val)
-            tds.append(f"<td>{html_mod.escape(text)}</td>")
+            tds.append(f'<td>{html_mod.escape(text)}</td>')
         body_rows.append("<tr>" + "".join(tds) + "</tr>")
 
     table_html = f"""
@@ -574,7 +615,6 @@ def build_ranked_table_html(df: pd.DataFrame, value_col: str, top_n: int = 10) -
 </table>
 """
     return table_html
-
 
 def generate_map_table_html_from_df(
     df: pd.DataFrame,
@@ -591,13 +631,12 @@ def generate_map_table_html_from_df(
     low_title: str,
     low_sub: str,
     top_n: int = 10,
-    branded_map: bool = True,
 ) -> str:
     # Prepare dataframe
     df = df.copy()
     df[state_col] = df[state_col].astype(str).str.strip()
 
-    # Robust state normalization: works with full names OR 2-letter codes
+    # Robust state normalization: full names OR 2-letter codes
     s = df[state_col].astype(str).str.strip()
     name_mask = s.str.len() > 2
     code_mask = ~name_mask
@@ -606,7 +645,7 @@ def generate_map_table_html_from_df(
     s_norm.loc[code_mask] = s_norm.loc[code_mask].str.upper()
     df["state_abbr"] = s_norm.map(STATE_LOOKUP)
 
-    # Coerce metric to numeric (handles strings like "6.51" or "6.51%")
+    # Coerce metric to numeric (handles "6.51" or "6.51%")
     df[value_col] = (
         df[value_col]
         .astype(str)
@@ -622,45 +661,41 @@ def generate_map_table_html_from_df(
     if df.empty:
         return "<p style='padding:16px;font-family:sans-serif;'>No valid state/metric data to display.</p>"
 
-    # ----- Map colour choices: branded vs neutral -----------------
-    if branded_map:
-        color_scale = brand_meta["map_scale"]
-        land_color = brand_meta.get("map_landcolor", "#F3F4F6")
-    else:
-        # Neutral scale that does not depend on brand
-        color_scale = ["#9EC5FE", "#FDBA74", "#DC2626"]
-        land_color = "#F3F4F6"
+    # Numeric columns (for hover + tables)
+    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+    if value_col not in numeric_cols:
+        numeric_cols = [value_col] + numeric_cols
+
+    # ---- Nice tooltip: state + up to 3 metrics ----
+    metrics_for_hover = [value_col] + [c for c in numeric_cols if c != value_col][:2]
+    custom_cols = [state_col] + metrics_for_hover
 
     # Build map
-    # custom_data for pretty tooltip
-    custom_cols = [state_col, value_col] + [
-        c for c in df.columns if c not in (state_col, "state_abbr", value_col)
-    ]
-    custom_df = df[custom_cols]
-
     fig = px.choropleth(
         df,
         locations="state_abbr",
         locationmode="USA-states",
         scope="usa",
         color=value_col,
-        color_continuous_scale=color_scale,
-        custom_data=custom_df,
+        color_continuous_scale=brand_meta["map_scale"],
+        custom_data=df[custom_cols],
     )
 
-    # Tooltip template: nice bold state line + metrics
-    hover_lines = [
-        "<b>%{customdata[0]} (%{location})</b>",
-        f"{html_mod.escape(str(value_col))}: %{customdata[1]:,.2f}",
-    ]
-    for i, col in enumerate(custom_cols[2:], start=2):
-        hover_lines.append(f"{html_mod.escape(str(col))}: %{{customdata[{i}]:,}}")
-    hover_template = "<br>".join(hover_lines) + "<extra></extra>"
+    # Pretty hover template
+    lines = []
+    for idx, col in enumerate(metrics_for_hover, start=1):
+        label = col.replace("_", " ")
+        lines.append(f"{html_mod.escape(label)}: %{{customdata[{idx}]}}")
+    hovertemplate = "<b>%{customdata[0]} (%{location})</b><br>" + "<br>".join(lines) + "<extra></extra>"
 
     fig.update_traces(
-        hovertemplate=hover_template,
-        marker_line_color="#FFFFFF",  # white borders
-        marker_line_width=1.2,
+        hovertemplate=hovertemplate,
+        hoverlabel=dict(
+            bgcolor="white",
+            bordercolor="#CBD5E1",
+            font=dict(color="#0F172A", size=13),
+            align="left",
+        ),
     )
 
     fig.update_layout(
@@ -672,33 +707,27 @@ def generate_map_table_html_from_df(
             lakecolor="rgba(0,0,0,0)",
             showlakes=False,
             showland=True,
-            landcolor=land_color,
-            scope="usa",
-            fitbounds="locations",
+            landcolor="#F3F4F6",
         ),
         coloraxis_showscale=False,
-        dragmode=False,  # disable drag zoom/pan
     )
 
+    # Disable zooming / scroll-wheel
     map_html = fig.to_html(
         include_plotlyjs="cdn",
         full_html=False,
         config={
             "displayModeBar": False,
-            "scrollZoom": False,  # disable wheel zoom
-            "doubleClick": False,
             "responsive": True,
+            "scrollZoom": False,
         },
     )
 
-    # Ranked tables
-    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-    df_for_tables = pd.DataFrame(
-        {
-            state_col: df[state_col],
-            **{c: df[c] for c in numeric_cols},
-        }
-    )
+    # Ranked tables (use numeric_cols we already computed)
+    df_for_tables = pd.DataFrame({
+        state_col: df[state_col],
+        **{c: df[c] for c in numeric_cols},
+    })
 
     df_high = df_for_tables.sort_values(by=value_col, ascending=False)
     df_low = df_for_tables.sort_values(by=value_col, ascending=True)
@@ -707,7 +736,8 @@ def generate_map_table_html_from_df(
     low_table_html = build_ranked_table_html(df_low, value_col=value_col, top_n=top_n)
 
     html = (
-        HTML_TEMPLATE_MAP_TABLE.replace("[[PAGE_TITLE]]", html_mod.escape(page_title))
+        HTML_TEMPLATE_MAP_TABLE
+        .replace("[[PAGE_TITLE]]", html_mod.escape(page_title))
         .replace("[[SUBTITLE]]", html_mod.escape(subtitle or ""))
         .replace("[[STRAPLINE]]", html_mod.escape(strapline or ""))
         .replace("[[LEGEND_LOW]]", html_mod.escape(legend_low or "Lowest"))
@@ -724,7 +754,6 @@ def generate_map_table_html_from_df(
         .replace("[[ACCENT_SOFT]]", brand_meta["accent_soft"])
     )
     return html
-
 
 # === 4. Streamlit App ================================================
 
@@ -752,13 +781,6 @@ brand = st.selectbox(
     options=brand_options,
     index=brand_options.index(default_brand),
     key="map_brand",
-)
-
-# Branded vs unbranded map toggle
-branded_map_style = st.checkbox(
-    "Use branded map styling for colours & background",
-    value=st.session_state.get("map_branded_style", True),
-    key="map_branded_style",
 )
 
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
@@ -836,17 +858,13 @@ if uploaded_file is not None:
     with col_t1:
         high_title = st.text_input(
             "High table title",
-            value=st.session_state.get(
-                "map_high_title", "States With the Highest Winter Burnout Odds"
-            ),
+            value=st.session_state.get("map_high_title", "States With the Highest Winter Burnout Odds"),
             key="map_high_title",
         )
     with col_t2:
         low_title = st.text_input(
             "Low table title",
-            value=st.session_state.get(
-                "map_low_title", "States With the Lowest Winter Burnout Odds"
-            ),
+            value=st.session_state.get("map_low_title", "States With the Lowest Winter Burnout Odds"),
             key="map_low_title",
         )
 
@@ -854,17 +872,13 @@ if uploaded_file is not None:
     with col_s1:
         high_sub = st.text_input(
             "High table subheading",
-            value=st.session_state.get(
-                "map_high_sub", "Ranked by modeled burnout probability."
-            ),
+            value=st.session_state.get("map_high_sub", "Ranked by modeled burnout probability."),
             key="map_high_sub",
         )
     with col_s2:
         low_sub = st.text_input(
             "Low table subheading",
-            value=st.session_state.get(
-                "map_low_sub", "Ranked by modeled burnout probability."
-            ),
+            value=st.session_state.get("map_low_sub", "Ranked by modeled burnout probability."),
             key="map_low_sub",
         )
 
@@ -910,7 +924,9 @@ if uploaded_file is not None:
         effective_github_user, repo_name, widget_file_name
     )
 
-    st.caption(f"Expected GitHub Pages URL (iframe src):\n\n`{expected_embed_url}`")
+    st.caption(
+        f"Expected GitHub Pages URL (iframe src):\n\n`{expected_embed_url}`"
+    )
 
     st.markdown(
         "<p style='font-size:0.85rem; color:#c4c4c4;'>"
@@ -949,9 +965,7 @@ if uploaded_file is not None:
     # --- Page availability logic ---
     if page_check_clicked:
         if not can_run_github:
-            st.error(
-                "Cannot run availability check – add your GitHub token, username and repo first."
-            )
+            st.error("Cannot run availability check – add your GitHub token, username and repo first.")
         else:
             try:
                 repo_exists = check_repo_exists(
@@ -989,9 +1003,7 @@ if uploaded_file is not None:
     # --- Update widget (publish) logic ---
     if update_clicked:
         if not can_run_github:
-            st.error(
-                "Cannot update widget – add your GitHub token, username and repo first."
-            )
+            st.error("Cannot update widget – add your GitHub token, username and repo first.")
         else:
             try:
                 progress_placeholder = st.empty()
@@ -1000,13 +1012,9 @@ if uploaded_file is not None:
                     time.sleep(0.12)
                     progress.progress(pct)
 
-                brand_meta_publish = get_brand_meta(
-                    st.session_state.get("map_brand", brand)
-                )
+                brand_meta_publish = get_brand_meta(st.session_state.get("map_brand", brand))
 
-                widget_file_name = st.session_state.get(
-                    "map_widget_file_name", base_filename
-                )
+                widget_file_name = st.session_state.get("map_widget_file_name", base_filename)
                 expected_embed_url = compute_expected_embed_url(
                     effective_github_user, repo_name, widget_file_name
                 )
@@ -1026,7 +1034,6 @@ if uploaded_file is not None:
                     low_title=low_title,
                     low_sub=low_sub,
                     top_n=10,
-                    branded_map=branded_map_style,
                 )
 
                 progress.progress(80)
@@ -1069,20 +1076,16 @@ if uploaded_file is not None:
                 time.sleep(0.15)
                 progress_placeholder.empty()
 
-                iframe_snippet = dedent(
-                    f"""\
+                iframe_snippet = dedent(f"""\
                 <iframe src="{expected_embed_url}"
                         title="{html_mod.escape(page_title)}"
                         width="100%" height="700" scrolling="no"
-                        style="border:0;" loading="lazy"></iframe>"""
-                )
+                        style="border:0;" loading="lazy"></iframe>""")
 
                 st.session_state["map_iframe_snippet"] = iframe_snippet
                 st.session_state["map_has_generated"] = True
 
-                st.success(
-                    "Branded map widget updated. Open the tabs below to preview and embed it."
-                )
+                st.success("Branded map widget updated. Open the tabs below to preview and embed it.")
 
             except Exception as e:
                 progress_placeholder.empty()
@@ -1095,9 +1098,7 @@ if uploaded_file is not None:
             repo_exists = availability.get("repo_exists", False)
             file_exists = availability.get("file_exists", False)
             checked_filename = availability.get("checked_filename", base_filename)
-            suggested_new_filename = availability.get(
-                "suggested_new_filename"
-            ) or "t1.html"
+            suggested_new_filename = availability.get("suggested_new_filename") or "t1.html"
 
             if not repo_exists:
                 st.info(
@@ -1127,9 +1128,7 @@ if uploaded_file is not None:
                 )
                 if choice.startswith("Replace"):
                     st.session_state["map_widget_file_name"] = checked_filename
-                    st.info(
-                        f"Update widget will overwrite `{checked_filename}` in this repo."
-                    )
+                    st.info(f"Update widget will overwrite `{checked_filename}` in this repo.")
                 elif choice.startswith("Create additional"):
                     st.session_state["map_widget_file_name"] = suggested_new_filename
                     st.info(
@@ -1144,9 +1143,6 @@ if uploaded_file is not None:
     st.markdown("---")
 
     # ---------- Preview / HTML / iframe tabs ----------
-    has_generated = st.session_state.get("map_has_generated", False)
-    show_tabs = has_generated or not GITHUB_TOKEN
-
     widget_file_name = st.session_state.get("map_widget_file_name", base_filename)
     expected_embed_url = compute_expected_embed_url(
         effective_github_user, repo_name, widget_file_name
@@ -1169,7 +1165,6 @@ if uploaded_file is not None:
         low_title=low_title,
         low_sub=low_sub,
         top_n=10,
-        branded_map=branded_map_style,
     )
 
     tab_config, tab_embed = st.tabs(
