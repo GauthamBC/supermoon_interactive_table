@@ -188,21 +188,28 @@ def find_next_widget_filename(owner: str, repo: str, token: str, branch: str = "
 
 # === Brand metadata ===================================================
 
-def get_brand_meta(brand: str) -> dict:
+UNBRANDED_SCALE = ["#60A5FA", "#F97316", "#DC2626"]  # blue -> orange -> red
+
+def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
     """
     Brand metadata for map + tables page.
+
+    style_mode:
+        "Branded"   -> use brand-specific map palettes
+        "Unbranded" -> use neutral UNBRANDED_SCALE for all brands
     """
     brand_clean = (brand or "").strip() or "Action Network"
+    style_mode = (style_mode or "Branded").strip().lower()
 
+    # base meta
     meta = {
         "name": brand_clean,
-        "brand_class": "brand-actionnetwork",
-        "logo_url": "https://i.postimg.cc/x1nG117r/AN-final2-logo.png",
-        "logo_alt": "Action Network logo",
-        # default palette (greens)
+        "brand_class": "",
+        "logo_url": "",
+        "logo_alt": f"{brand_clean} logo",
         "accent": "#16A34A",
         "accent_soft": "#DCFCE7",
-        "map_scale": ["#E5F9ED", "#4ADE80", "#166534"],
+        "branded_scale": UNBRANDED_SCALE,
     }
 
     if brand_clean == "Action Network":
@@ -212,17 +219,17 @@ def get_brand_meta(brand: str) -> dict:
             "logo_alt": "Action Network logo",
             "accent": "#16A34A",
             "accent_soft": "#DCFCE7",
-            "map_scale": ["#DCFCE7", "#4ADE80", "#166534"],
+            "branded_scale": ["#BBF7D0", "#4ADE80", "#166534"],
         })
     elif brand_clean == "VegasInsider":
+        # Branded VI: cool-to-warm scale like the burnout map
         meta.update({
             "brand_class": "brand-vegasinsider",
             "logo_url": "https://i.postimg.cc/kGVJyXc1/VI-logo-final.png",
             "logo_alt": "VegasInsider logo",
             "accent": "#F2C23A",
             "accent_soft": "#FFF7DC",
-            # blue → yellow → red like the burnout map
-            "map_scale": ["#7CB3FF", "#F2C23A", "#E6492D"],
+            "branded_scale": ["#93C5FD", "#F2C23A", "#E6492D"],
         })
     elif brand_clean == "Canada Sports Betting":
         meta.update({
@@ -231,7 +238,7 @@ def get_brand_meta(brand: str) -> dict:
             "logo_alt": "Canada Sports Betting logo",
             "accent": "#DC2626",
             "accent_soft": "#FEE2E2",
-            "map_scale": ["#FEE2E2", "#FB7185", "#B91C1C"],
+            "branded_scale": ["#FECACA", "#FB7185", "#B91C1C"],
         })
     elif brand_clean == "RotoGrinders":
         meta.update({
@@ -240,25 +247,16 @@ def get_brand_meta(brand: str) -> dict:
             "logo_alt": "RotoGrinders logo",
             "accent": "#0EA5E9",
             "accent_soft": "#E0F2FE",
-            "map_scale": ["#E0F2FE", "#38BDF8", "#1D4ED8"],
+            "branded_scale": ["#BFDBFE", "#38BDF8", "#1D4ED8"],
         })
 
-    return meta
+    # Decide which scale to actually use on the map + legend
+    if style_mode == "unbranded":
+        meta["map_scale"] = UNBRANDED_SCALE
+    else:
+        meta["map_scale"] = meta["branded_scale"]
 
-def get_unbranded_meta() -> dict:
-    """
-    Neutral / unbranded styling for the widget.
-    """
-    return {
-        "name": "Unbranded",
-        "brand_class": "brand-unbranded",
-        "logo_url": "",
-        "logo_alt": "",
-        "accent": "#9CA3AF",
-        "accent_soft": "#E5E7EB",
-        # Neutral blue → yellow → orange
-        "map_scale": ["#93C5FD", "#FACC15", "#FB923C"],
-    }
+    return meta
 
 # === State mapping ====================================================
 
@@ -355,7 +353,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   border:1px solid rgba(148,163,184,.25);
   padding:18px 18px 20px;
 
-  /* NEW: internal scrolling within the card */
+  /* internal scrolling within the card */
   max-height: 100vh;  
   overflow-y: auto;
   overflow-x: hidden;
@@ -417,23 +415,8 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 .vi-map-legend-bar{
   height:6px;
   border-radius:999px;
-  background:linear-gradient(90deg,#60A5FA,#F97316,#DC2626);
+  background:linear-gradient(90deg,[[SCALE_START]],[[SCALE_MID]],[[SCALE_END]]);
   overflow:hidden;
-}
-.vi-map-card.brand-actionnetwork .vi-map-legend-bar{
-  background:linear-gradient(90deg,#BBF7D0,#4ADE80,#166534);
-}
-.vi-map-card.brand-vegasinsider .vi-map-legend-bar{
-  background:linear-gradient(90deg,#93C5FD,#F2C23A,#E6492D);
-}
-.vi-map-card.brand-canadasb .vi-map-legend-bar{
-  background:linear-gradient(90deg,#FECACA,#FB7185,#B91C1C);
-}
-.vi-map-card.brand-rotogrinders .vi-map-legend-bar{
-  background:linear-gradient(90deg,#BFDBFE,#38BDF8,#1D4ED8);
-}
-.vi-map-card.brand-unbranded .vi-map-legend-bar{
-  background:linear-gradient(90deg,#93C5FD,#FACC15,#FB923C);
 }
 
 /* Map frame */
@@ -713,13 +696,15 @@ def generate_map_table_html_from_df(
     custom_cols = [state_col] + metrics_for_hover
 
     # Build map
+    map_scale = brand_meta["map_scale"]
+
     fig = px.choropleth(
         df,
         locations="state_abbr",
         locationmode="USA-states",
         scope="usa",
         color=value_col,
-        color_continuous_scale=brand_meta["map_scale"],
+        color_continuous_scale=map_scale,
         custom_data=df[custom_cols],
     )
 
@@ -783,6 +768,8 @@ def generate_map_table_html_from_df(
     high_table_html = build_ranked_table_html(df_high, value_col=value_col, top_n=top_n)
     low_table_html = build_ranked_table_html(df_low, value_col=value_col, top_n=top_n)
 
+    scale_start, scale_mid, scale_end = map_scale[0], map_scale[1], map_scale[2]
+
     html = (
         HTML_TEMPLATE_MAP_TABLE
         .replace("[[PAGE_TITLE]]", html_mod.escape(page_title))
@@ -797,9 +784,12 @@ def generate_map_table_html_from_df(
         .replace("[[LOW_SUB]]", html_mod.escape(low_sub or ""))
         .replace("[[TABLE_HIGH_HTML]]", high_table_html)
         .replace("[[TABLE_LOW_HTML]]", low_table_html)
-        .replace("[[BRAND_CLASS]]", brand_meta["brand_class"])
-        .replace("[[ACCENT]]", brand_meta["accent"])
-        .replace("[[ACCENT_SOFT]]", brand_meta["accent_soft"])
+        .replace("[[BRAND_CLASS]]", brand_meta.get("brand_class", ""))
+        .replace("[[ACCENT]]", brand_meta.get("accent", "#16A34A"))
+        .replace("[[ACCENT_SOFT]]", brand_meta.get("accent_soft", "#DCFCE7"))
+        .replace("[[SCALE_START]]", scale_start)
+        .replace("[[SCALE_MID]]", scale_mid)
+        .replace("[[SCALE_END]]", scale_end)
     )
     return html
 
@@ -1060,12 +1050,8 @@ if uploaded_file is not None:
                     time.sleep(0.12)
                     progress.progress(pct)
 
-                # Use current style mode (Branded / Unbranded) for publishing
                 style_mode = st.session_state.get("map_style_mode", "Branded")
-                if style_mode == "Branded":
-                    brand_meta_publish = get_brand_meta(st.session_state.get("map_brand", brand))
-                else:
-                    brand_meta_publish = get_unbranded_meta()
+                brand_meta_publish = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
 
                 widget_file_name = st.session_state.get("map_widget_file_name", base_filename)
                 expected_embed_url = compute_expected_embed_url(
@@ -1138,7 +1124,7 @@ if uploaded_file is not None:
                 st.session_state["map_iframe_snippet"] = iframe_snippet
                 st.session_state["map_has_generated"] = True
 
-                st.success("Map widget updated. Open the tabs below to preview and embed it.")
+                st.success("Branded map widget updated. Open the tabs below to preview and embed it.")
 
             except Exception as e:
                 progress_placeholder.empty()
@@ -1208,23 +1194,19 @@ if uploaded_file is not None:
         ]
     )
 
-    # ------- PREVIEW TAB -------
     with tab_config:
         style_mode = st.selectbox(
-            "Widget style",
+            "Color style",
             options=["Branded", "Unbranded"],
             index=0 if st.session_state.get("map_style_mode", "Branded") == "Branded" else 1,
             key="map_style_mode",
+            help="Branded uses site-specific palettes; Unbranded uses a neutral multi-color palette.",
         )
 
-        if style_mode == "Branded":
-            preview_meta = get_brand_meta(st.session_state.get("map_brand", brand))
-        else:
-            preview_meta = get_unbranded_meta()
-
+        brand_meta_preview = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
         html_preview = generate_map_table_html_from_df(
             df,
-            preview_meta,
+            brand_meta_preview,
             state_col=state_col,
             value_col=value_col,
             page_title=page_title,
@@ -1241,17 +1223,13 @@ if uploaded_file is not None:
 
         components.html(html_preview, height=1000, scrolling=True)
 
-    # ------- HTML / IFRAME TAB -------
     with tab_embed:
+        # Use the same style the user chose in the Preview tab
         style_mode = st.session_state.get("map_style_mode", "Branded")
-        if style_mode == "Branded":
-            embed_meta = get_brand_meta(st.session_state.get("map_brand", brand))
-        else:
-            embed_meta = get_unbranded_meta()
-
-        html_for_embed = generate_map_table_html_from_df(
+        brand_meta_embed = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
+        html_embed = generate_map_table_html_from_df(
             df,
-            embed_meta,
+            brand_meta_embed,
             state_col=state_col,
             value_col=value_col,
             page_title=page_title,
@@ -1271,7 +1249,7 @@ if uploaded_file is not None:
         with subtab_html:
             st.text_area(
                 label="",
-                value=html_for_embed,
+                value=html_embed,
                 height=350,
                 label_visibility="collapsed",
             )
