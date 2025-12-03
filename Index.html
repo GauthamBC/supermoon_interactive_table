@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+
+    <style>
+      /* Override default Google tooltip container */
+      .google-visualization-tooltip {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+      }
+
+      /* Our custom bubble */
+      .tooltip-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 10px 14px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, sans-serif;
+        font-size: 12px;
+        color: #333;
+        min-width: 160px;
+      }
+
+      .tooltip-title {
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      .tooltip-sub {
+        font-size: 11px;
+        color: #666;
+        margin-bottom: 6px;
+      }
+
+      .tooltip-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+      }
+
+      .tooltip-label {
+        font-weight: 500;
+        color: #555;
+      }
+
+      .tooltip-value {
+        font-weight: 600;
+      }
+    </style>
+
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script>
+      google.charts.load('current', {
+        packages: ['geochart'],
+        mapsApiKey: 'YOUR_API_KEY_HERE'
+      });
+
+      google.charts.setOnLoadCallback(drawRegionsMap);
+
+      function drawRegionsMap() {
+        const data = new google.visualization.DataTable();
+        data.addColumn('string', 'State');
+        data.addColumn('number', 'BurnoutProb');
+        data.addColumn({ type: 'string', role: 'tooltip', p: { html: true }});
+
+        // Example rows – make tooltip HTML look nice
+        data.addRows([
+          ['US-WY', 1.17, createTooltip('Wyoming (WY)', 'Burnout prob: 1.17%', '+8447')],
+          ['US-UT', 2.15, createTooltip('Utah (UT)', 'Burnout prob: 2.15%', '+750')],
+          ['US-LA', 4.30, createTooltip('Louisiana (LA)', 'Burnout prob: 4.30%', '+420')],
+        ]);
+
+        const options = {
+          region: 'US',
+          resolution: 'provinces',
+          colorAxis: { colors: ['#a3c6ff', '#ffcc80', '#e57373'] },
+          legend: 'none',
+          tooltip: { isHtml: true }, // IMPORTANT
+        };
+
+        const chart = new google.visualization.GeoChart(
+          document.getElementById('geochart')
+        );
+        chart.draw(data, options);
+      }
+
+      function createTooltip(title, subtitle, moneyline) {
+        return `
+          <div class="tooltip-card">
+            <div class="tooltip-title">${title}</div>
+            <div class="tooltip-sub">${subtitle}</div>
+            <div class="tooltip-row">
+              <span class="tooltip-label">Moneyline</span>
+              <span class="tooltip-value">${moneyline}</span>
+            </div>
+          </div>
+        `;
+      }
+
+      window.addEventListener('resize', drawRegionsMap);
+    </script>
+  </head>
+
+  <body>
+    <div id="geochart" style="width: 900px; height: 600px;"></div>
+  </body>
+</html>
