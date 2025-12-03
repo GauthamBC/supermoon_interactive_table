@@ -490,7 +490,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   color:#111827;
 }
 
-/* Header: very light brand tint so it stands out from stripes */
+/* Header: darker brand tint */
 .vi-map-table thead th{
   text-align:left;
   padding:8px 10px;
@@ -498,16 +498,16 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   text-transform:uppercase;
   letter-spacing:.06em;
   color:var(--accent);
-  background:var(--accent-softer);
+  background:var(--accent-soft);      /* darker of the two tints */
   border-bottom:1px solid rgba(148,163,184,.35);
 }
 
-/* Stripe rows with brand tint */
+/* Stripe rows with lighter brand tint */
 .vi-map-table tbody tr:nth-child(odd){
   background:#FFFFFF;
 }
 .vi-map-table tbody tr:nth-child(even){
-  background:var(--accent-soft);
+  background:var(--accent-softer);    /* lighter wash than header */
 }
 
 /* Slightly darken on hover */
