@@ -702,14 +702,20 @@ def generate_map_table_html_from_df(
 
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        # make the whole canvas the light gray you want
+        paper_bgcolor="#F9FAFB",
+        plot_bgcolor="#F9FAFB",
         geo=dict(
-            bgcolor="rgba(0,0,0,0)",
-            lakecolor="rgba(0,0,0,0)",
+            bgcolor="#F9FAFB",      # ocean / outside background
+            lakecolor="#F9FAFB",
             showlakes=False,
             showland=True,
             landcolor="#F3F4F6",
+    
+            # kill the outer black border + coastline lines
+            showframe=False,
+            showcoastlines=False,
+            showcountries=False,
         ),
         coloraxis_showscale=False,
     )
