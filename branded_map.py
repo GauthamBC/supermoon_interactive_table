@@ -228,7 +228,7 @@ def get_brand_meta(brand: str) -> dict:
                 "accent": "#16A34A",
                 "accent_soft": "#DCFCE7",
                 "map_scale": ["#DCFCE7", "#4ADE80", "#166534"],
-                "map_landcolor": "#F3FAF6",  # subtle green tint
+                "map_landcolor": "#F3FAF6",
             }
         )
     elif brand_clean == "VegasInsider":
@@ -239,9 +239,8 @@ def get_brand_meta(brand: str) -> dict:
                 "logo_alt": "VegasInsider logo",
                 "accent": "#F2C23A",
                 "accent_soft": "#FFF7DC",
-                # blue → yellow → red like the burnout map
                 "map_scale": ["#7CB3FF", "#F2C23A", "#E6492D"],
-                "map_landcolor": "#FFF8E6",  # warm golden tint
+                "map_landcolor": "#FFF8E6",
             }
         )
     elif brand_clean == "Canada Sports Betting":
@@ -253,7 +252,7 @@ def get_brand_meta(brand: str) -> dict:
                 "accent": "#DC2626",
                 "accent_soft": "#FEE2E2",
                 "map_scale": ["#FEE2E2", "#FB7185", "#B91C1C"],
-                "map_landcolor": "#FEF2F2",  # soft red tint
+                "map_landcolor": "#FEF2F2",
             }
         )
     elif brand_clean == "RotoGrinders":
@@ -265,7 +264,7 @@ def get_brand_meta(brand: str) -> dict:
                 "accent": "#0EA5E9",
                 "accent_soft": "#E0F2FE",
                 "map_scale": ["#E0F2FE", "#38BDF8", "#1D4ED8"],
-                "map_landcolor": "#ECF4FF",  # icy blue tint
+                "map_landcolor": "#ECF4FF",
             }
         )
 
@@ -632,7 +631,6 @@ def generate_map_table_html_from_df(
         land_color = "#F3F4F6"
 
     # Build map
-    # custom_data for pretty tooltip
     custom_cols = [state_col, value_col] + [
         c for c in df.columns if c not in (state_col, "state_abbr", value_col)
     ]
@@ -648,13 +646,17 @@ def generate_map_table_html_from_df(
         custom_data=custom_df,
     )
 
-    # Tooltip template: nice bold state line + metrics
+    # Tooltip template – NOTE the doubled {{ }} so Python doesn't try to
+    # interpret Plotly's %{...} placeholders.
     hover_lines = [
         "<b>%{customdata[0]} (%{location})</b>",
-        f"{html_mod.escape(str(value_col))}: %{customdata[1]:,.2f}",
+        f"{html_mod.escape(str(value_col))}: %{{customdata[1]:,.2f}}",
     ]
     for i, col in enumerate(custom_cols[2:], start=2):
-        hover_lines.append(f"{html_mod.escape(str(col))}: %{{customdata[{i}]:,}}")
+        hover_lines.append(
+            f"{html_mod.escape(str(col))}: %{{customdata[{i}]:,}}"
+        )
+
     hover_template = "<br>".join(hover_lines) + "<extra></extra>"
 
     fig.update_traces(
