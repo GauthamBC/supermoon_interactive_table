@@ -433,21 +433,24 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   margin:0 0 10px;
   font-size:12px;
   color:#6B7280;
+  padding-left:10px;
+  border-left:3px solid var(--accent-soft);
 }
 
 .vi-tab-header{
   display:inline-flex;
   gap:6px;
   margin:20px 0 6px;
-  padding:2px;
-  background:#F3F4F6;
+  padding:3px;
+  background:rgba(15,23,42,.02);
   border-radius:999px;
+  border:1px solid rgba(148,163,184,.35);
 }
 .vi-tab-header .vi-tab{
   border:0;
   background:transparent;
   border-radius:999px;
-  padding:6px 12px;
+  padding:6px 14px;
   font-size:12px;
   font-weight:600;
   color:#6B7280;
@@ -455,10 +458,14 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   transition:background-color .18s ease, color .18s ease, box-shadow .18s ease, transform .06s ease;
 }
 .vi-tab-header .vi-tab.is-active{
-  background:#FFFFFF;
-  color:#111827;
-  box-shadow:0 1px 3px rgba(15,23,42,.18);
+  background:var(--accent);
+  color:#FFFFFF;
+  box-shadow:0 3px 8px rgba(15,23,42,.2);
   transform:translateY(-0.5px);
+}
+.vi-tab-header .vi-tab:hover:not(.is-active){
+  background:var(--accent-soft);
+  color:#111827;
 }
 .vi-tab-header .vi-tab:focus-visible{
   outline:none;
@@ -483,13 +490,21 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   text-transform:uppercase;
   letter-spacing:.06em;
   color:#9CA3AF;
-  border-bottom:1px solid #E5E7EB;
+  border-bottom:1px solid rgba(148,163,184,.35);
+  background:#F9FAFB;
+}
+.vi-map-table thead th:first-child{
+  border-left:4px solid var(--accent-soft);
 }
 .vi-map-table tbody tr:nth-child(odd){
   background:#FFFFFF;
 }
 .vi-map-table tbody tr:nth-child(even){
   background:#F9FAFB;
+}
+.vi-map-table tbody tr:hover{
+  background:var(--accent-soft);
+  transition:background-color .15s ease;
 }
 .vi-map-table tbody td{
   padding:7px 10px;
@@ -508,7 +523,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   font-size:11px;
   font-weight:600;
   background:var(--accent-soft);
-  color:#111827;
+  color:var(--accent);
 }
 
 /* Brand recolor for logo if you add it later (optional) */
@@ -596,7 +611,6 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 </body>
 </html>
 """
-
 # === 3. HTML generators ===============================================
 
 def build_ranked_table_html(df: pd.DataFrame, value_col: str, top_n: int = 10) -> str:
