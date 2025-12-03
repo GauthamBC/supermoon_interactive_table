@@ -696,23 +696,21 @@ def generate_map_table_html_from_df(
             font=dict(color="#0F172A", size=13),
             align="left",
         ),
-        marker_line_color="rgba(0,0,0,0)",  # fully transparent
-        marker_line_width=0,                # no outline at all
+        # make state boundaries clearly visible
+        marker_line_color="#F9FAFB",   # or "#FFFFFF" if you prefer
+        marker_line_width=1.2,         # bump up/down for more/less separation
     )
 
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),
-        # make the whole canvas the light gray you want
         paper_bgcolor="#F9FAFB",
         plot_bgcolor="#F9FAFB",
         geo=dict(
-            bgcolor="#F9FAFB",      # ocean / outside background
+            bgcolor="#F9FAFB",
             lakecolor="#F9FAFB",
             showlakes=False,
             showland=True,
             landcolor="#F3F4F6",
-    
-            # kill the outer black border + coastline lines
             showframe=False,
             showcoastlines=False,
             showcountries=False,
