@@ -744,20 +744,17 @@ def generate_map_table_html_from_df(
         custom_data=df[custom_cols],
     )
 
-    # ---- Pretty hover template – extra spacing & fake padding ----
+    # ---- Clean, aligned hover template (like image 2) ----
     lines = []
     for idx, col in enumerate(metrics_for_hover, start=1):
         label = col.replace("_", " ")
-        # leading &nbsp;&nbsp; gives a bit of left “padding”
         lines.append(
-            f"&nbsp;&nbsp;{html_mod.escape(label)}: %{{customdata[{idx}]}}&nbsp;&nbsp;"
+            f"{html_mod.escape(label)}: %{{customdata[{idx}]}}"
         )
 
     hovertemplate = (
-        "<b>%{customdata[0]} (%{location})</b>"
-        "<br><br>"                 # extra space after title
-        + "<br><br>".join(lines)   # spaced-out metric lines
-        + "<br>"                   # a bit of bottom space
+        "<b>%{customdata[0]} (%{location})</b><br>"
+        + "<br>".join(lines)
         + "<extra></extra>"
     )
 
