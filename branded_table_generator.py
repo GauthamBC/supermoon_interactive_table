@@ -259,6 +259,7 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       --scroll-thumb-hover:var(--brand-600);
 
       --footer-border:color-mix(in oklab,var(--brand-500) 35%, transparent);
+      --header-title-color:var(--brand-700);
     }
 
     /* Brand overrides – reuse palettes from the supermoon widget */
@@ -267,7 +268,7 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       --brand-100:#FFE8AA;
       --brand-300:#FFE8AA;
       --brand-500:#F2C23A;
-      --brand-600:#D9A72A;
+      --brand-600:#D9A72A;  /* embed + logo accent */
       --brand-700:#B9851A;
       --brand-900:#111111;
       --header-bg:var(--brand-500);
@@ -275,6 +276,7 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       --hover:var(--brand-100);
       --scroll-thumb:var(--brand-600);
       --footer-border:color-mix(in oklab,var(--brand-500) 40%, transparent);
+      --header-title-color:var(--brand-600);
     }
 
     .vi-table-embed.brand-canadasb{
@@ -290,6 +292,7 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       --hover:var(--brand-100);
       --scroll-thumb:var(--brand-600);
       --footer-border:color-mix(in oklab,var(--brand-600) 40%, transparent);
+      --header-title-color:var(--brand-600);
     }
 
     .vi-table-embed.brand-rotogrinders{
@@ -305,42 +308,36 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       --hover:var(--brand-100);
       --scroll-thumb:var(--brand-600);
       --footer-border:color-mix(in oklab,var(--brand-600) 40%, transparent);
+      --header-title-color:var(--brand-600);
     }
 
-    /* Header block (stacked title + subtitle) */
+    /* Header block (title + subtitle stacked) */
     .vi-table-embed .vi-table-header{
       padding:10px 16px 10px;
       border-bottom:1px solid var(--brand-100);
       background:linear-gradient(90deg,var(--brand-50),#ffffff);
-      text-align:left;
+      display:flex;
+      flex-direction:column;
+      align-items:flex-start;
+      gap:2px;
     }
     .vi-table-embed .vi-table-header.centered{
+      align-items:center;
       text-align:center;
     }
     .vi-table-embed .vi-table-header .title{
-      margin:0 0 2px;
+      margin:0;
       font-size:clamp(18px,2.3vw,22px);
       font-weight:750;
       color:#111827;
-      display:block;
+    }
+    .vi-table-embed .vi-table-header.brand-title .title{
+      color:var(--header-title-color, var(--header-bg));
     }
     .vi-table-embed .vi-table-header .subtitle{
       margin:0;
       font-size:13px;
       color:#6b7280;
-      display:block;
-    }
-    .vi-table-embed .vi-table-header.brand-title .title{
-      color:var(--brand-700);
-    }
-    .vi-table-embed.brand-vegasinsider .vi-table-header.brand-title .title{
-      color:var(--brand-600);
-    }
-    .vi-table-embed.brand-canadasb .vi-table-header.brand-title .title{
-      color:var(--brand-600);
-    }
-    .vi-table-embed.brand-rotogrinders .vi-table-header.brand-title .title{
-      color:var(--brand-600);
     }
 
     /* Container for table block */
@@ -459,7 +456,6 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
       padding: 12px 10px;
       overflow: hidden;
       text-align:center;
-      vertical-align:middle;
     }
     #bt-block thead th { white-space: nowrap; }
 
@@ -478,7 +474,7 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
     }
 
     /* Body rows – zebra + hover injected here */
-    [[STRIPE_CSS]]
+[[STRIPE_CSS]]
 
     #bt-block tbody tr:hover{
       background:var(--hover);
@@ -530,7 +526,7 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
     }
     .vi-table-embed .footer-inner{
       display:flex;
-      justify-content:center;
+      justify-content:space-between;   /* button left, logo right */
       align-items:center;
       gap:12px;
       position:relative;
@@ -564,11 +560,11 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
         brightness(96%) contrast(92%);
     }
     .vi-table-embed.brand-vegasinsider .vi-footer img{
-      /* tuned to be close to the gold embed button */
+      /* tuned toward #D9A72A to match embed button */
       filter:
         brightness(0) saturate(100%)
-        invert(68%) sepia(72%) saturate(540%) hue-rotate(2deg)
-        brightness(96%) contrast(104%);
+        invert(74%) sepia(69%) saturate(878%) hue-rotate(4deg)
+        brightness(95%) contrast(101%);
     }
     .vi-table-embed.brand-canadasb .vi-footer img{
       filter:
@@ -586,7 +582,7 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
     @media (max-width: 600px){
       .vi-table-embed .footer-inner{
         flex-direction:row;
-        justify-content:center;
+        justify-content:space-between;   /* keep button left, logo right on mobile */
         gap:8px;
       }
       .vi-table-embed .embed-btn{
@@ -626,9 +622,9 @@ HTML_TEMPLATE_TABLE = r"""<!doctype html>
   </style>
 
   <!-- Header -->
-  <div class="vi-table-header [[HEADER_ALIGN_CLASS]] [[HEADER_TITLE_CLASS]]">
-    <div class="title">[[TITLE]]</div>
-    <div class="subtitle">[[SUBTITLE]]</div>
+  <div class="vi-table-header [[HEADER_CLASSES]]">
+    <span class="title">[[TITLE]]</span>
+    <span class="subtitle">[[SUBTITLE]]</span>
   </div>
 
   <!-- Table block -->
@@ -981,8 +977,12 @@ def generate_table_html_from_df(
     #bt-block tbody tr:nth-child(even){background:#ffffff;}
 """
 
-    header_align_class = "centered" if center_titles else ""
-    header_title_class = "brand-title" if branded_title else ""
+    header_classes = []
+    if center_titles:
+        header_classes.append("centered")
+    if branded_title:
+        header_classes.append("brand-title")
+    header_class_str = " ".join(header_classes)
 
     html = (
         HTML_TEMPLATE_TABLE
@@ -996,8 +996,7 @@ def generate_table_html_from_df(
         .replace("[[BRAND_LOGO_ALT]]", html_mod.escape(brand_logo_alt))
         .replace("[[BRAND_CLASS]]", brand_class or "")
         .replace("[[STRIPE_CSS]]", stripe_css)
-        .replace("[[HEADER_ALIGN_CLASS]]", header_align_class)
-        .replace("[[HEADER_TITLE_CLASS]]", header_title_class)
+        .replace("[[HEADER_CLASSES]]", header_class_str)
     )
     return html
 
@@ -1007,7 +1006,7 @@ st.set_page_config(page_title="Branded Table Generator", layout="wide")
 
 st.title("Branded Table Generator")
 st.write(
-    "Upload a CSV, choose a brand and GitHub campaign, then click **Get/Update widget** "
+    "Upload a CSV, choose a brand and GitHub campaign, then click **Update widget** "
     "to publish a branded, searchable table via GitHub Pages."
 )
 
@@ -1091,7 +1090,7 @@ if uploaded_file is not None:
     st.markdown(
         "<p style='font-size:0.85rem; color:#c4c4c4;'>"
         "Use <strong>Page availability check</strong> to see whether a page already exists "
-        "for this campaign, then click <strong>Get/Update widget</strong> to publish."
+        "for this campaign, then click <strong>Update widget</strong> to publish."
         "</p>",
         unsafe_allow_html=True,
     )
@@ -1146,9 +1145,9 @@ if uploaded_file is not None:
                 except Exception as e:
                     st.error(f"Availability check failed: {e}")
 
-        # Get/Update widget (publish)
+        # Update widget (publish)
         with col_get:
-            if st.button("Get/Update widget"):
+            if st.button("Update widget"):
                 try:
                     progress_placeholder = st.empty()
                     progress = progress_placeholder.progress(0)
@@ -1247,14 +1246,14 @@ if uploaded_file is not None:
             if not repo_exists:
                 st.info(
                     "No existing repo found for this campaign. "
-                    "When you click **Get/Update widget**, the repo will be created and "
+                    "When you click **Update widget**, the repo will be created and "
                     f"your table will be saved as `{checked_filename}`."
                 )
                 st.session_state["bt_widget_file_name"] = checked_filename
             elif repo_exists and not file_exists:
                 st.success(
                     f"Repo exists and `{checked_filename}` is available. "
-                    "Get/Update widget will save your table to this file."
+                    "Update widget will save your table to this file."
                 )
                 st.session_state["bt_widget_file_name"] = checked_filename
             else:
@@ -1272,11 +1271,11 @@ if uploaded_file is not None:
                 )
                 if choice.startswith("Replace"):
                     st.session_state["bt_widget_file_name"] = checked_filename
-                    st.info(f"Get/Update widget will overwrite `{checked_filename}` in this repo.")
+                    st.info(f"Update widget will overwrite `{checked_filename}` in this repo.")
                 elif choice.startswith("Create additional"):
                     st.session_state["bt_widget_file_name"] = suggested_new_filename
                     st.info(
-                        f"Get/Update widget will create a new file `{suggested_new_filename}` "
+                        f"Update widget will create a new file `{suggested_new_filename}` "
                         "in the same repo for this widget."
                     )
                 else:
@@ -1304,7 +1303,7 @@ if uploaded_file is not None:
         )
 
         with tab_config:
-            # First row: title + subtitle (separate inputs)
+            # Row 1: title + subtitle fields (stacked in preview header)
             row1_col1, row1_col2 = st.columns(2)
             with row1_col1:
                 widget_title = st.text_input(
@@ -1319,7 +1318,7 @@ if uploaded_file is not None:
                     key="bt_widget_subtitle",
                 )
 
-            # Second row: striped rows + center header + branded title color
+            # Row 2: striped rows + center header + branded title color
             row2_col1, row2_col2, row2_col3 = st.columns(3)
             with row2_col1:
                 striped_rows = st.checkbox(
@@ -1373,4 +1372,4 @@ if uploaded_file is not None:
                 if st.session_state.get("bt_iframe_snippet"):
                     st.code(st.session_state["bt_iframe_snippet"], language="html")
                 else:
-                    st.info("No iframe yet – click **Get/Update widget** above to generate it.")
+                    st.info("No iframe yet – click **Update widget** above to generate it.")
