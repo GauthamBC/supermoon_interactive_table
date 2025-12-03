@@ -339,6 +339,30 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   box-shadow:0 8px 24px rgba(15,23,42,.12);
   border:1px solid rgba(148,163,184,.25);
   padding:18px 18px 20px;
+
+  /* NEW: internal scrolling within the card */
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Sleek, slim scrollbar */
+.vi-map-shell{
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148,163,184,.8) transparent;
+}
+
+.vi-map-shell::-webkit-scrollbar{
+  width:6px;
+}
+
+.vi-map-shell::-webkit-scrollbar-track{
+  background:transparent;
+}
+
+.vi-map-shell::-webkit-scrollbar-thumb{
+  background:rgba(148,163,184,.9);
+  border-radius:999px;
 }
 
 /* Top strapline + title */
@@ -1085,7 +1109,7 @@ if uploaded_file is not None:
                 iframe_snippet = dedent(f"""\
                 <iframe src="{expected_embed_url}"
                         title="{html_mod.escape(page_title)}"
-                        width="100%" height="700" scrolling="no"
+                        width="100%" height="1000" scrolling="no"
                         style="border:0;" loading="lazy"></iframe>""")
 
                 st.session_state["map_iframe_snippet"] = iframe_snippet
@@ -1181,7 +1205,7 @@ if uploaded_file is not None:
     )
 
     with tab_config:
-        components.html(html_preview, height=700, scrolling=True)
+        components.html(html_preview, height=1000, scrolling=True)
 
     with tab_embed:
         subtab_html, subtab_iframe = st.tabs(["HTML file contents", "Iframe code"])
