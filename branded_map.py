@@ -341,7 +341,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   padding:18px 18px 20px;
 
   /* NEW: internal scrolling within the card */
-  max-height: calc(100vh - 48px);
+  max-height: 100vh;  
   overflow-y: auto;
   overflow-x: hidden;
 }
