@@ -347,6 +347,14 @@ SMALL_STATES = set(SMALL_STATE_CENTROIDS.keys())
 # These small states should have upward callouts; the rest go downward.
 UP_CALLOUT_STATES = {"VT", "MA", "NH"}
 
+# Explicit offsets for the up-left callouts so labels / lines don't overlap.
+# d_lon: how far to move west (left); d_lat: how far to move north (up)
+UP_CALLOUT_OFFSETS = {
+    "MA": {"d_lon": 4.2, "d_lat": 2.0},
+    "VT": {"d_lon": 5.3, "d_lat": 4.4},
+    "NH": {"d_lon": 6.4, "d_lat": 6.8},
+}
+
 # === 2. HTML TEMPLATE: map + tables (tabbed tables) ===================
 
 HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
@@ -834,13 +842,11 @@ def generate_map_table_html_from_df(
             df_small = df_small.sort_values("centroid_lat", ascending=False).reset_index(drop=True)
 
             min_lat = df_small["centroid_lat"].min()
-            max_lat = df_small["centroid_lat"].max()
 
             line_lons, line_lats = [], []
             label_lons, label_lats, label_texts = [], [], []
 
             down_j = 0  # counter for downward labels (CT, RI, NJ, DE, MD, DC)
-            up_j = 0    # counter for upward labels (VT, MA, NH)
 
             for _, row in df_small.iterrows():
                 abbr = row["state_abbr"]
@@ -848,16 +854,10 @@ def generate_map_table_html_from_df(
                 lon0, lat0 = c["lon"], c["lat"]
 
                 if abbr in UP_CALLOUT_STATES:
-                    # ----- Upward *left* (north-west) callouts for VT / NH / MA -----
-                    # Move labels above & west so they sit over / above NY,
-                    # and give them extra spacing so VT and NH don't overlap.
-                    base_lon = 4.8   # core west offset
-                    base_lat = 3.2   # core north offset
-                
-                    # Stronger stagger between callouts
-                    lon1 = lon0 - (base_lon + up_j * 1.0)   # each one 1° further west
-                    lat1 = lat0 + (base_lat + up_j * 0.7)   # each one 0.7° further north
-                    up_j += 1
+                    # ----- Fixed up-left callouts for VT / MA / NH -----
+                    offs = UP_CALLOUT_OFFSETS.get(abbr, {"d_lon": 4.5, "d_lat": 3.0})
+                    lon1 = lon0 - offs["d_lon"]   # west (left)
+                    lat1 = lat0 + offs["d_lat"]   # north (up)
                 else:
                     # ----- Downward callouts for the remaining tiny states -----
                     offset_lon = 4.8 - down_j * 0.4
