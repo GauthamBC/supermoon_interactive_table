@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 import plotly.express as px
-import plotly.graph_objects as go  # <-- for label overlay
+import plotly.graph_objects as go  # for label overlay & leader lines
 
 # ============== 0. Secrets ==============
 
@@ -225,7 +225,6 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "branded_scale": ["#BBF7D0", "#4ADE80", "#166534"],
         })
     elif brand_clean == "VegasInsider":
-        # VegasInsider: variations around #FCBE31
         meta.update({
             "brand_class": "brand-vegasinsider",
             "logo_url": "https://i.postimg.cc/kGVJyXc1/VI-logo-final.png",
@@ -330,6 +329,21 @@ for name, code in STATE_ABBR.items():
     STATE_LOOKUP[code.upper()] = code
     STATE_LOOKUP[code.lower()] = code
 
+# Small, dense Northeast states => callouts with leader lines
+SMALL_STATE_CENTROIDS = {
+    "CT": {"lat": 41.6, "lon": -72.7},
+    "DE": {"lat": 39.0, "lon": -75.5},
+    "MD": {"lat": 39.0, "lon": -76.7},
+    "MA": {"lat": 42.3, "lon": -71.8},
+    "NH": {"lat": 43.6, "lon": -71.6},
+    "NJ": {"lat": 40.1, "lon": -74.5},
+    "RI": {"lat": 41.7, "lon": -71.6},
+    "VT": {"lat": 44.0, "lon": -72.7},
+    "ME": {"lat": 45.1, "lon": -69.0},
+    "DC": {"lat": 38.9, "lon": -77.0},
+}
+SMALL_STATES = set(SMALL_STATE_CENTROIDS.keys())
+
 # === 2. HTML TEMPLATE: map + tables (tabbed tables) ===================
 
 HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
@@ -360,35 +374,28 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   border:1px solid rgba(148,163,184,.25);
   padding:18px 18px 20px;
 
-  /* internal scrolling within the card */
-  max-height: 100vh;  
+  max-height: 100vh;
   overflow-y: auto;
   overflow-x: hidden;
 }
 
-/* Sleek, slim BRAND-COLORED scrollbar */
+/* Scrollbar */
 .vi-map-shell{
   scrollbar-width: thin;
-  /* thumb color, track transparent (Firefox) */
   scrollbar-color: var(--accent) transparent;
 }
-
-/* WebKit (Chrome, Edge, Safari) */
 .vi-map-shell::-webkit-scrollbar{
   width:6px;
   height:6px;
 }
-
 .vi-map-shell::-webkit-scrollbar-track{
   background:var(--accent-soft);
   border-radius:999px;
 }
-
 .vi-map-shell::-webkit-scrollbar-thumb{
   background:var(--accent);
   border-radius:999px;
 }
-
 .vi-map-shell::-webkit-scrollbar-thumb:hover{
   filter:brightness(0.9);
 }
@@ -498,7 +505,6 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   font-size:13px;
   color:#111827;
 }
-
 .vi-map-table thead th{
   text-align:left;
   padding:8px 10px;
@@ -509,20 +515,17 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   background:var(--accent-soft);
   border-bottom:1px solid rgba(148,163,184,.35);
 }
-
 .vi-map-table tbody tr:nth-child(odd){
   background:#FFFFFF;
 }
 .vi-map-table tbody tr:nth-child(even){
   background:var(--accent-softer);
 }
-
 .vi-map-table tbody tr:hover{
   background:var(--accent-soft);
   filter:brightness(0.96);
   transition:background-color .15s ease, filter .15s ease;
 }
-
 .vi-map-table tbody td{
   padding:7px 10px;
   vertical-align:middle;
@@ -754,9 +757,6 @@ def generate_map_table_html_from_df(
     for idx, col in enumerate(metrics_for_hover, start=1):
         nice_label = label_map.get(col, col.replace("_", " "))
 
-        # Formatting:
-        #   ProbPct -> 2.90%
-        #   Moneyline -> +650
         if "ProbPct" in col:
             value_fmt = f"%{{customdata[{idx}]:.2f}}%"
         elif "Moneyline" in col:
@@ -790,25 +790,93 @@ def generate_map_table_html_from_df(
         marker_line_width=1,
     )
 
-    # Optional: overlay state abbreviation + rank labels
+    # ---------- Optional overlay: state labels (abbr + rank) ----------
     if show_state_labels:
-        label_text = df["state_abbr"] + " (" + df["rank"].astype(str) + ")"
-        locations = df["state_abbr"]
-        texts = label_text
+        label_df = df.copy()
+        label_df["label_text"] = label_df["state_abbr"] + " (" + label_df["rank"].astype(str) + ")"
 
-        fig.add_trace(
-            go.Scattergeo(
-                locationmode="USA-states",
-                locations=locations,
-                text=texts,
-                mode="text",
-                textfont=dict(
-                    size=9,
-                    color="#FFFFFF",
-                ),
-                hoverinfo="skip",  # keep hover behavior from choropleth only
+        small_mask = label_df["state_abbr"].isin(SMALL_STATES)
+        df_big = label_df[~small_mask]
+        df_small = label_df[small_mask]
+
+        # Big states: centered labels inside polygons
+        if not df_big.empty:
+            fig.add_trace(
+                go.Scattergeo(
+                    locationmode="USA-states",
+                    locations=df_big["state_abbr"],
+                    text=df_big["label_text"],
+                    mode="text",
+                    textfont=dict(
+                        size=9,
+                        color="#FFFFFF",  # white pops on red scale
+                    ),
+                    hoverinfo="skip",
+                )
             )
-        )
+
+        # Small NE states: callouts off the coast with leader lines
+        if not df_small.empty:
+            df_small = df_small.copy()
+            df_small["centroid_lat"] = df_small["state_abbr"].map(
+                lambda s: SMALL_STATE_CENTROIDS[s]["lat"]
+            )
+            df_small["centroid_lon"] = df_small["state_abbr"].map(
+                lambda s: SMALL_STATE_CENTROIDS[s]["lon"]
+            )
+
+            # Stack roughly north -> south to avoid overlap
+            df_small = df_small.sort_values("centroid_lat", ascending=False)
+            n = len(df_small)
+
+            line_lons, line_lats = [], []
+            label_lons, label_lats, label_texts = [], [], []
+
+            for idx, row in enumerate(df_small.itertuples()):
+                abbr = row.state_abbr
+                c = SMALL_STATE_CENTROIDS[abbr]
+                lon0, lat0 = c["lon"], c["lat"]
+
+                # Push label a bit east into Atlantic & stagger vertically
+                offset_lon = 4.0
+                offset_lat = (idx - (n - 1) / 2) * 0.7
+
+                lon1 = lon0 + offset_lon
+                lat1 = lat0 + offset_lat
+
+                # Leader line: centroid -> label
+                line_lons += [lon0, lon1, None]
+                line_lats += [lat0, lat1, None]
+
+                label_lons.append(lon1)
+                label_lats.append(lat1)
+                label_texts.append(row.label_text)
+
+            # Draw leader lines
+            fig.add_trace(
+                go.Scattergeo(
+                    lon=line_lons,
+                    lat=line_lats,
+                    mode="lines",
+                    line=dict(width=1, color="rgba(255,255,255,0.8)"),
+                    hoverinfo="skip",
+                )
+            )
+
+            # Draw labels
+            fig.add_trace(
+                go.Scattergeo(
+                    lon=label_lons,
+                    lat=label_lats,
+                    mode="text",
+                    text=label_texts,
+                    textfont=dict(
+                        size=9,
+                        color="#FFFFFF",
+                    ),
+                    hoverinfo="skip",
+                )
+            )
 
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),
@@ -838,7 +906,7 @@ def generate_map_table_html_from_df(
         },
     )
 
-    # Ranked tables (use numeric_cols we already computed)
+    # Ranked tables
     df_for_tables = pd.DataFrame({
         state_col: df[state_col],
         **{c: df[c] for c in numeric_cols},
@@ -1294,7 +1362,7 @@ if uploaded_file is not None:
                 "Show state rank labels",
                 value=st.session_state.get("map_show_labels", False),
                 key="map_show_labels",
-                help="Overlay labels like 'CA (3)' on the map.",
+                help="Overlay labels like 'CA (3)' on the map (small Northeast states use callouts).",
             )
 
         brand_meta_preview = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
