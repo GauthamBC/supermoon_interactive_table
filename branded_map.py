@@ -9,6 +9,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 import plotly.express as px
+import plotly.graph_objects as go  # <-- for label overlay
 
 # ============== 0. Secrets ==============
 
@@ -379,17 +380,17 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 }
 
 .vi-map-shell::-webkit-scrollbar-track{
-  background:var(--accent-soft);         /* light brand tint for track */
+  background:var(--accent-soft);
   border-radius:999px;
 }
 
 .vi-map-shell::-webkit-scrollbar-thumb{
-  background:var(--accent);              /* solid brand color for thumb */
+  background:var(--accent);
   border-radius:999px;
 }
 
 .vi-map-shell::-webkit-scrollbar-thumb:hover{
-  filter:brightness(0.9);                /* tiny darken on hover */
+  filter:brightness(0.9);
 }
 
 /* Top strapline + title */
@@ -498,7 +499,6 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   color:#111827;
 }
 
-/* Header: darker brand tint */
 .vi-map-table thead th{
   text-align:left;
   padding:8px 10px;
@@ -506,19 +506,17 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   text-transform:uppercase;
   letter-spacing:.06em;
   color:var(--accent);
-  background:var(--accent-soft);      /* darker of the two tints */
+  background:var(--accent-soft);
   border-bottom:1px solid rgba(148,163,184,.35);
 }
 
-/* Stripe rows with lighter brand tint */
 .vi-map-table tbody tr:nth-child(odd){
   background:#FFFFFF;
 }
 .vi-map-table tbody tr:nth-child(even){
-  background:var(--accent-softer);    /* lighter wash than header */
+  background:var(--accent-softer);
 }
 
-/* Slightly darken on hover */
 .vi-map-table tbody tr:hover{
   background:var(--accent-soft);
   filter:brightness(0.96);
@@ -530,7 +528,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   vertical-align:middle;
 }
 
-/* Rank pill: solid brand color, white number */
+/* Rank pill */
 .vi-rank-pill{
   display:inline-flex;
   align-items:center;
@@ -544,8 +542,6 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   background:var(--accent);
   color:#FFFFFF;
 }
-
-/* Brand recolor for logo if you add it later (optional) */
 </style>
 
 <div class="vi-map-shell">
@@ -690,6 +686,7 @@ def generate_map_table_html_from_df(
     low_title: str,
     low_sub: str,
     top_n: int = 10,
+    show_state_labels: bool = False,
 ) -> str:
     # Prepare dataframe
     df = df.copy()
@@ -720,6 +717,9 @@ def generate_map_table_html_from_df(
     if df.empty:
         return "<p style='padding:16px;font-family:sans-serif;'>No valid state/metric data to display.</p>"
 
+    # Rank states by metric (1 = highest)
+    df["rank"] = df[value_col].rank(ascending=False, method="min").astype(int)
+
     # Numeric columns (for hover + tables)
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
     if value_col not in numeric_cols:
@@ -744,8 +744,7 @@ def generate_map_table_html_from_df(
         custom_data=df[custom_cols],
     )
 
-        # ---- Clean, compact, branded hover template ----
-    # Optional: map raw column names to nicer labels
+    # ---- Clean, compact, branded hover template ----
     label_map = {
         "BurnoutProbPct": "Burnout prob",
         "MoneylineOdds": "Moneyline",
@@ -759,21 +758,18 @@ def generate_map_table_html_from_df(
         #   ProbPct -> 2.90%
         #   Moneyline -> +650
         if "ProbPct" in col:
-            # single % here so you don't get 2.90%% anymore
             value_fmt = f"%{{customdata[{idx}]:.2f}}%"
         elif "Moneyline" in col:
             value_fmt = f"%{{customdata[{idx}]:+,.0f}}"
         else:
             value_fmt = f"%{{customdata[{idx}]}}"
 
-        # Brand-colored label, neutral value
         lines.append(
             f"<span style='color:{accent};font-weight:500;'>"
             f"{html_mod.escape(nice_label)}:</span> {value_fmt}"
         )
 
     hovertemplate = (
-        # Brand-colored title line
         f"<span style='font-weight:600;color:{accent};'>"
         "%{customdata[0]} (%{location})"
         "</span><br>"
@@ -784,8 +780,8 @@ def generate_map_table_html_from_df(
     fig.update_traces(
         hovertemplate=hovertemplate,
         hoverlabel=dict(
-            bgcolor="#FFFFFF",                    # white card
-            bordercolor="rgba(15,23,42,0.18)",    # subtle gray border
+            bgcolor="#FFFFFF",
+            bordercolor="rgba(15,23,42,0.18)",
             font=dict(color="#111827", size=12),
             align="left",
             namelength=-1,
@@ -793,6 +789,26 @@ def generate_map_table_html_from_df(
         marker_line_color="#F9FAFB",
         marker_line_width=1,
     )
+
+    # Optional: overlay state abbreviation + rank labels
+    if show_state_labels:
+        label_text = df["state_abbr"] + " (" + df["rank"].astype(str) + ")"
+        locations = df["state_abbr"]
+        texts = label_text
+
+        fig.add_trace(
+            go.Scattergeo(
+                locationmode="USA-states",
+                locations=locations,
+                text=texts,
+                mode="text",
+                textfont=dict(
+                    size=9,
+                    color=accent,
+                ),
+                hoverinfo="skip",  # keep hover behavior from choropleth only
+            )
+        )
 
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),
@@ -1118,6 +1134,7 @@ if uploaded_file is not None:
                     progress.progress(pct)
 
                 style_mode = st.session_state.get("map_style_mode", "Branded")
+                show_labels = st.session_state.get("map_show_labels", False)
                 brand_meta_publish = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
 
                 widget_file_name = st.session_state.get("map_widget_file_name", base_filename)
@@ -1140,6 +1157,7 @@ if uploaded_file is not None:
                     low_title=low_title,
                     low_sub=low_sub,
                     top_n=10,
+                    show_state_labels=show_labels,
                 )
 
                 progress.progress(80)
@@ -1262,13 +1280,22 @@ if uploaded_file is not None:
     )
 
     with tab_config:
-        style_mode = st.selectbox(
-            "Color style",
-            options=["Branded", "Unbranded"],
-            index=0 if st.session_state.get("map_style_mode", "Branded") == "Branded" else 1,
-            key="map_style_mode",
-            help="Branded uses site-specific palettes; Unbranded uses a neutral multi-color palette.",
-        )
+        col_style, col_labels = st.columns([3, 2])
+        with col_style:
+            style_mode = st.selectbox(
+                "Color style",
+                options=["Branded", "Unbranded"],
+                index=0 if st.session_state.get("map_style_mode", "Branded") == "Branded" else 1,
+                key="map_style_mode",
+                help="Branded uses site-specific palettes; Unbranded uses a neutral multi-color palette.",
+            )
+        with col_labels:
+            show_labels = st.checkbox(
+                "Show state rank labels",
+                value=st.session_state.get("map_show_labels", False),
+                key="map_show_labels",
+                help="Overlay labels like 'CA (3)' on the map.",
+            )
 
         brand_meta_preview = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
         html_preview = generate_map_table_html_from_df(
@@ -1286,13 +1313,15 @@ if uploaded_file is not None:
             low_title=low_title,
             low_sub=low_sub,
             top_n=10,
+            show_state_labels=show_labels,
         )
 
         components.html(html_preview, height=1000, scrolling=True)
 
     with tab_embed:
-        # Use the same style the user chose in the Preview tab
+        # Use the same style + label choice as the Preview tab
         style_mode = st.session_state.get("map_style_mode", "Branded")
+        show_labels = st.session_state.get("map_show_labels", False)
         brand_meta_embed = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
         html_embed = generate_map_table_html_from_df(
             df,
@@ -1309,6 +1338,7 @@ if uploaded_file is not None:
             low_title=low_title,
             low_sub=low_sub,
             top_n=10,
+            show_state_labels=show_labels,
         )
 
         subtab_html, subtab_iframe = st.tabs(["HTML file contents", "Iframe code"])
