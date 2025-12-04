@@ -344,6 +344,9 @@ SMALL_STATE_CENTROIDS = {
 }
 SMALL_STATES = set(SMALL_STATE_CENTROIDS.keys())
 
+# These small states should have upward callouts; the rest go downward.
+UP_CALLOUT_STATES = {"VT", "MA", "NH"}
+
 # === 2. HTML TEMPLATE: map + tables (tabbed tables) ===================
 
 HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
@@ -827,39 +830,35 @@ def generate_map_table_html_from_df(
                 lambda s: SMALL_STATE_CENTROIDS[s]["lon"]
             )
 
-            # Sort north -> south
+            # Sort north -> south so staggering is stable
             df_small = df_small.sort_values("centroid_lat", ascending=False).reset_index(drop=True)
-            n = len(df_small)
 
             min_lat = df_small["centroid_lat"].min()
             max_lat = df_small["centroid_lat"].max()
 
-            # First half => downward lines, second half => upward lines
-            half = n // 2
-
             line_lons, line_lats = [], []
             label_lons, label_lats, label_texts = [], [], []
 
-            down_j = 0
-            up_j = 0
+            down_j = 0  # counter for downward labels (CT, RI, NJ, DE, MD, DC)
+            up_j = 0    # counter for upward labels (VT, MA, NH)
 
-            for idx, row in df_small.iterrows():
+            for _, row in df_small.iterrows():
                 abbr = row["state_abbr"]
                 c = SMALL_STATE_CENTROIDS[abbr]
                 lon0, lat0 = c["lon"], c["lat"]
 
-                if idx < half:
-                    # Downward: labels below the cluster, longer lines for the first ones
-                    offset_lon = 4.8 - down_j * 0.4
-                    lon1 = lon0 + offset_lon
-                    lat1 = min_lat - 1.8 - down_j * 0.35
-                    down_j += 1
-                else:
-                    # Upward: labels above the cluster, slightly shorter offsets
+                if abbr in UP_CALLOUT_STATES:
+                    # ----- Upward callout: VT, MA, NH -----
                     offset_lon = 3.4 - up_j * 0.3
                     lon1 = lon0 + offset_lon
                     lat1 = max_lat + 1.6 + up_j * 0.35
                     up_j += 1
+                else:
+                    # ----- Downward callout: CT, RI, NJ, DE, MD, DC -----
+                    offset_lon = 4.8 - down_j * 0.4
+                    lon1 = lon0 + offset_lon
+                    lat1 = min_lat - 1.8 - down_j * 0.35
+                    down_j += 1
 
                 # Leader line: centroid -> label
                 line_lons += [lon0, lon1, None]
