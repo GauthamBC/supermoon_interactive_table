@@ -330,6 +330,7 @@ for name, code in STATE_ABBR.items():
     STATE_LOOKUP[code.lower()] = code
 
 # Small, dense Northeast states => callouts with leader lines
+# NOTE: ME is intentionally NOT here now, so Maine gets an internal label.
 SMALL_STATE_CENTROIDS = {
     "CT": {"lat": 41.6, "lon": -72.7},
     "DE": {"lat": 39.0, "lon": -75.5},
@@ -339,7 +340,6 @@ SMALL_STATE_CENTROIDS = {
     "NJ": {"lat": 40.1, "lon": -74.5},
     "RI": {"lat": 41.7, "lon": -71.6},
     "VT": {"lat": 44.0, "lon": -72.7},
-    "ME": {"lat": 45.1, "lon": -69.0},
     "DC": {"lat": 38.9, "lon": -77.0},
 }
 SMALL_STATES = set(SMALL_STATE_CENTROIDS.keys())
@@ -827,34 +827,39 @@ def generate_map_table_html_from_df(
                 lambda s: SMALL_STATE_CENTROIDS[s]["lon"]
             )
 
-            # Sort north -> south so "top to bottom" is well-defined
+            # Sort north -> south
             df_small = df_small.sort_values("centroid_lat", ascending=False).reset_index(drop=True)
-
-            # All labels sit below the southernmost small state so every line slopes downward
-            min_lat = df_small["centroid_lat"].min()
-            base_label_lat = min_lat - 2.0
-
-            # Horizontal offsets: long for the northernmost, shorter as we go south
-            max_offset_lon = 5.0
-            min_offset_lon = 2.5
             n = len(df_small)
-            step = (max_offset_lon - min_offset_lon) / (n - 1) if n > 1 else 0.0
+
+            min_lat = df_small["centroid_lat"].min()
+            max_lat = df_small["centroid_lat"].max()
+
+            # First half => downward lines, second half => upward lines
+            half = n // 2
 
             line_lons, line_lats = [], []
             label_lons, label_lats, label_texts = [], [], []
+
+            down_j = 0
+            up_j = 0
 
             for idx, row in df_small.iterrows():
                 abbr = row["state_abbr"]
                 c = SMALL_STATE_CENTROIDS[abbr]
                 lon0, lat0 = c["lon"], c["lat"]
 
-                # progressively shorter lines as idx increases (further south)
-                offset_lon = max_offset_lon - idx * step
-                lon1 = lon0 + offset_lon
-
-                # labels step slightly downward as we go south, but all remain below every centroid
-                vertical_step = 0.35
-                lat1 = base_label_lat - idx * vertical_step
+                if idx < half:
+                    # Downward: labels below the cluster, longer lines for the first ones
+                    offset_lon = 4.8 - down_j * 0.4
+                    lon1 = lon0 + offset_lon
+                    lat1 = min_lat - 1.8 - down_j * 0.35
+                    down_j += 1
+                else:
+                    # Upward: labels above the cluster, slightly shorter offsets
+                    offset_lon = 3.4 - up_j * 0.3
+                    lon1 = lon0 + offset_lon
+                    lat1 = max_lat + 1.6 + up_j * 0.35
+                    up_j += 1
 
                 # Leader line: centroid -> label
                 line_lons += [lon0, lon1, None]
