@@ -781,7 +781,7 @@ def generate_map_table_html_from_df(
         + "<extra></extra>"
     )
 
-        fig.update_traces(
+    fig.update_traces(
         hovertemplate=hovertemplate,
         hoverlabel=dict(
             bgcolor="#FFFFFF",                    # white card
