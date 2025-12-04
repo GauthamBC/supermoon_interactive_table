@@ -744,13 +744,25 @@ def generate_map_table_html_from_df(
         custom_data=df[custom_cols],
     )
 
-    # ---- Clean, aligned hover template (like image 2) ----
+       # ---- Clean, compact hover template ----
+    # Optional: map raw column names to nicer labels
+    label_map = {
+        "BurnoutProbPct": "Burnout prob",
+        "MoneylineOdds": "Moneyline",
+    }
+
     lines = []
     for idx, col in enumerate(metrics_for_hover, start=1):
-        label = col.replace("_", " ")
-        lines.append(
-            f"{html_mod.escape(label)}: %{{customdata[{idx}]}}"
-        )
+        nice_label = label_map.get(col, col.replace("_", " "))
+        # example numeric formatting: pct with 2 decimals, odds with sign
+        if "ProbPct" in col:
+            value_fmt = f"%{{customdata[{idx}]:.2f}}%%"
+        elif "Moneyline" in col:
+            value_fmt = f"%{{customdata[{idx}]:+,.0f}}"
+        else:
+            value_fmt = f"%{{customdata[{idx}]}}"
+
+        lines.append(f"{html_mod.escape(nice_label)}: {value_fmt}")
 
     hovertemplate = (
         "<b>%{customdata[0]} (%{location})</b><br>"
@@ -761,14 +773,14 @@ def generate_map_table_html_from_df(
     fig.update_traces(
         hovertemplate=hovertemplate,
         hoverlabel=dict(
-            bgcolor=accent_soft,          # light brand tint
-            bordercolor=accent,           # solid brand border
-            font=dict(color="#0F172A", size=14),
+            bgcolor="#FFFFFF",                    # white card
+            bordercolor="rgba(15,23,42,0.18)",    # subtle gray border
+            font=dict(color="#111827", size=12),  # smaller, neutral text
             align="left",
+            namelength=-1,
         ),
-        # make state boundaries clearly visible
-        marker_line_color=accent_soft,   # subtle branded outline
-        marker_line_width=1.2,
+        marker_line_color="#F9FAFB",              # soft outlines
+        marker_line_width=1,
     )
 
     fig.update_layout(
