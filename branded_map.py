@@ -350,7 +350,9 @@ UP_CALLOUT_STATES = {"VT", "MA", "NH"}
 # Explicit offsets for the up-left callouts so labels / lines don't overlap.
 # d_lon: how far to move west (left); d_lat: how far to move north (up)
 UP_CALLOUT_OFFSETS = {
-    "MA": {"d_lon": 4.2, "d_lat": 2.0},
+    # MA: push further up & left so it's clearly outside NY
+    "MA": {"d_lon": 5.8, "d_lat": 3.2},
+    # VT / NH stay where they are (already spaced nicely)
     "VT": {"d_lon": 5.3, "d_lat": 4.4},
     "NH": {"d_lon": 6.4, "d_lat": 6.8},
 }
