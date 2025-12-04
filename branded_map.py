@@ -207,7 +207,7 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
         "name": brand_clean,
         "brand_class": "",
         "logo_url": "",
-        "logo_alt": f"{brand_clean} logo",
+        "logo_alt": f"{brand_clean} logo}",
         "accent": "#16A34A",
         "accent_soft": "#DCFCE7",
         "accent_softer": "#F3FBF7",
@@ -788,6 +788,7 @@ def generate_map_table_html_from_df(
         ),
         marker_line_color="#F9FAFB",
         marker_line_width=1,
+        showlegend=False,  # no legend entries for the choropleth trace
     )
 
     # ---------- Optional overlay: state labels (abbr + rank) ----------
@@ -799,7 +800,7 @@ def generate_map_table_html_from_df(
         df_big = label_df[~small_mask]
         df_small = label_df[small_mask]
 
-        # Big states: centered labels inside polygons
+        # Big states: centered labels inside polygons (dark-ish fill => white text)
         if not df_big.empty:
             fig.add_trace(
                 go.Scattergeo(
@@ -809,13 +810,14 @@ def generate_map_table_html_from_df(
                     mode="text",
                     textfont=dict(
                         size=9,
-                        color="#FFFFFF",  # white pops on red scale
+                        color="#FFFFFF",  # light text on darker state fills
                     ),
                     hoverinfo="skip",
+                    showlegend=False,
                 )
             )
 
-        # Small NE states: callouts off the coast with leader lines
+        # Small NE states: callouts off the coast with brand-colored labels/lines
         if not df_small.empty:
             df_small = df_small.copy()
             df_small["centroid_lat"] = df_small["state_abbr"].map(
@@ -825,7 +827,6 @@ def generate_map_table_html_from_df(
                 lambda s: SMALL_STATE_CENTROIDS[s]["lon"]
             )
 
-            # Stack roughly north -> south to avoid overlap
             df_small = df_small.sort_values("centroid_lat", ascending=False)
             n = len(df_small)
 
@@ -837,7 +838,7 @@ def generate_map_table_html_from_df(
                 c = SMALL_STATE_CENTROIDS[abbr]
                 lon0, lat0 = c["lon"], c["lat"]
 
-                # Push label a bit east into Atlantic & stagger vertically
+                # push label into Atlantic + stagger vertically
                 offset_lon = 4.0
                 offset_lat = (idx - (n - 1) / 2) * 0.7
 
@@ -852,18 +853,19 @@ def generate_map_table_html_from_df(
                 label_lats.append(lat1)
                 label_texts.append(row.label_text)
 
-            # Draw leader lines
+            # Leader lines: darker/branded color so they show on white
             fig.add_trace(
                 go.Scattergeo(
                     lon=line_lons,
                     lat=line_lats,
                     mode="lines",
-                    line=dict(width=1, color="rgba(255,255,255,0.8)"),
+                    line=dict(width=1, color=accent),
                     hoverinfo="skip",
+                    showlegend=False,
                 )
             )
 
-            # Draw labels
+            # Labels: dark-ish brand color on white background
             fig.add_trace(
                 go.Scattergeo(
                     lon=label_lons,
@@ -872,9 +874,10 @@ def generate_map_table_html_from_df(
                     text=label_texts,
                     textfont=dict(
                         size=9,
-                        color="#FFFFFF",
+                        color=accent,  # dark branded text on white ocean
                     ),
                     hoverinfo="skip",
+                    showlegend=False,
                 )
             )
 
@@ -882,6 +885,7 @@ def generate_map_table_html_from_df(
         margin=dict(l=0, r=0, t=0, b=0),
         paper_bgcolor="#F9FAFB",
         plot_bgcolor="#F9FAFB",
+        showlegend=False,  # <--- hide legend so no "trace 1/2/3"
         geo=dict(
             bgcolor="#F9FAFB",
             lakecolor="#F9FAFB",
