@@ -804,7 +804,7 @@ def generate_map_table_html_from_df(
                 mode="text",
                 textfont=dict(
                     size=9,
-                    color=accent,
+                    color="#FFFFFF",
                 ),
                 hoverinfo="skip",  # keep hover behavior from choropleth only
             )
