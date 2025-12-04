@@ -207,7 +207,7 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
         "name": brand_clean,
         "brand_class": "",
         "logo_url": "",
-        "logo_alt": f"{brand_clean} logo}",
+        "logo_alt": f"{brand_clean} logo",
         "accent": "#16A34A",
         "accent_soft": "#DCFCE7",
         "accent_softer": "#F3FBF7",
