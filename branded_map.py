@@ -827,8 +827,10 @@ def generate_map_table_html_from_df(
                 lambda s: SMALL_STATE_CENTROIDS[s]["lon"]
             )
 
-            df_small = df_small.sort_values("centroid_lat", ascending=False)
-            n = len(df_small)
+            # We'll put all labels on a band SOUTH of all small states so
+            # every leader line slopes downward.
+            min_lat = df_small["centroid_lat"].min()
+            base_label_lat = min_lat - 2.0  # safely below the southernmost small state
 
             line_lons, line_lats = [], []
             label_lons, label_lats, label_texts = [], [], []
@@ -838,12 +840,11 @@ def generate_map_table_html_from_df(
                 c = SMALL_STATE_CENTROIDS[abbr]
                 lon0, lat0 = c["lon"], c["lat"]
 
-                # push label into Atlantic + stagger vertically
-                offset_lon = 4.0
-                offset_lat = (idx - (n - 1) / 2) * 0.7
-
+                # Push labels into the Atlantic, staggered horizontally,
+                # and always *below* the state.
+                offset_lon = 4.0 + idx * 0.4
                 lon1 = lon0 + offset_lon
-                lat1 = lat0 + offset_lat
+                lat1 = base_label_lat - idx * 0.3  # always < any centroid => downward line
 
                 # Leader line: centroid -> label
                 line_lons += [lon0, lon1, None]
