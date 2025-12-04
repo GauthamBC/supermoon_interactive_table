@@ -848,12 +848,14 @@ def generate_map_table_html_from_df(
                 lon0, lat0 = c["lon"], c["lat"]
 
                 if abbr in UP_CALLOUT_STATES:
-                    # ----- Upward diagonal callouts for VT / NH / MA -----
-                    # Push labels well into the Atlantic at an approx 45° angle,
-                    # and stagger them slightly so they don't overlap.
-                    base_diag = 5.0  # core NE offset, same for lat & lon -> ~diagonal
-                    lon1 = lon0 + base_diag + up_j * 0.4
-                    lat1 = lat0 + base_diag + up_j * 0.6
+                    # ----- Upward *left* (north-west) callouts for VT / NH / MA -----
+                    # Move labels above and slightly west so they sit over / above NY,
+                    # and stagger them so they don't overlap each other.
+                    base_lon = 5.0   # how far to move west
+                    base_lat = 3.5   # how far to move north
+                
+                    lon1 = lon0 - (base_lon + up_j * 0.6)   # go left (west)
+                    lat1 = lat0 + (base_lat + up_j * 0.3)   # go up (north)
                     up_j += 1
                 else:
                     # ----- Downward callouts for the remaining tiny states -----
