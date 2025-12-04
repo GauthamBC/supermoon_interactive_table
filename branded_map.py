@@ -849,13 +849,14 @@ def generate_map_table_html_from_df(
 
                 if abbr in UP_CALLOUT_STATES:
                     # ----- Upward *left* (north-west) callouts for VT / NH / MA -----
-                    # Move labels above and slightly west so they sit over / above NY,
-                    # and stagger them so they don't overlap each other.
-                    base_lon = 5.0   # how far to move west
-                    base_lat = 3.5   # how far to move north
+                    # Move labels above & west so they sit over / above NY,
+                    # and give them extra spacing so VT and NH don't overlap.
+                    base_lon = 4.8   # core west offset
+                    base_lat = 3.2   # core north offset
                 
-                    lon1 = lon0 - (base_lon + up_j * 0.6)   # go left (west)
-                    lat1 = lat0 + (base_lat + up_j * 0.3)   # go up (north)
+                    # Stronger stagger between callouts
+                    lon1 = lon0 - (base_lon + up_j * 1.0)   # each one 1° further west
+                    lat1 = lat0 + (base_lat + up_j * 0.7)   # each one 0.7° further north
                     up_j += 1
                 else:
                     # ----- Downward callouts for the remaining tiny states -----
