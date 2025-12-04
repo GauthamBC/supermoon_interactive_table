@@ -848,13 +848,15 @@ def generate_map_table_html_from_df(
                 lon0, lat0 = c["lon"], c["lat"]
 
                 if abbr in UP_CALLOUT_STATES:
-                    # ----- Upward callout: VT, MA, NH -----
-                    offset_lon = 3.4 - up_j * 0.3
-                    lon1 = lon0 + offset_lon
-                    lat1 = max_lat + 1.6 + up_j * 0.35
+                    # ----- Upward diagonal callouts for VT / NH / MA -----
+                    # Push labels well into the Atlantic at an approx 45° angle,
+                    # and stagger them slightly so they don't overlap.
+                    base_diag = 5.0  # core NE offset, same for lat & lon -> ~diagonal
+                    lon1 = lon0 + base_diag + up_j * 0.4
+                    lat1 = lat0 + base_diag + up_j * 0.6
                     up_j += 1
                 else:
-                    # ----- Downward callout: CT, RI, NJ, DE, MD, DC -----
+                    # ----- Downward callouts for the remaining tiny states -----
                     offset_lon = 4.8 - down_j * 0.4
                     lon1 = lon0 + offset_lon
                     lat1 = min_lat - 1.8 - down_j * 0.35
