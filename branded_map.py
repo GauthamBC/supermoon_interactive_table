@@ -357,6 +357,13 @@ UP_CALLOUT_OFFSETS = {
     "NH": {"d_lon": 6.4, "d_lat": 6.8},
 }
 
+# Extra per-state nudge for downward callouts so MD / DE don't overlap.
+# d_lon: additional move east(+)/west(-); d_lat: additional move north(+)/south(-)
+DOWN_CALLOUT_NUDGE = {
+    "DE": {"d_lon": 0.45, "d_lat": 0.15},   # a bit further right & slightly higher
+    "MD": {"d_lon": -0.35, "d_lat": -0.20}, # a bit further left & slightly lower
+}
+
 # === 2. HTML TEMPLATE: map + tables (tabbed tables) ===================
 
 HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
@@ -865,7 +872,16 @@ def generate_map_table_html_from_df(
                     offset_lon = 4.8 - down_j * 0.4
                     lon1 = lon0 + offset_lon
                     lat1 = min_lat - 1.8 - down_j * 0.35
+                
+                    # Extra spacing for specific states (DE / MD) so their
+                    # labels and leader lines don't overlap.
+                    nudge = DOWN_CALLOUT_NUDGE.get(abbr)
+                    if nudge:
+                        lon1 += nudge.get("d_lon", 0.0)
+                        lat1 += nudge.get("d_lat", 0.0)
+                
                     down_j += 1
+
 
                 # Leader line: centroid -> label
                 line_lons += [lon0, lon1, None]
