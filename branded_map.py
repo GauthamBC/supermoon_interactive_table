@@ -744,7 +744,7 @@ def generate_map_table_html_from_df(
         custom_data=df[custom_cols],
     )
 
-       # ---- Clean, compact hover template ----
+        # ---- Clean, compact, branded hover template ----
     # Optional: map raw column names to nicer labels
     label_map = {
         "BurnoutProbPct": "Burnout prob",
@@ -754,32 +754,43 @@ def generate_map_table_html_from_df(
     lines = []
     for idx, col in enumerate(metrics_for_hover, start=1):
         nice_label = label_map.get(col, col.replace("_", " "))
-        # example numeric formatting: pct with 2 decimals, odds with sign
+
+        # Formatting:
+        #   ProbPct -> 2.90%
+        #   Moneyline -> +650
         if "ProbPct" in col:
-            value_fmt = f"%{{customdata[{idx}]:.2f}}%%"
+            # single % here so you don't get 2.90%% anymore
+            value_fmt = f"%{{customdata[{idx}]:.2f}}%"
         elif "Moneyline" in col:
             value_fmt = f"%{{customdata[{idx}]:+,.0f}}"
         else:
             value_fmt = f"%{{customdata[{idx}]}}"
 
-        lines.append(f"{html_mod.escape(nice_label)}: {value_fmt}")
+        # Brand-colored label, neutral value
+        lines.append(
+            f"<span style='color:{accent};font-weight:500;'>"
+            f"{html_mod.escape(nice_label)}:</span> {value_fmt}"
+        )
 
     hovertemplate = (
-        "<b>%{customdata[0]} (%{location})</b><br>"
+        # Brand-colored title line
+        f"<span style='font-weight:600;color:{accent};'>"
+        "%{customdata[0]} (%{location})"
+        "</span><br>"
         + "<br>".join(lines)
         + "<extra></extra>"
     )
 
-    fig.update_traces(
+        fig.update_traces(
         hovertemplate=hovertemplate,
         hoverlabel=dict(
             bgcolor="#FFFFFF",                    # white card
             bordercolor="rgba(15,23,42,0.18)",    # subtle gray border
-            font=dict(color="#111827", size=12),  # smaller, neutral text
+            font=dict(color="#111827", size=12),
             align="left",
             namelength=-1,
         ),
-        marker_line_color="#F9FAFB",              # soft outlines
+        marker_line_color="#F9FAFB",
         marker_line_width=1,
     )
 
