@@ -827,24 +827,34 @@ def generate_map_table_html_from_df(
                 lambda s: SMALL_STATE_CENTROIDS[s]["lon"]
             )
 
-            # We'll put all labels on a band SOUTH of all small states so
-            # every leader line slopes downward.
+            # Sort north -> south so "top to bottom" is well-defined
+            df_small = df_small.sort_values("centroid_lat", ascending=False).reset_index(drop=True)
+
+            # All labels sit below the southernmost small state so every line slopes downward
             min_lat = df_small["centroid_lat"].min()
-            base_label_lat = min_lat - 2.0  # safely below the southernmost small state
+            base_label_lat = min_lat - 2.0
+
+            # Horizontal offsets: long for the northernmost, shorter as we go south
+            max_offset_lon = 5.0
+            min_offset_lon = 2.5
+            n = len(df_small)
+            step = (max_offset_lon - min_offset_lon) / (n - 1) if n > 1 else 0.0
 
             line_lons, line_lats = [], []
             label_lons, label_lats, label_texts = [], [], []
 
-            for idx, row in enumerate(df_small.itertuples()):
-                abbr = row.state_abbr
+            for idx, row in df_small.iterrows():
+                abbr = row["state_abbr"]
                 c = SMALL_STATE_CENTROIDS[abbr]
                 lon0, lat0 = c["lon"], c["lat"]
 
-                # Push labels into the Atlantic, staggered horizontally,
-                # and always *below* the state.
-                offset_lon = 4.0 + idx * 0.4
+                # progressively shorter lines as idx increases (further south)
+                offset_lon = max_offset_lon - idx * step
                 lon1 = lon0 + offset_lon
-                lat1 = base_label_lat - idx * 0.3  # always < any centroid => downward line
+
+                # labels step slightly downward as we go south, but all remain below every centroid
+                vertical_step = 0.35
+                lat1 = base_label_lat - idx * vertical_step
 
                 # Leader line: centroid -> label
                 line_lons += [lon0, lon1, None]
@@ -852,7 +862,7 @@ def generate_map_table_html_from_df(
 
                 label_lons.append(lon1)
                 label_lats.append(lat1)
-                label_texts.append(row.label_text)
+                label_texts.append(row["label_text"])
 
             # Leader lines: darker/branded color so they show on white
             fig.add_trace(
