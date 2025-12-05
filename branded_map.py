@@ -496,7 +496,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   font-weight:600;
   color:#6B7280;
   cursor:pointer;
-  transition:background-color .18s ease, color .18s ease, box-shadow .18s ease, transform .06s ease;
+  transition:background-color .18s.ease, color .18s.ease, box-shadow .18s.ease, transform .06s.ease;
 }
 .vi-tab-header .vi-tab.is-active{
   background:var(--accent);
@@ -543,7 +543,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 .vi-map-table tbody tr:hover{
   background:var(--accent-soft);
   filter:brightness(0.96);
-  transition:background-color .15s ease, filter .15s ease;
+  transition:background-color .15s ease, filter .15s.ease;
 }
 .vi-map-table tbody td{
   padding:7px 10px;
@@ -1077,6 +1077,80 @@ st.caption(
     f"Expected GitHub Pages URL (iframe src):\n\n`{expected_embed_url}`"
 )
 
+# ---- helper text + buttons directly under the green URL --------------
+
+st.markdown(
+    "<p style='font-size:0.85rem; color:#c4c4c4;'>"
+    "Use <strong>Page availability check</strong> to see whether a page already exists "
+    "for this campaign, then click <strong>Update widget</strong> to publish."
+    "</p>",
+    unsafe_allow_html=True,
+)
+
+iframe_snippet = st.session_state.get("map_iframe_snippet")
+
+can_run_github = bool(GITHUB_TOKEN and effective_github_user and repo_name.strip())
+
+col_check, col_get = st.columns([1, 1])
+with col_check:
+    page_check_clicked = st.button(
+        "Page availability check",
+        key="map_page_check",
+        disabled=not can_run_github,
+    )
+with col_get:
+    update_clicked = st.button(
+        "Update widget",
+        key="map_update_widget",
+        disabled=not can_run_github,
+    )
+
+if not GITHUB_TOKEN:
+    st.info(
+        "Set `GITHUB_TOKEN` in `.streamlit/secrets.toml` (with `repo` scope) "
+        "to enable automatic GitHub publishing."
+    )
+elif not effective_github_user or not repo_name.strip():
+    st.info("Fill in username and campaign name above.")
+
+# --- Page availability logic (doesn't need the CSV) ---
+if page_check_clicked:
+    if not can_run_github:
+        st.error("Cannot run availability check – add your GitHub token, username and repo first.")
+    else:
+        try:
+            repo_exists = check_repo_exists(
+                effective_github_user,
+                repo_name.strip(),
+                GITHUB_TOKEN,
+            )
+            file_exists = False
+            next_fname = None
+            if repo_exists:
+                file_exists = check_file_exists(
+                    effective_github_user,
+                    repo_name.strip(),
+                    GITHUB_TOKEN,
+                    base_filename,
+                )
+                if file_exists:
+                    next_fname = find_next_widget_filename(
+                        effective_github_user,
+                        repo_name.strip(),
+                        GITHUB_TOKEN,
+                    )
+
+            st.session_state["map_availability"] = {
+                "repo_exists": repo_exists,
+                "file_exists": file_exists,
+                "checked_filename": base_filename,
+                "suggested_new_filename": next_fname,
+            }
+            st.session_state.setdefault("map_widget_file_name", base_filename)
+
+        except Exception as e:
+            st.error(f"Availability check failed: {e}")
+
 # =====================================================================
 
 if uploaded_file is not None:
@@ -1241,81 +1315,6 @@ if uploaded_file is not None:
                 value=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
                 key="map_low_sub",
             )
-
-    # ---------- GitHub / hosting settings ----------
-    st.markdown("---")
-
-    st.markdown(
-        "<p style='font-size:0.85rem; color:#c4c4c4;'>"
-        "Use <strong>Page availability check</strong> to see whether a page already exists "
-        "for this campaign, then click <strong>Update widget</strong> to publish."
-        "</p>",
-        unsafe_allow_html=True,
-    )
-
-    iframe_snippet = st.session_state.get("map_iframe_snippet")
-
-    can_run_github = bool(GITHUB_TOKEN and effective_github_user and repo_name.strip())
-
-    col_check, col_get = st.columns([1, 1])
-    with col_check:
-        page_check_clicked = st.button(
-            "Page availability check",
-            key="map_page_check",
-            disabled=not can_run_github,
-        )
-    with col_get:
-        update_clicked = st.button(
-            "Update widget",
-            key="map_update_widget",
-            disabled=not can_run_github,
-        )
-
-    if not GITHUB_TOKEN:
-        st.info(
-            "Set `GITHUB_TOKEN` in `.streamlit/secrets.toml` (with `repo` scope) "
-            "to enable automatic GitHub publishing."
-        )
-    elif not effective_github_user or not repo_name.strip():
-        st.info("Fill in username and campaign name above.")
-
-    # --- Page availability logic ---
-    if page_check_clicked:
-        if not can_run_github:
-            st.error("Cannot run availability check – add your GitHub token, username and repo first.")
-        else:
-            try:
-                repo_exists = check_repo_exists(
-                    effective_github_user,
-                    repo_name.strip(),
-                    GITHUB_TOKEN,
-                )
-                file_exists = False
-                next_fname = None
-                if repo_exists:
-                    file_exists = check_file_exists(
-                        effective_github_user,
-                        repo_name.strip(),
-                        GITHUB_TOKEN,
-                        base_filename,
-                    )
-                    if file_exists:
-                        next_fname = find_next_widget_filename(
-                            effective_github_user,
-                            repo_name.strip(),
-                            GITHUB_TOKEN,
-                        )
-
-                st.session_state["map_availability"] = {
-                    "repo_exists": repo_exists,
-                    "file_exists": file_exists,
-                    "checked_filename": base_filename,
-                    "suggested_new_filename": next_fname,
-                }
-                st.session_state.setdefault("map_widget_file_name", base_filename)
-
-            except Exception as e:
-                st.error(f"Availability check failed: {e}")
 
     # --- Update widget (publish) logic ---
     if update_clicked:
