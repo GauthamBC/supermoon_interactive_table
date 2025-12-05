@@ -710,8 +710,8 @@ def generate_map_table_html_from_df(
     low_sub: str,
     top_n: int = 10,
     show_state_labels: bool = False,
-    table_cols=None,   # NEW: which columns to show in the ranked tables
-    hover_cols=None,   # NEW: which columns to show in the hover tooltip
+    table_cols=None,   # which columns to show in the ranked tables
+    hover_cols=None,   # which columns to show in the hover tooltip
 ) -> str:
     # Prepare dataframe
     df = df.copy()
@@ -820,7 +820,7 @@ def generate_map_table_html_from_df(
         ),
         marker_line_color="#F9FAFB",
         marker_line_width=1,
-        showlegend=False,  # no legend entries for the choropleth trace
+        showlegend=False,
     )
 
     # ---------- Optional overlay: state labels (abbr + rank) ----------
@@ -834,11 +834,9 @@ def generate_map_table_html_from_df(
 
         # Big states: centered labels inside polygons with strong contrast
         if not df_big.empty:
-            # Light text for dark fills, dark text for light fills
             label_light = "#FFFFFF"
             label_dark = map_scale[2] if len(map_scale) >= 3 else "#111827"
 
-            # Threshold on normalized value
             dark_bg = df_big[df_big["fill_norm"] >= 0.55]
             light_bg = df_big[df_big["fill_norm"] < 0.55]
 
@@ -851,10 +849,7 @@ def generate_map_table_html_from_df(
                         locations=group["state_abbr"],
                         text=group["label_text"],
                         mode="text",
-                        textfont=dict(
-                            size=9,
-                            color=text_color,
-                        ),
+                        textfont=dict(size=9, color=text_color),
                         hoverinfo="skip",
                         showlegend=False,
                     )
@@ -873,7 +868,6 @@ def generate_map_table_html_from_df(
                 lambda s: SMALL_STATE_CENTROIDS[s]["lon"]
             )
 
-            # Sort north -> south so staggering is stable
             df_small = df_small.sort_values("centroid_lat", ascending=False).reset_index(drop=True)
 
             min_lat = df_small["centroid_lat"].min()
@@ -881,7 +875,7 @@ def generate_map_table_html_from_df(
             line_lons, line_lats = [], []
             label_lons, label_lats, label_texts = [], [], []
 
-            down_j = 0  # counter for downward labels (CT, RI, NJ, DE, MD, DC)
+            down_j = 0
 
             for _, row in df_small.iterrows():
                 abbr = row["state_abbr"]
@@ -889,18 +883,14 @@ def generate_map_table_html_from_df(
                 lon0, lat0 = c["lon"], c["lat"]
 
                 if abbr in UP_CALLOUT_STATES:
-                    # ----- Fixed up-left callouts for VT / MA / NH -----
                     offs = UP_CALLOUT_OFFSETS.get(abbr, {"d_lon": 4.5, "d_lat": 3.0})
-                    lon1 = lon0 - offs["d_lon"]   # west (left)
-                    lat1 = lat0 + offs["d_lat"]   # north (up)
+                    lon1 = lon0 - offs["d_lon"]
+                    lat1 = lat0 + offs["d_lat"]
                 else:
-                    # ----- Downward callouts for the remaining tiny states -----
                     offset_lon = 4.8 - down_j * 0.4
                     lon1 = lon0 + offset_lon
                     lat1 = min_lat - 1.8 - down_j * 0.35
 
-                    # Extra spacing for specific states (DE / MD) so their
-                    # labels and leader lines don't overlap.
                     nudge = DOWN_CALLOUT_NUDGE.get(abbr)
                     if nudge:
                         lon1 += nudge.get("d_lon", 0.0)
@@ -908,7 +898,6 @@ def generate_map_table_html_from_df(
 
                     down_j += 1
 
-                # Leader line: centroid -> label
                 line_lons += [lon0, lon1, None]
                 line_lats += [lat0, lat1, None]
 
@@ -916,7 +905,6 @@ def generate_map_table_html_from_df(
                 label_lats.append(lat1)
                 label_texts.append(row["label_text"])
 
-            # Leader lines: darker/branded color so they show on white
             fig.add_trace(
                 go.Scattergeo(
                     lon=line_lons,
@@ -928,17 +916,13 @@ def generate_map_table_html_from_df(
                 )
             )
 
-            # Labels: dark-ish brand color on white background
             fig.add_trace(
                 go.Scattergeo(
                     lon=label_lons,
                     lat=label_lats,
                     mode="text",
                     text=label_texts,
-                    textfont=dict(
-                        size=9,
-                        color=accent,  # dark branded text on white ocean
-                    ),
+                    textfont=dict(size=9, color=accent),
                     hoverinfo="skip",
                     showlegend=False,
                 )
@@ -948,7 +932,7 @@ def generate_map_table_html_from_df(
         margin=dict(l=0, r=0, t=0, b=0),
         paper_bgcolor="#F9FAFB",
         plot_bgcolor="#F9FAFB",
-        showlegend=False,  # <--- hide legend so no "trace 1/2/3"
+        showlegend=False,
         geo=dict(
             bgcolor="#F9FAFB",
             lakecolor="#F9FAFB",
@@ -989,10 +973,6 @@ def generate_map_table_html_from_df(
         **{c: df[c] for c in table_cols},
     })
 
-    df_high = df_for_tables.sort_values(by[value_col] if isinstance(value_col, str) else value_col, ascending=False)
-    df_low = df_for_tables.sort_values(by[value_col] if isinstance(value_col, str) else value_col, ascending=True)
-
-    # safer way (to avoid confusion with by[] above):
     df_high = df_for_tables.sort_values(by=value_col, ascending=False)
     df_low = df_for_tables.sort_values(by=value_col, ascending=True)
 
