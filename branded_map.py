@@ -1034,6 +1034,51 @@ brand = st.selectbox(
 
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
+# ---------- GitHub username + repo (now just under uploader) ----------
+saved_gh_user = st.session_state.get("map_gh_user", "")
+saved_gh_repo = st.session_state.get("map_gh_repo", "branded-map-widget")
+
+username_options = ["GauthamBC", "ActionNetwork", "MoonWatcher", "SampleUser"]
+if GITHUB_USER_DEFAULT and GITHUB_USER_DEFAULT not in username_options:
+    username_options.insert(0, GITHUB_USER_DEFAULT)
+
+if saved_gh_user in username_options:
+    default_idx = username_options.index(saved_gh_user)
+else:
+    default_idx = 0
+
+github_username_input = st.selectbox(
+    "Username (GitHub username)",
+    options=username_options,
+    index=default_idx,
+    key="map_gh_user",
+)
+effective_github_user = github_username_input.strip()
+
+repo_name = st.text_input(
+    "Widget hosting repository name",
+    value=saved_gh_repo,
+    key="map_gh_repo",
+)
+
+base_filename = "branded_map.html"
+widget_file_name = st.session_state.get("map_widget_file_name", base_filename)
+
+def compute_expected_embed_url(user: str, repo: str, fname: str) -> str:
+    if user and repo.strip():
+        return f"https://{user}.github.io/{repo.strip()}/{fname}"
+    return "https://example.github.io/your-repo/widget.html"
+
+expected_embed_url = compute_expected_embed_url(
+    effective_github_user, repo_name, widget_file_name
+)
+
+st.caption(
+    f"Expected GitHub Pages URL (iframe src):\n\n`{expected_embed_url}`"
+)
+
+# =====================================================================
+
 if uploaded_file is not None:
     try:
         df = pd.read_csv(uploaded_file)
@@ -1199,49 +1244,6 @@ if uploaded_file is not None:
 
     # ---------- GitHub / hosting settings ----------
     st.markdown("---")
-    st.subheader("GitHub publishing")
-
-    saved_gh_user = st.session_state.get("map_gh_user", "")
-    saved_gh_repo = st.session_state.get("map_gh_repo", "branded-map-widget")
-
-    username_options = ["GauthamBC", "ActionNetwork", "MoonWatcher", "SampleUser"]
-    if GITHUB_USER_DEFAULT and GITHUB_USER_DEFAULT not in username_options:
-        username_options.insert(0, GITHUB_USER_DEFAULT)
-
-    if saved_gh_user in username_options:
-        default_idx = username_options.index(saved_gh_user)
-    else:
-        default_idx = 0
-
-    github_username_input = st.selectbox(
-        "Username (GitHub username)",
-        options=username_options,
-        index=default_idx,
-        key="map_gh_user",
-    )
-    effective_github_user = github_username_input.strip()
-
-    repo_name = st.text_input(
-        "Widget hosting repository name",
-        value=saved_gh_repo,
-        key="map_gh_repo",
-    )
-
-    base_filename = "branded_map.html"
-    widget_file_name = st.session_state.get("map_widget_file_name", base_filename)
-
-    def compute_expected_embed_url(user: str, repo: str, fname: str) -> str:
-        if user and repo.strip():
-            return f"https://{user}.github.io/{repo.strip()}/{fname}"
-        return "https://example.github.io/your-repo/widget.html"
-
-    expected_embed_url = compute_expected_embed_url(
-        effective_github_user, repo_name, widget_file_name
-    )
-
-    st.caption(
-        f"Expected GitHub Pages URL (iframe src):\n\n`{expected_embed_url}`"
-    )
 
     st.markdown(
         "<p style='font-size:0.85rem; color:#c4c4c4;'>"
@@ -1398,7 +1400,7 @@ if uploaded_file is not None:
 
                 iframe_snippet = dedent(f"""\
                 <iframe src="{expected_embed_url}"
-                        title="{html_mod.escape(st.session_state.get("map_page_title", "State Metric Map"))}"
+                        title="{html_mod.escape(st.session_state.get('map_page_title', 'State Metric Map'))}"
                         width="100%" height="1000" scrolling="no"
                         style="border:0;" loading="lazy"></iframe>""")
 
