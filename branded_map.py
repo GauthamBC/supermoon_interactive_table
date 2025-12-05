@@ -803,6 +803,7 @@ def generate_map_table_html_from_df(
         showlegend=False,
     )
 
+    # ---------- State rank labels ----------
     if show_state_labels:
         label_df = df.copy()
         label_df["label_text"] = label_df["state_abbr"] + " (" + label_df["rank"].astype(str) + ")"
@@ -811,7 +812,8 @@ def generate_map_table_html_from_df(
         df_big = label_df[~small_mask]
         df_small = label_df[small_mask]
 
-      if not df_big.empty:
+        # Big contiguous states (including AK + HI)
+        if not df_big.empty:
             def add_big_group(group, text_color):
                 if group.empty:
                     return
@@ -846,7 +848,6 @@ def generate_map_table_html_from_df(
                 add_big_group(low_hi, "#1E3A8A")        # HI = dark blue text
                 add_big_group(mid_big, "#111827")       # orange states = dark text
                 add_big_group(high_big, "#FFFFFF")      # red states = white text
-
             else:
                 # original branded behavior
                 label_light = "#FFFFFF"
@@ -858,7 +859,7 @@ def generate_map_table_html_from_df(
                 add_big_group(dark_bg, label_light)
                 add_big_group(light_bg, label_dark)
 
-        # ---------- Small NE states (callouts) ----------
+        # Small NE states (callouts)
         if not df_small.empty:
             df_small = df_small.copy()
             df_small["centroid_lat"] = df_small["state_abbr"].map(
@@ -875,7 +876,6 @@ def generate_map_table_html_from_df(
 
             line_lons, line_lats = [], []
             label_lons, label_lats, label_texts = [], [], []
-            label_colors = []
 
             for _, row in df_small.iterrows():
                 abbr = row["state_abbr"]
@@ -899,15 +899,12 @@ def generate_map_table_html_from_df(
                     down_j += 1
 
                 # Always use dark accent for callouts (on white background)
-                callout_color = accent
-
                 line_lons += [lon0, lon1, None]
                 line_lats += [lat0, lat1, None]
 
                 label_lons.append(lon1)
                 label_lats.append(lat1)
                 label_texts.append(row["label_text"])
-                label_colors.append(callout_color)
 
             # leader lines
             fig.add_trace(
