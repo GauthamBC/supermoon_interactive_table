@@ -330,7 +330,6 @@ for name, code in STATE_ABBR.items():
     STATE_LOOKUP[code.lower()] = code
 
 # Small, dense Northeast states => callouts with leader lines
-# NOTE: ME is intentionally NOT here now, so Maine gets an internal label.
 SMALL_STATE_CENTROIDS = {
     "CT": {"lat": 41.6, "lon": -72.7},
     "DE": {"lat": 39.0, "lon": -75.5},
@@ -344,10 +343,8 @@ SMALL_STATE_CENTROIDS = {
 }
 SMALL_STATES = set(SMALL_STATE_CENTROIDS.keys())
 
-# These small states should have upward callouts; the rest go downward.
 UP_CALLOUT_STATES = {"VT", "MA", "NH"}
 
-# Explicit offsets for the up-left callouts so labels / lines don't overlap.
 UP_CALLOUT_OFFSETS = {
     "MA": {"d_lon": 5.8, "d_lat": 3.2},
     "VT": {"d_lon": 5.3, "d_lat": 4.4},
@@ -1016,19 +1013,8 @@ if uploaded_file is not None:
 
     all_columns = list(df.columns)
 
-    # ---- State column ----
-    state_col = st.selectbox(
-        "State column (full U.S. state names or 2-letter codes)",
-        options=all_columns,
-        key="map_state_col",
-    )
-
-    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-    if not numeric_cols:
-        numeric_cols = [c for c in all_columns if c != state_col]
-
-    # ---------- Page text ----------
-    st.markdown("### Page text")
+    # ---------- Widget text ----------
+    st.markdown("### Widget text")
 
     default_page_title = "State Metric Map"
     default_subtitle = "Visualizing your selected metric by U.S. state."
@@ -1048,11 +1034,26 @@ if uploaded_file is not None:
             key="map_subtitle",
         )
 
-    strapline = st.text_input(
-        "Strapline (top small text)",
-        value=st.session_state.get("map_strapline", default_strapline),
-        key="map_strapline",
-    )
+    col_meta1, col_meta2 = st.columns(2)
+    with col_meta1:
+        strapline = st.text_input(
+            "Strapline (top small text)",
+            value=st.session_state.get("map_strapline", default_strapline),
+            key="map_strapline",
+        )
+    with col_meta2:
+        guessed_state = next((c for c in all_columns if "state" in c.lower()), all_columns[0])
+        state_col = st.selectbox(
+            "State column (full U.S. state names or 2-letter codes)",
+            options=all_columns,
+            index=all_columns.index(guessed_state),
+            key="map_state_col",
+        )
+
+    # Determine numeric columns after we know state_col
+    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+    if not numeric_cols:
+        numeric_cols = [c for c in all_columns if c != state_col]
 
     # ---------- Map settings ----------
     st.markdown("### Map settings")
@@ -1065,14 +1066,25 @@ if uploaded_file is not None:
 
     available_cols = [c for c in all_columns if c != state_col]
 
-    default_hover_cols = [value_col]
-    hover_cols = st.multiselect(
+    # Hover columns (map) with "All columns" option
+    hover_options = ["All columns"] + available_cols
+    if "map_hover_cols" in st.session_state:
+        default_hover_selection = st.session_state["map_hover_cols"]
+    else:
+        default_hover_selection = ["All columns"]
+
+    raw_hover_cols = st.multiselect(
         "Columns to show in the map hover tooltip",
-        options=available_cols,
-        default=st.session_state.get("map_hover_cols", default_hover_cols),
+        options=hover_options,
+        default=default_hover_selection,
         key="map_hover_cols",
-        help="Choose which columns users see when they hover over a state on the map.",
+        help="Select specific columns, or choose 'All columns' to include everything.",
     )
+
+    if "All columns" in raw_hover_cols or len(raw_hover_cols) == 0:
+        hover_cols = available_cols
+    else:
+        hover_cols = [c for c in raw_hover_cols if c in available_cols]
 
     col_leg1, col_leg2 = st.columns(2)
     with col_leg1:
@@ -1091,14 +1103,24 @@ if uploaded_file is not None:
     # ---------- Table settings ----------
     st.markdown("### Table settings")
 
-    default_table_cols = [value_col]
-    table_cols = st.multiselect(
+    table_options = ["All columns"] + available_cols
+    if "map_table_cols" in st.session_state:
+        default_table_selection = st.session_state["map_table_cols"]
+    else:
+        default_table_selection = ["All columns"]
+
+    raw_table_cols = st.multiselect(
         "Columns to include in the ranked tables (besides the state column)",
-        options=available_cols,
-        default=st.session_state.get("map_table_cols", default_table_cols),
+        options=table_options,
+        default=default_table_selection,
         key="map_table_cols",
-        help="Only selected columns will appear in the 'Highest'/'Lowest' tables.",
+        help="Select specific columns, or choose 'All columns' to include everything in the tables.",
     )
+
+    if "All columns" in raw_table_cols or len(raw_table_cols) == 0:
+        table_cols = available_cols
+    else:
+        table_cols = [c for c in raw_table_cols if c in available_cols]
 
     col_t1, col_t2 = st.columns(2)
     with col_t1:
