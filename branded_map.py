@@ -363,12 +363,6 @@ DOWN_CALLOUT_NUDGE = {
     "MD": {"d_lon": -0.35, "d_lat": -0.20},
 }
 
-# Manual label positions for a few big states that need nudging
-BIG_MANUAL_LABEL_POS = {
-    # Move Louisiana label a bit lower so it doesn't overlap MS
-    "LA": {"lat": 28.8, "lon": -92.0},
-}
-
 # === 2. HTML TEMPLATE: map + tables (tabbed tables) ===================
 
 HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
@@ -818,14 +812,8 @@ def generate_map_table_html_from_df(
         df_big = label_df[~small_mask]
         df_small = label_df[small_mask]
 
-        # Split big states into auto and manual (e.g., LA)
-        manual_big_states = set(BIG_MANUAL_LABEL_POS.keys())
-        manual_mask = df_big["state_abbr"].isin(manual_big_states)
-        df_big_auto = df_big[~manual_mask]
-        df_big_manual = df_big[manual_mask]
-
-        # Big contiguous states (auto placement)
-        if not df_big_auto.empty:
+        # Big contiguous states (including AK + HI)
+        if not df_big.empty:
             def add_big_group(group, text_color):
                 if group.empty:
                     return
@@ -843,67 +831,33 @@ def generate_map_table_html_from_df(
 
             if style_mode == "unbranded":
                 # bucket by where the state sits in the blue-orange-red scale
-                low_mask = df_big_auto["fill_norm"] < (1.0 / 3.0)          # blue end
-                mid_mask = (df_big_auto["fill_norm"] >= (1.0 / 3.0)) & \
-                           (df_big_auto["fill_norm"] < (2.0 / 3.0))        # orange middle
-                high_mask = df_big_auto["fill_norm"] >= (2.0 / 3.0)        # red end
+                low_mask = df_big["fill_norm"] < (1.0 / 3.0)          # blue end
+                mid_mask = (df_big["fill_norm"] >= (1.0 / 3.0)) & \
+                           (df_big["fill_norm"] < (2.0 / 3.0))        # orange middle
+                high_mask = df_big["fill_norm"] >= (2.0 / 3.0)        # red end
 
                 # split out Hawaii from the other blue states so we can give it DARK blue text
-                low_hi     = df_big_auto[low_mask & (df_big_auto["state_abbr"] == "HI")]
-                low_non_hi = df_big_auto[low_mask & (df_big_auto["state_abbr"] != "HI")]
+                low_hi     = df_big[low_mask & (df_big["state_abbr"] == "HI")]
+                low_non_hi = df_big[low_mask & (df_big["state_abbr"] != "HI")]
 
-                mid_big  = df_big_auto[mid_mask]
-                high_big = df_big_auto[high_mask]
+                mid_big  = df_big[mid_mask]
+                high_big = df_big[high_mask]
 
                 # blue & red fills: white text (except HI), orange fills: dark text
                 add_big_group(low_non_hi, "#FFFFFF")    # other blue states = white text
                 add_big_group(low_hi, "#1E3A8A")        # HI = dark blue text
                 add_big_group(mid_big, "#111827")       # orange states = dark text
                 add_big_group(high_big, "#FFFFFF")      # red states = white text
-
             else:
                 # original branded behavior
                 label_light = "#FFFFFF"
                 label_dark = map_scale[2] if len(map_scale) >= 3 else "#111827"
 
-                dark_bg = df_big_auto[df_big_auto["fill_norm"] >= 0.55]
-                light_bg = df_big_auto[df_big_auto["fill_norm"] < 0.55]
+                dark_bg = df_big[df_big["fill_norm"] >= 0.55]
+                light_bg = df_big[df_big["fill_norm"] < 0.55]
 
                 add_big_group(dark_bg, label_light)
                 add_big_group(light_bg, label_dark)
-
-        # Manual big labels (e.g., Louisiana)
-        if not df_big_manual.empty:
-            for _, row in df_big_manual.iterrows():
-                abbr = row["state_abbr"]
-                pos = BIG_MANUAL_LABEL_POS.get(abbr)
-                if not pos:
-                    continue
-
-                if style_mode == "unbranded":
-                    # choose color similar to auto logic: orange = dark text, red/blue = white
-                    if row["fill_norm"] < (1.0 / 3.0):
-                        text_color = "#FFFFFF"
-                    elif row["fill_norm"] < (2.0 / 3.0):
-                        text_color = "#111827"
-                    else:
-                        text_color = "#FFFFFF"
-                else:
-                    label_light = "#FFFFFF"
-                    label_dark = map_scale[2] if len(map_scale) >= 3 else "#111827"
-                    text_color = label_light if row["fill_norm"] >= 0.55 else label_dark
-
-                fig.add_trace(
-                    go.Scattergeo(
-                        lon=[pos["lon"]],
-                        lat=[pos["lat"]],
-                        mode="text",
-                        text=[row["label_text"]],
-                        textfont=dict(size=9, color=text_color),
-                        hoverinfo="skip",
-                        showlegend=False,
-                    )
-                )
 
         # Small NE states (callouts)
         if not df_small.empty:
