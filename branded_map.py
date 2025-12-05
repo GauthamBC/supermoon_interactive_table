@@ -743,18 +743,18 @@ def generate_map_table_html_from_df(
     # Rank states by metric (1 = highest)
     df["rank"] = df[value_col].rank(ascending=False, method="min").astype(int)
 
-    # Normalized metric for label contrast (0 = lowest, 1 = highest)
-    val_min = df[value_col].min()
-    val_max = df[value_col].max()
-    if val_max > val_min:
-        df["fill_norm"] = (df[value_col] - val_min) / (val_max - val_min)
-    else:
-        df["fill_norm"] = 0.5
-
     # Numeric columns (for hover + tables)
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
     if value_col not in numeric_cols:
         numeric_cols = [value_col] + numeric_cols
+
+    # ---- Normalized value (0–1) for deciding label text color ----
+    v_min = df[value_col].min()
+    v_max = df[value_col].max()
+    if pd.isna(v_min) or pd.isna(v_max) or v_min == v_max:
+        df["fill_norm"] = 0.5
+    else:
+        df["fill_norm"] = (df[value_col] - v_min) / (v_max - v_min)
 
     # ---- Metrics to show in tooltip (state + up to 3 metrics) ----
     metrics_for_hover = [value_col] + [c for c in numeric_cols if c != value_col][:2]
@@ -828,13 +828,15 @@ def generate_map_table_html_from_df(
         df_big = label_df[~small_mask]
         df_small = label_df[small_mask]
 
-        # Big states: centered labels inside polygons with gradient-aware text colors
+        # Big states: centered labels inside polygons with strong contrast
         if not df_big.empty:
+            # Light text for dark fills, dark text for light fills
+            label_light = "#FFFFFF"
+            label_dark = map_scale[2] if len(map_scale) >= 3 else "#111827"
 
-            # Split by normalized value so we can invert the gradient for text
-            dark_bg = df_big[df_big["fill_norm"] >= 0.66]   # darker fills -> use light text
-            mid_bg  = df_big[(df_big["fill_norm"] > 0.33) & (df_big["fill_norm"] < 0.66)]
-            light_bg = df_big[df_big["fill_norm"] <= 0.33]  # lighter fills -> use dark text
+            # Threshold on normalized value
+            dark_bg = df_big[df_big["fill_norm"] >= 0.55]
+            light_bg = df_big[df_big["fill_norm"] < 0.55]
 
             def add_big_group(group, text_color):
                 if group.empty:
@@ -854,12 +856,8 @@ def generate_map_table_html_from_df(
                     )
                 )
 
-            # On very dark fills (high values), use light end of gradient
-            add_big_group(dark_bg, map_scale[0])
-            # On mid tones, use the middle color
-            add_big_group(mid_bg, map_scale[1])
-            # On very light fills (low values), use the dark end of gradient
-            add_big_group(light_bg, map_scale[2])
+            add_big_group(dark_bg, label_light)
+            add_big_group(light_bg, label_dark)
 
         # Small NE states: callouts off the coast with brand-colored labels/lines
         if not df_small.empty:
