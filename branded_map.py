@@ -710,6 +710,8 @@ def generate_map_table_html_from_df(
     low_sub: str,
     top_n: int = 10,
     show_state_labels: bool = False,
+    table_cols=None,   # NEW: which columns to show in the ranked tables
+    hover_cols=None,   # NEW: which columns to show in the hover tooltip
 ) -> str:
     # Prepare dataframe
     df = df.copy()
@@ -743,10 +745,28 @@ def generate_map_table_html_from_df(
     # Rank states by metric (1 = highest)
     df["rank"] = df[value_col].rank(ascending=False, method="min").astype(int)
 
-    # Numeric columns (for hover + tables)
+    # All numeric columns (for reasonable defaults)
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
     if value_col not in numeric_cols:
         numeric_cols = [value_col] + numeric_cols
+
+    # ---------- Decide which columns to show in hover tooltip ----------
+    # Default behaviour: primary metric + up to 2 other numeric metrics
+    if hover_cols is None or len(hover_cols) == 0:
+        default_hover = [c for c in numeric_cols if c != "rank"]
+        metrics_for_hover = [value_col] + [c for c in default_hover if c != value_col][:2]
+    else:
+        # Use only columns that actually exist and are not the state column
+        cleaned_hover = [c for c in hover_cols if c in df.columns and c != state_col]
+        # Always ensure primary metric appears first
+        metrics_for_hover = [value_col] + [c for c in cleaned_hover if c != value_col]
+
+    # Remove duplicates but keep order
+    seen = set()
+    metrics_for_hover = [c for c in metrics_for_hover if not (c in seen or seen.add(c))]
+
+    # These are the columns sent into customdata for hovertemplate
+    custom_cols = [state_col] + metrics_for_hover
 
     # ---- Normalized value (0–1) for deciding label text color ----
     v_min = df[value_col].min()
@@ -756,14 +776,9 @@ def generate_map_table_html_from_df(
     else:
         df["fill_norm"] = (df[value_col] - v_min) / (v_max - v_min)
 
-    # ---- Metrics to show in tooltip (state + up to 3 metrics) ----
-    metrics_for_hover = [value_col] + [c for c in numeric_cols if c != value_col][:2]
-    custom_cols = [state_col] + metrics_for_hover
-
     # Build map
     map_scale = brand_meta["map_scale"]
     accent = brand_meta.get("accent", "#16A34A")
-    accent_soft = brand_meta.get("accent_soft", "#DCFCE7")
 
     fig = px.choropleth(
         df,
@@ -775,23 +790,12 @@ def generate_map_table_html_from_df(
         custom_data=df[custom_cols],
     )
 
-    # ---- Clean, compact, branded hover template ----
-    label_map = {
-        "BurnoutProbPct": "Burnout prob",
-        "MoneylineOdds": "Moneyline",
-    }
-
+    # ---- Generic hover template ----
     lines = []
     for idx, col in enumerate(metrics_for_hover, start=1):
-        nice_label = label_map.get(col, col.replace("_", " "))
-
-        if "ProbPct" in col:
-            value_fmt = f"%{{customdata[{idx}]:.2f}}%"
-        elif "Moneyline" in col:
-            value_fmt = f"%{{customdata[{idx}]:+,.0f}}"
-        else:
-            value_fmt = f"%{{customdata[{idx}]}}"
-
+        # prettify: "avg_score" -> "Avg Score"
+        nice_label = col.replace("_", " ").strip().title()
+        value_fmt = f"%{{customdata[{idx}]}}"
         lines.append(
             f"<span style='color:{accent};font-weight:500;'>"
             f"{html_mod.escape(nice_label)}:</span> {value_fmt}"
@@ -969,12 +973,26 @@ def generate_map_table_html_from_df(
         },
     )
 
-    # Ranked tables
+    # ---------- Ranked tables (respect user-chosen columns) ----------
+    # Default: all numeric columns (except rank) plus value_col
+    if table_cols is None or len(table_cols) == 0:
+        default_table_cols = [c for c in numeric_cols if c not in ("rank",)]
+        table_cols = [value_col] + [c for c in default_table_cols if c != value_col]
+    else:
+        # keep only existing columns, not the state column
+        table_cols = [c for c in table_cols if c in df.columns and c != state_col]
+        # always ensure the primary value column is in there and first
+        table_cols = [value_col] + [c for c in table_cols if c != value_col]
+
     df_for_tables = pd.DataFrame({
         state_col: df[state_col],
-        **{c: df[c] for c in numeric_cols},
+        **{c: df[c] for c in table_cols},
     })
 
+    df_high = df_for_tables.sort_values(by[value_col] if isinstance(value_col, str) else value_col, ascending=False)
+    df_low = df_for_tables.sort_values(by[value_col] if isinstance(value_col, str) else value_col, ascending=True)
+
+    # safer way (to avoid confusion with by[] above):
     df_high = df_for_tables.sort_values(by=value_col, ascending=False)
     df_low = df_for_tables.sort_values(by=value_col, ascending=True)
 
@@ -1013,7 +1031,7 @@ st.set_page_config(page_title="Branded Map + Table Generator", layout="wide")
 
 st.title("Branded Map + Table Generator")
 st.write(
-    "Upload a CSV of U.S. states and a metric, choose a brand, then click "
+    "Upload a CSV of U.S. states and one or more metrics, choose a brand, then click "
     "**Update widget** to publish an interactive map + ranked tables page via GitHub Pages."
 )
 
@@ -1067,9 +1085,34 @@ if uploaded_file is not None:
         key="map_value_col",
     )
 
-    default_page_title = "Winter Burnout Odds Index 2025"
-    default_subtitle = "Burnout probability by U.S. state."
-    default_strapline = f"{brand.upper()} · DATA-DRIVEN ODDS"
+    # ---------- Column inclusion/exclusion for tables & hover ----------
+    st.markdown("### Column display options")
+
+    # All non-state columns can be used
+    available_cols = [c for c in df.columns if c != state_col]
+
+    default_table_cols = [value_col]
+    table_cols = st.multiselect(
+        "Columns to include in the ranked tables (besides the state column)",
+        options=available_cols,
+        default=st.session_state.get("map_table_cols", default_table_cols),
+        key="map_table_cols",
+        help="Only selected columns will appear in the 'Highest'/'Lowest' tables.",
+    )
+
+    default_hover_cols = [value_col]
+    hover_cols = st.multiselect(
+        "Columns to show in the map hover tooltip",
+        options=available_cols,
+        default=st.session_state.get("map_hover_cols", default_hover_cols),
+        key="map_hover_cols",
+        help="Choose which columns users see when they hover over a state on the map.",
+    )
+
+    # ---------- Text / copy ----------
+    default_page_title = "State Metric Map"
+    default_subtitle = "Visualizing your selected metric by U.S. state."
+    default_strapline = f"{brand.upper()} · DATA VISUALIZATION"
 
     col_copy1, col_copy2 = st.columns(2)
     with col_copy1:
@@ -1095,13 +1138,13 @@ if uploaded_file is not None:
     with col_leg1:
         legend_low = st.text_input(
             "Legend left label",
-            value=st.session_state.get("map_legend_low", "Lowest burnout odds"),
+            value=st.session_state.get("map_legend_low", "Lowest value"),
             key="map_legend_low",
         )
     with col_leg2:
         legend_high = st.text_input(
             "Legend right label",
-            value=st.session_state.get("map_legend_high", "Highest burnout odds"),
+            value=st.session_state.get("map_legend_high", "Highest value"),
             key="map_legend_high",
         )
 
@@ -1110,13 +1153,13 @@ if uploaded_file is not None:
     with col_t1:
         high_title = st.text_input(
             "High table title",
-            value=st.session_state.get("map_high_title", "States With the Highest Winter Burnout Odds"),
+            value=st.session_state.get("map_high_title", "States With the Highest Values"),
             key="map_high_title",
         )
     with col_t2:
         low_title = st.text_input(
             "Low table title",
-            value=st.session_state.get("map_low_title", "States With the Lowest Winter Burnout Odds"),
+            value=st.session_state.get("map_low_title", "States With the Lowest Values"),
             key="map_low_title",
         )
 
@@ -1124,13 +1167,13 @@ if uploaded_file is not None:
     with col_s1:
         high_sub = st.text_input(
             "High table subheading",
-            value=st.session_state.get("map_high_sub", "Ranked by modeled burnout probability."),
+            value=st.session_state.get("map_high_sub", "Ranked by the selected metric."),
             key="map_high_sub",
         )
     with col_s2:
         low_sub = st.text_input(
             "Low table subheading",
-            value=st.session_state.get("map_low_sub", "Ranked by modeled burnout probability."),
+            value=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
             key="map_low_sub",
         )
 
@@ -1289,6 +1332,8 @@ if uploaded_file is not None:
                     low_sub=low_sub,
                     top_n=10,
                     show_state_labels=show_labels,
+                    table_cols=table_cols,
+                    hover_cols=hover_cols,
                 )
 
                 progress.progress(80)
@@ -1445,6 +1490,8 @@ if uploaded_file is not None:
             low_sub=low_sub,
             top_n=10,
             show_state_labels=show_labels,
+            table_cols=table_cols,
+            hover_cols=hover_cols,
         )
 
         components.html(html_preview, height=1000, scrolling=True)
@@ -1470,6 +1517,8 @@ if uploaded_file is not None:
             low_sub=low_sub,
             top_n=10,
             show_state_labels=show_labels,
+            table_cols=table_cols,
+            hover_cols=hover_cols,
         )
 
         subtab_html, subtab_iframe = st.tabs(["HTML file contents", "Iframe code"])
