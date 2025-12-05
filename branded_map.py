@@ -1047,142 +1047,155 @@ if uploaded_file is not None:
 
     all_columns = list(df.columns)
 
-    # ---------- Widget text ----------
-    st.markdown("### Widget text")
+    # ---------- Config tabs: Widget / Map / Table ----------
+    tab_widget, tab_map, tab_table = st.tabs(
+        ["Widget text", "Map settings", "Table settings"]
+    )
 
-    default_page_title = "State Metric Map"
-    default_subtitle = "Visualizing your selected metric by U.S. state."
-    default_strapline = f"{brand.upper()} · DATA VISUALIZATION"
+    # ---------- Widget text (tab) ----------
+    with tab_widget:
+        st.markdown("### Widget text")
 
-    col_copy1, col_copy2 = st.columns(2)
-    with col_copy1:
-        page_title = st.text_input(
-            "Page title",
-            value=st.session_state.get("map_page_title", default_page_title),
-            key="map_page_title",
-        )
-    with col_copy2:
-        subtitle = st.text_input(
-            "Subtitle",
-            value=st.session_state.get("map_subtitle", default_subtitle),
-            key="map_subtitle",
-        )
+        default_page_title = "State Metric Map"
+        default_subtitle = "Visualizing your selected metric by U.S. state."
+        default_strapline = f"{brand.upper()} · DATA VISUALIZATION"
 
-    col_meta1, col_meta2 = st.columns(2)
-    with col_meta1:
-        strapline = st.text_input(
-            "Strapline (top small text)",
-            value=st.session_state.get("map_strapline", default_strapline),
-            key="map_strapline",
-        )
-    with col_meta2:
-        guessed_state = next((c for c in all_columns if "state" in c.lower()), all_columns[0])
-        state_col = st.selectbox(
-            "State column (full U.S. state names or 2-letter codes)",
-            options=all_columns,
-            index=all_columns.index(guessed_state),
-            key="map_state_col",
-        )
+        col_copy1, col_copy2 = st.columns(2)
+        with col_copy1:
+            page_title = st.text_input(
+                "Page title",
+                value=st.session_state.get("map_page_title", default_page_title),
+                key="map_page_title",
+            )
+        with col_copy2:
+            subtitle = st.text_input(
+                "Subtitle",
+                value=st.session_state.get("map_subtitle", default_subtitle),
+                key="map_subtitle",
+            )
+
+        col_meta1, col_meta2 = st.columns(2)
+        with col_meta1:
+            strapline = st.text_input(
+                "Strapline (top small text)",
+                value=st.session_state.get("map_strapline", default_strapline),
+                key="map_strapline",
+            )
+        with col_meta2:
+            guessed_state = next(
+                (c for c in all_columns if "state" in c.lower()), all_columns[0]
+            )
+            state_col = st.selectbox(
+                "State column (full U.S. state names or 2-letter codes)",
+                options=all_columns,
+                index=all_columns.index(guessed_state),
+                key="map_state_col",
+            )
 
     # Determine numeric columns after we know state_col
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+    # If there are no numeric columns, fall back to everything except state column
     if not numeric_cols:
-        numeric_cols = [c for c in all_columns if c != state_col]
+        numeric_cols = [c for c in all_columns if c != st.session_state.get("map_state_col", state_col)]
 
-    # ---------- Map settings ----------
-    st.markdown("### Map settings")
-
-    value_col = st.selectbox(
-        "Primary metric column (used to color the map)",
-        options=[c for c in numeric_cols if c != state_col],
-        key="map_value_col",
-    )
-
+    # Shared vars for other tabs
+    state_col = st.session_state.get("map_state_col", state_col)
     available_cols = [c for c in all_columns if c != state_col]
 
-    # Hover columns (map) with "All columns" option
-    hover_options = ["All columns"] + available_cols
-    if "map_hover_cols" in st.session_state:
-        default_hover_selection = st.session_state["map_hover_cols"]
-    else:
-        default_hover_selection = ["All columns"]
+    # ---------- Map settings (tab) ----------
+    with tab_map:
+        st.markdown("### Map settings")
 
-    raw_hover_cols = st.multiselect(
-        "Columns to show in the map hover tooltip",
-        options=hover_options,
-        default=default_hover_selection,
-        key="map_hover_cols",
-        help="Select specific columns, or choose 'All columns' to include everything.",
-    )
-
-    if "All columns" in raw_hover_cols or len(raw_hover_cols) == 0:
-        hover_cols = available_cols
-    else:
-        hover_cols = [c for c in raw_hover_cols if c in available_cols]
-
-    col_leg1, col_leg2 = st.columns(2)
-    with col_leg1:
-        legend_low = st.text_input(
-            "Legend left label",
-            value=st.session_state.get("map_legend_low", "Lowest value"),
-            key="map_legend_low",
-        )
-    with col_leg2:
-        legend_high = st.text_input(
-            "Legend right label",
-            value=st.session_state.get("map_legend_high", "Highest value"),
-            key="map_legend_high",
+        value_col = st.selectbox(
+            "Primary metric column (used to color the map)",
+            options=[c for c in numeric_cols if c != state_col],
+            key="map_value_col",
         )
 
-    # ---------- Table settings ----------
-    st.markdown("### Table settings")
+        # Hover columns (map) with "All columns" option
+        hover_options = ["All columns"] + available_cols
+        if "map_hover_cols" in st.session_state:
+            default_hover_selection = st.session_state["map_hover_cols"]
+        else:
+            default_hover_selection = ["All columns"]
 
-    table_options = ["All columns"] + available_cols
-    if "map_table_cols" in st.session_state:
-        default_table_selection = st.session_state["map_table_cols"]
-    else:
-        default_table_selection = ["All columns"]
-
-    raw_table_cols = st.multiselect(
-        "Columns to include in the ranked tables (besides the state column)",
-        options=table_options,
-        default=default_table_selection,
-        key="map_table_cols",
-        help="Select specific columns, or choose 'All columns' to include everything in the tables.",
-    )
-
-    if "All columns" in raw_table_cols or len(raw_table_cols) == 0:
-        table_cols = available_cols
-    else:
-        table_cols = [c for c in raw_table_cols if c in available_cols]
-
-    col_t1, col_t2 = st.columns(2)
-    with col_t1:
-        high_title = st.text_input(
-            "High table title",
-            value=st.session_state.get("map_high_title", "States With the Highest Values"),
-            key="map_high_title",
-        )
-    with col_t2:
-        low_title = st.text_input(
-            "Low table title",
-            value=st.session_state.get("map_low_title", "States With the Lowest Values"),
-            key="map_low_title",
+        raw_hover_cols = st.multiselect(
+            "Columns to show in the map hover tooltip",
+            options=hover_options,
+            default=default_hover_selection,
+            key="map_hover_cols",
+            help="Select specific columns, or choose 'All columns' to include everything.",
         )
 
-    col_s1, col_s2 = st.columns(2)
-    with col_s1:
-        high_sub = st.text_input(
-            "High table subheading",
-            value=st.session_state.get("map_high_sub", "Ranked by the selected metric."),
-            key="map_high_sub",
+        if "All columns" in raw_hover_cols or len(raw_hover_cols) == 0:
+            hover_cols = available_cols
+        else:
+            hover_cols = [c for c in raw_hover_cols if c in available_cols]
+
+        col_leg1, col_leg2 = st.columns(2)
+        with col_leg1:
+            legend_low = st.text_input(
+                "Legend left label",
+                value=st.session_state.get("map_legend_low", "Lowest value"),
+                key="map_legend_low",
+            )
+        with col_leg2:
+            legend_high = st.text_input(
+                "Legend right label",
+                value=st.session_state.get("map_legend_high", "Highest value"),
+                key="map_legend_high",
+            )
+
+    # ---------- Table settings (tab) ----------
+    with tab_table:
+        st.markdown("### Table settings")
+
+        table_options = ["All columns"] + available_cols
+        if "map_table_cols" in st.session_state:
+            default_table_selection = st.session_state["map_table_cols"]
+        else:
+            default_table_selection = ["All columns"]
+
+        raw_table_cols = st.multiselect(
+            "Columns to include in the ranked tables (besides the state column)",
+            options=table_options,
+            default=default_table_selection,
+            key="map_table_cols",
+            help="Select specific columns, or choose 'All columns' to include everything in the tables.",
         )
-    with col_s2:
-        low_sub = st.text_input(
-            "Low table subheading",
-            value=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
-            key="map_low_sub",
-        )
+
+        if "All columns" in raw_table_cols or len(raw_table_cols) == 0:
+            table_cols = available_cols
+        else:
+            table_cols = [c for c in raw_table_cols if c in available_cols]
+
+        col_t1, col_t2 = st.columns(2)
+        with col_t1:
+            high_title = st.text_input(
+                "High table title",
+                value=st.session_state.get("map_high_title", "States With the Highest Values"),
+                key="map_high_title",
+            )
+        with col_t2:
+            low_title = st.text_input(
+                "Low table title",
+                value=st.session_state.get("map_low_title", "States With the Lowest Values"),
+                key="map_low_title",
+            )
+
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            high_sub = st.text_input(
+                "High table subheading",
+                value=st.session_state.get("map_high_sub", "Ranked by the selected metric."),
+                key="map_high_sub",
+            )
+        with col_s2:
+            low_sub = st.text_input(
+                "Low table subheading",
+                value=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
+                key="map_low_sub",
+            )
 
     # ---------- GitHub / hosting settings ----------
     st.markdown("---")
@@ -1327,16 +1340,16 @@ if uploaded_file is not None:
                     df,
                     brand_meta_publish,
                     state_col=state_col,
-                    value_col=value_col,
-                    page_title=page_title,
-                    subtitle=subtitle,
-                    strapline=strapline,
-                    legend_low=legend_low,
-                    legend_high=legend_high,
-                    high_title=high_title,
-                    high_sub=high_sub,
-                    low_title=low_title,
-                    low_sub=low_sub,
+                    value_col=st.session_state.get("map_value_col", numeric_cols[0]),
+                    page_title=st.session_state.get("map_page_title", "State Metric Map"),
+                    subtitle=st.session_state.get("map_subtitle", "Visualizing your selected metric by U.S. state."),
+                    strapline=st.session_state.get("map_strapline", f"{brand.upper()} · DATA VISUALIZATION"),
+                    legend_low=st.session_state.get("map_legend_low", "Lowest value"),
+                    legend_high=st.session_state.get("map_legend_high", "Highest value"),
+                    high_title=st.session_state.get("map_high_title", "States With the Highest Values"),
+                    high_sub=st.session_state.get("map_high_sub", "Ranked by the selected metric."),
+                    low_title=st.session_state.get("map_low_title", "States With the Lowest Values"),
+                    low_sub=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
                     top_n=10,
                     show_state_labels=show_labels,
                     table_cols=table_cols,
@@ -1385,7 +1398,7 @@ if uploaded_file is not None:
 
                 iframe_snippet = dedent(f"""\
                 <iframe src="{expected_embed_url}"
-                        title="{html_mod.escape(page_title)}"
+                        title="{html_mod.escape(st.session_state.get("map_page_title", "State Metric Map"))}"
                         width="100%" height="1000" scrolling="no"
                         style="border:0;" loading="lazy"></iframe>""")
 
@@ -1485,16 +1498,16 @@ if uploaded_file is not None:
             df,
             brand_meta_preview,
             state_col=state_col,
-            value_col=value_col,
-            page_title=page_title,
-            subtitle=subtitle,
-            strapline=strapline,
-            legend_low=legend_low,
-            legend_high=legend_high,
-            high_title=high_title,
-            high_sub=high_sub,
-            low_title=low_title,
-            low_sub=low_sub,
+            value_col=st.session_state.get("map_value_col", numeric_cols[0]),
+            page_title=st.session_state.get("map_page_title", "State Metric Map"),
+            subtitle=st.session_state.get("map_subtitle", "Visualizing your selected metric by U.S. state."),
+            strapline=st.session_state.get("map_strapline", f"{brand.upper()} · DATA VISUALIZATION"),
+            legend_low=st.session_state.get("map_legend_low", "Lowest value"),
+            legend_high=st.session_state.get("map_legend_high", "Highest value"),
+            high_title=st.session_state.get("map_high_title", "States With the Highest Values"),
+            high_sub=st.session_state.get("map_high_sub", "Ranked by the selected metric."),
+            low_title=st.session_state.get("map_low_title", "States With the Lowest Values"),
+            low_sub=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
             top_n=10,
             show_state_labels=show_labels,
             table_cols=table_cols,
@@ -1511,16 +1524,16 @@ if uploaded_file is not None:
             df,
             brand_meta_embed,
             state_col=state_col,
-            value_col=value_col,
-            page_title=page_title,
-            subtitle=subtitle,
-            strapline=strapline,
-            legend_low=legend_low,
-            legend_high=legend_high,
-            high_title=high_title,
-            high_sub=high_sub,
-            low_title=low_title,
-            low_sub=low_sub,
+            value_col=st.session_state.get("map_value_col", numeric_cols[0]),
+            page_title=st.session_state.get("map_page_title", "State Metric Map"),
+            subtitle=st.session_state.get("map_subtitle", "Visualizing your selected metric by U.S. state."),
+            strapline=st.session_state.get("map_strapline", f"{brand.upper()} · DATA VISUALIZATION"),
+            legend_low=st.session_state.get("map_legend_low", "Lowest value"),
+            legend_high=st.session_state.get("map_legend_high", "Highest value"),
+            high_title=st.session_state.get("map_high_title", "States With the Highest Values"),
+            high_sub=st.session_state.get("map_high_sub", "Ranked by the selected metric."),
+            low_title=st.session_state.get("map_low_title", "States With the Lowest Values"),
+            low_sub=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
             top_n=10,
             show_state_labels=show_labels,
             table_cols=table_cols,
