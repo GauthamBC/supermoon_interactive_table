@@ -255,9 +255,16 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "branded_scale": ["#BFDBFE", "#38BDF8", "#1D4ED8"],
         })
 
-    # Decide which scale to actually use on the map + legend
+    # remember style_mode so downstream code can behave differently
+    meta["style_mode"] = style_mode
+
+    # Decide which scale & accent set to actually use on the map + legend
     if style_mode == "unbranded":
         meta["map_scale"] = UNBRANDED_SCALE
+        # softer accent set based on the dark red in UNBRANDED_SCALE
+        meta["accent"] = "#EF4444"        # soft red
+        meta["accent_soft"] = "#FEE2E2"   # very light red
+        meta["accent_softer"] = "#FEF2F2" # almost white with red tint
     else:
         meta["map_scale"] = meta["branded_scale"]
 
@@ -753,6 +760,7 @@ def generate_map_table_html_from_df(
 
     map_scale = brand_meta["map_scale"]
     accent = brand_meta.get("accent", "#16A34A")
+    style_mode = brand_meta.get("style_mode", "branded")
 
     fig = px.choropleth(
         df,
@@ -804,8 +812,13 @@ def generate_map_table_html_from_df(
         df_small = label_df[small_mask]
 
         if not df_big.empty:
-            label_light = "#FFFFFF"
-            label_dark = map_scale[2] if len(map_scale) >= 3 else "#111827"
+            # In unbranded mode, use light tints of red instead of pure red/white
+            if style_mode == "unbranded":
+                label_light = "#FEE2E2"   # light red
+                label_dark = "#7F1D1D"    # dark red-brown
+            else:
+                label_light = "#FFFFFF"
+                label_dark = map_scale[2] if len(map_scale) >= 3 else "#111827"
 
             dark_bg = df_big[df_big["fill_norm"] >= 0.55]
             light_bg = df_big[df_big["fill_norm"] < 0.55]
