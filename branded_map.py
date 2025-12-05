@@ -811,8 +811,7 @@ def generate_map_table_html_from_df(
         df_big = label_df[~small_mask]
         df_small = label_df[small_mask]
 
-        # ---------- Big states (labels inside map) ----------
-        if not df_big.empty:
+               if not df_big.empty:
             def add_big_group(group, text_color):
                 if group.empty:
                     return
@@ -829,16 +828,25 @@ def generate_map_table_html_from_df(
                 )
 
             if style_mode == "unbranded":
-                # use high-contrast but not crazy-dark colours
-                low_big = df_big[df_big["fill_norm"] < (1.0 / 3.0)]                 # blue states
-                mid_big = df_big[(df_big["fill_norm"] >= (1.0 / 3.0)) &
-                                 (df_big["fill_norm"] < (2.0 / 3.0))]               # orange states
-                high_big = df_big[df_big["fill_norm"] >= (2.0 / 3.0)]               # red states
+                # bucket by where the state sits in the blue-orange-red scale
+                low_mask = df_big["fill_norm"] < (1.0 / 3.0)          # blue end
+                mid_mask = (df_big["fill_norm"] >= (1.0 / 3.0)) & \
+                           (df_big["fill_norm"] < (2.0 / 3.0))        # orange middle
+                high_mask = df_big["fill_norm"] >= (2.0 / 3.0)        # red end
 
-                # blue & red fills -> white text; orange fills -> dark text
-                add_big_group(low_big, "#FFFFFF")
-                add_big_group(mid_big, "#111827")
-                add_big_group(high_big, "#FFFFFF")
+                # split out Hawaii from the other blue states so we can give it DARK blue text
+                low_hi     = df_big[low_mask & (df_big["state_abbr"] == "HI")]
+                low_non_hi = df_big[low_mask & (df_big["state_abbr"] != "HI")]
+
+                mid_big  = df_big[mid_mask]
+                high_big = df_big[high_mask]
+
+                # blue & red fills: white text (except HI), orange fills: dark text
+                add_big_group(low_non_hi, "#FFFFFF")    # other blue states = white text
+                add_big_group(low_hi, "#1E3A8A")        # HI = dark blue text
+                add_big_group(mid_big, "#111827")       # orange states = dark text
+                add_big_group(high_big, "#FFFFFF")      # red states = white text
+
             else:
                 # original branded behavior
                 label_light = "#FFFFFF"
