@@ -348,20 +348,15 @@ SMALL_STATES = set(SMALL_STATE_CENTROIDS.keys())
 UP_CALLOUT_STATES = {"VT", "MA", "NH"}
 
 # Explicit offsets for the up-left callouts so labels / lines don't overlap.
-# d_lon: how far to move west (left); d_lat: how far to move north (up)
 UP_CALLOUT_OFFSETS = {
-    # MA: push further up & left so it's clearly outside NY
     "MA": {"d_lon": 5.8, "d_lat": 3.2},
-    # VT / NH stay where they are (already spaced nicely)
     "VT": {"d_lon": 5.3, "d_lat": 4.4},
     "NH": {"d_lon": 6.4, "d_lat": 6.8},
 }
 
-# Extra per-state nudge for downward callouts so MD / DE don't overlap.
-# d_lon: additional move east(+)/west(-); d_lat: additional move north(+)/south(-)
 DOWN_CALLOUT_NUDGE = {
-    "DE": {"d_lon": 0.45, "d_lat": 0.15},   # a bit further right & slightly higher
-    "MD": {"d_lon": -0.35, "d_lat": -0.20}, # a bit further left & slightly lower
+    "DE": {"d_lon": 0.45, "d_lat": 0.15},
+    "MD": {"d_lon": -0.35, "d_lat": -0.20},
 }
 
 # === 2. HTML TEMPLATE: map + tables (tabbed tables) ===================
@@ -653,14 +648,9 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 # === 3. HTML generators ===============================================
 
 def build_ranked_table_html(df: pd.DataFrame, value_col: str, top_n: int = 10) -> str:
-    """
-    Returns a HTML table string (no <section> wrapper).
-    Columns: Rank, State, metric + any extra numeric cols.
-    """
     cols = list(df.columns)
     state_col = cols[0]  # assume first col is state
     other_cols = [c for c in cols if c not in (state_col,)]
-    # keep primary metric first
     if value_col in other_cols:
         other_cols.remove(value_col)
         metric_cols = [value_col] + other_cols
@@ -710,14 +700,12 @@ def generate_map_table_html_from_df(
     low_sub: str,
     top_n: int = 10,
     show_state_labels: bool = False,
-    table_cols=None,   # which columns to show in the ranked tables
-    hover_cols=None,   # which columns to show in the hover tooltip
+    table_cols=None,
+    hover_cols=None,
 ) -> str:
-    # Prepare dataframe
     df = df.copy()
     df[state_col] = df[state_col].astype(str).str.strip()
 
-    # Robust state normalization: full names OR 2-letter codes
     s = df[state_col].astype(str).str.strip()
     name_mask = s.str.len() > 2
     code_mask = ~name_mask
@@ -726,7 +714,6 @@ def generate_map_table_html_from_df(
     s_norm.loc[code_mask] = s_norm.loc[code_mask].str.upper()
     df["state_abbr"] = s_norm.map(STATE_LOOKUP)
 
-    # Coerce metric to numeric (handles "6.51" or "6.51%")
     df[value_col] = (
         df[value_col]
         .astype(str)
@@ -735,40 +722,31 @@ def generate_map_table_html_from_df(
     )
     df[value_col] = pd.to_numeric(df[value_col], errors="coerce")
 
-    # Drop rows without a valid state or metric
     df = df[~df["state_abbr"].isna()].copy()
     df = df[~df[value_col].isna()].copy()
 
     if df.empty:
         return "<p style='padding:16px;font-family:sans-serif;'>No valid state/metric data to display.</p>"
 
-    # Rank states by metric (1 = highest)
     df["rank"] = df[value_col].rank(ascending=False, method="min").astype(int)
 
-    # All numeric columns (for reasonable defaults)
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
     if value_col not in numeric_cols:
         numeric_cols = [value_col] + numeric_cols
 
-    # ---------- Decide which columns to show in hover tooltip ----------
-    # Default behaviour: primary metric + up to 2 other numeric metrics
+    # Hover metrics
     if hover_cols is None or len(hover_cols) == 0:
         default_hover = [c for c in numeric_cols if c != "rank"]
         metrics_for_hover = [value_col] + [c for c in default_hover if c != value_col][:2]
     else:
-        # Use only columns that actually exist and are not the state column
         cleaned_hover = [c for c in hover_cols if c in df.columns and c != state_col]
-        # Always ensure primary metric appears first
         metrics_for_hover = [value_col] + [c for c in cleaned_hover if c != value_col]
 
-    # Remove duplicates but keep order
     seen = set()
     metrics_for_hover = [c for c in metrics_for_hover if not (c in seen or seen.add(c))]
 
-    # These are the columns sent into customdata for hovertemplate
     custom_cols = [state_col] + metrics_for_hover
 
-    # ---- Normalized value (0–1) for deciding label text color ----
     v_min = df[value_col].min()
     v_max = df[value_col].max()
     if pd.isna(v_min) or pd.isna(v_max) or v_min == v_max:
@@ -776,7 +754,6 @@ def generate_map_table_html_from_df(
     else:
         df["fill_norm"] = (df[value_col] - v_min) / (v_max - v_min)
 
-    # Build map
     map_scale = brand_meta["map_scale"]
     accent = brand_meta.get("accent", "#16A34A")
 
@@ -790,10 +767,8 @@ def generate_map_table_html_from_df(
         custom_data=df[custom_cols],
     )
 
-    # ---- Generic hover template ----
     lines = []
     for idx, col in enumerate(metrics_for_hover, start=1):
-        # prettify: "avg_score" -> "Avg Score"
         nice_label = col.replace("_", " ").strip().title()
         value_fmt = f"%{{customdata[{idx}]}}"
         lines.append(
@@ -823,7 +798,6 @@ def generate_map_table_html_from_df(
         showlegend=False,
     )
 
-    # ---------- Optional overlay: state labels (abbr + rank) ----------
     if show_state_labels:
         label_df = df.copy()
         label_df["label_text"] = label_df["state_abbr"] + " (" + label_df["rank"].astype(str) + ")"
@@ -832,7 +806,6 @@ def generate_map_table_html_from_df(
         df_big = label_df[~small_mask]
         df_small = label_df[small_mask]
 
-        # Big states: centered labels inside polygons with strong contrast
         if not df_big.empty:
             label_light = "#FFFFFF"
             label_dark = map_scale[2] if len(map_scale) >= 3 else "#111827"
@@ -858,7 +831,6 @@ def generate_map_table_html_from_df(
             add_big_group(dark_bg, label_light)
             add_big_group(light_bg, label_dark)
 
-        # Small NE states: callouts off the coast with brand-colored labels/lines
         if not df_small.empty:
             df_small = df_small.copy()
             df_small["centroid_lat"] = df_small["state_abbr"].map(
@@ -946,7 +918,6 @@ def generate_map_table_html_from_df(
         coloraxis_showscale=False,
     )
 
-    # Disable zooming / scroll-wheel
     map_html = fig.to_html(
         include_plotlyjs="cdn",
         full_html=False,
@@ -957,15 +928,12 @@ def generate_map_table_html_from_df(
         },
     )
 
-    # ---------- Ranked tables (respect user-chosen columns) ----------
-    # Default: all numeric columns (except rank) plus value_col
+    # Table columns
     if table_cols is None or len(table_cols) == 0:
-        default_table_cols = [c for c in numeric_cols if c not in ("rank",)]
+        default_table_cols = [c for c in numeric_cols if c != "rank"]
         table_cols = [value_col] + [c for c in default_table_cols if c != value_col]
     else:
-        # keep only existing columns, not the state column
         table_cols = [c for c in table_cols if c in df.columns and c != state_col]
-        # always ensure the primary value column is in there and first
         table_cols = [value_col] + [c for c in table_cols if c != value_col]
 
     df_for_tables = pd.DataFrame({
@@ -1046,50 +1014,22 @@ if uploaded_file is not None:
         st.error("Uploaded CSV has no rows.")
         st.stop()
 
-    # ---------- Column selection ----------
-    st.subheader("Data configuration")
+    all_columns = list(df.columns)
 
+    # ---- State column ----
     state_col = st.selectbox(
         "State column (full U.S. state names or 2-letter codes)",
-        options=list(df.columns),
+        options=all_columns,
         key="map_state_col",
     )
 
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
     if not numeric_cols:
-        numeric_cols = [c for c in df.columns if c != state_col]
+        numeric_cols = [c for c in all_columns if c != state_col]
 
-    value_col = st.selectbox(
-        "Primary metric column (used to color the map)",
-        options=[c for c in numeric_cols if c != state_col],
-        key="map_value_col",
-    )
+    # ---------- Page text ----------
+    st.markdown("### Page text")
 
-    # ---------- Column inclusion/exclusion for tables & hover ----------
-    st.markdown("### Column display options")
-
-    # All non-state columns can be used
-    available_cols = [c for c in df.columns if c != state_col]
-
-    default_table_cols = [value_col]
-    table_cols = st.multiselect(
-        "Columns to include in the ranked tables (besides the state column)",
-        options=available_cols,
-        default=st.session_state.get("map_table_cols", default_table_cols),
-        key="map_table_cols",
-        help="Only selected columns will appear in the 'Highest'/'Lowest' tables.",
-    )
-
-    default_hover_cols = [value_col]
-    hover_cols = st.multiselect(
-        "Columns to show in the map hover tooltip",
-        options=available_cols,
-        default=st.session_state.get("map_hover_cols", default_hover_cols),
-        key="map_hover_cols",
-        help="Choose which columns users see when they hover over a state on the map.",
-    )
-
-    # ---------- Text / copy ----------
     default_page_title = "State Metric Map"
     default_subtitle = "Visualizing your selected metric by U.S. state."
     default_strapline = f"{brand.upper()} · DATA VISUALIZATION"
@@ -1114,6 +1054,26 @@ if uploaded_file is not None:
         key="map_strapline",
     )
 
+    # ---------- Map settings ----------
+    st.markdown("### Map settings")
+
+    value_col = st.selectbox(
+        "Primary metric column (used to color the map)",
+        options=[c for c in numeric_cols if c != state_col],
+        key="map_value_col",
+    )
+
+    available_cols = [c for c in all_columns if c != state_col]
+
+    default_hover_cols = [value_col]
+    hover_cols = st.multiselect(
+        "Columns to show in the map hover tooltip",
+        options=available_cols,
+        default=st.session_state.get("map_hover_cols", default_hover_cols),
+        key="map_hover_cols",
+        help="Choose which columns users see when they hover over a state on the map.",
+    )
+
     col_leg1, col_leg2 = st.columns(2)
     with col_leg1:
         legend_low = st.text_input(
@@ -1128,7 +1088,18 @@ if uploaded_file is not None:
             key="map_legend_high",
         )
 
-    # Table copy
+    # ---------- Table settings ----------
+    st.markdown("### Table settings")
+
+    default_table_cols = [value_col]
+    table_cols = st.multiselect(
+        "Columns to include in the ranked tables (besides the state column)",
+        options=available_cols,
+        default=st.session_state.get("map_table_cols", default_table_cols),
+        key="map_table_cols",
+        help="Only selected columns will appear in the 'Highest'/'Lowest' tables.",
+    )
+
     col_t1, col_t2 = st.columns(2)
     with col_t1:
         high_title = st.text_input(
@@ -1477,7 +1448,6 @@ if uploaded_file is not None:
         components.html(html_preview, height=1000, scrolling=True)
 
     with tab_embed:
-        # Use the same style + label choice as the Preview tab
         style_mode = st.session_state.get("map_style_mode", "Branded")
         show_labels = st.session_state.get("map_show_labels", False)
         brand_meta_embed = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
