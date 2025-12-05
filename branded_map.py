@@ -261,7 +261,7 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
     # Decide which scale & accent set to actually use on the map + legend
     if style_mode == "unbranded":
         meta["map_scale"] = UNBRANDED_SCALE
-        # softer accent set based on the dark red in UNBRANDED_SCALE
+        # softer accent set based on red so it still feels neutral-ish
         meta["accent"] = "#EF4444"        # soft red
         meta["accent_soft"] = "#FEE2E2"   # very light red
         meta["accent_softer"] = "#FEF2F2" # almost white with red tint
@@ -762,6 +762,15 @@ def generate_map_table_html_from_df(
     accent = brand_meta.get("accent", "#16A34A")
     style_mode = brand_meta.get("style_mode", "branded")
 
+    # helper for light unbranded label colours
+    def unbranded_label_color(fill_norm: float) -> str:
+        if fill_norm < (1.0 / 3.0):
+            return "#BFDBFE"  # light blue
+        elif fill_norm < (2.0 / 3.0):
+            return "#FED7AA"  # light orange
+        else:
+            return "#FECACA"  # light red
+
     fig = px.choropleth(
         df,
         locations="state_abbr",
@@ -830,17 +839,19 @@ def generate_map_table_html_from_df(
 
             if style_mode == "unbranded":
                 # bucket by where the state sits in the blue-orange-red scale
-                low_big  = df_big[df_big["fill_norm"] < (1.0/3.0)]                 # blue end
-                mid_big  = df_big[(df_big["fill_norm"] >= (1.0/3.0)) &
-                                  (df_big["fill_norm"] < (2.0/3.0))]              # orange middle
-                high_big = df_big[df_big["fill_norm"] >= (2.0/3.0)]                # red end
+                low_big = df_big[df_big["fill_norm"] < (1.0 / 3.0)]
+                mid_big = df_big[
+                    (df_big["fill_norm"] >= (1.0 / 3.0)) &
+                    (df_big["fill_norm"] < (2.0 / 3.0))
+                ]
+                high_big = df_big[df_big["fill_norm"] >= (2.0 / 3.0)]
 
-                # text colors that match each end of the unbranded gradient
-                add_big_group(low_big,  "#1E40AF")  # dark blue on blue states
-                add_big_group(mid_big,  "#9A3412")  # dark orange on orange states
-                add_big_group(high_big, "#B91C1C")  # dark red on red states
+                # light text colours corresponding to each part of the gradient
+                add_big_group(low_big, "#BFDBFE")   # light blue
+                add_big_group(mid_big, "#FED7AA")   # light orange
+                add_big_group(high_big, "#FECACA")  # light red
             else:
-                # original branded behavior: light text on darkest fills, darker text on light fills
+                # original branded behavior
                 label_light = "#FFFFFF"
                 label_dark = map_scale[2] if len(map_scale) >= 3 else "#111827"
 
@@ -862,10 +873,6 @@ def generate_map_table_html_from_df(
             df_small = df_small.sort_values("centroid_lat", ascending=False).reset_index(drop=True)
 
             min_lat = df_small["centroid_lat"].min()
-
-            line_lons, line_lats = [], []
-            label_lons, label_lats, label_texts = [], [], []
-
             down_j = 0
 
             for _, row in df_small.iterrows():
@@ -889,35 +896,35 @@ def generate_map_table_html_from_df(
 
                     down_j += 1
 
-                line_lons += [lon0, lon1, None]
-                line_lats += [lat0, lat1, None]
+                if style_mode == "unbranded":
+                    color = unbranded_label_color(row["fill_norm"])
+                else:
+                    color = accent
 
-                label_lons.append(lon1)
-                label_lats.append(lat1)
-                label_texts.append(row["label_text"])
-
-            fig.add_trace(
-                go.Scattergeo(
-                    lon=line_lons,
-                    lat=line_lats,
-                    mode="lines",
-                    line=dict(width=1, color=accent),
-                    hoverinfo="skip",
-                    showlegend=False,
+                # leader line for this small state
+                fig.add_trace(
+                    go.Scattergeo(
+                        lon=[lon0, lon1],
+                        lat=[lat0, lat1],
+                        mode="lines",
+                        line=dict(width=1, color=color),
+                        hoverinfo="skip",
+                        showlegend=False,
+                    )
                 )
-            )
 
-            fig.add_trace(
-                go.Scattergeo(
-                    lon=label_lons,
-                    lat=label_lats,
-                    mode="text",
-                    text=label_texts,
-                    textfont=dict(size=9, color=accent),
-                    hoverinfo="skip",
-                    showlegend=False,
+                # label for this small state
+                fig.add_trace(
+                    go.Scattergeo(
+                        lon=[lon1],
+                        lat=[lat1],
+                        mode="text",
+                        text=[row["label_text"]],
+                        textfont=dict(size=9, color=color),
+                        hoverinfo="skip",
+                        showlegend=False,
+                    )
                 )
-            )
 
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),
