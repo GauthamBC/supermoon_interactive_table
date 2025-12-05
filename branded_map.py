@@ -811,7 +811,7 @@ def generate_map_table_html_from_df(
         df_big = label_df[~small_mask]
         df_small = label_df[small_mask]
 
-                if not df_big.empty:
+        if not df_big.empty:
             # helper to add a group of big-state labels
             def add_big_group(group, text_color):
                 if group.empty:
