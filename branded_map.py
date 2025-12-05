@@ -811,18 +811,8 @@ def generate_map_table_html_from_df(
         df_big = label_df[~small_mask]
         df_small = label_df[small_mask]
 
-        if not df_big.empty:
-            # In unbranded mode, use light tints of red instead of pure red/white
-            if style_mode == "unbranded":
-                label_light = "#FEE2E2"   # light red
-                label_dark = "#7F1D1D"    # dark red-brown
-            else:
-                label_light = "#FFFFFF"
-                label_dark = map_scale[2] if len(map_scale) >= 3 else "#111827"
-
-            dark_bg = df_big[df_big["fill_norm"] >= 0.55]
-            light_bg = df_big[df_big["fill_norm"] < 0.55]
-
+                if not df_big.empty:
+            # helper to add a group of big-state labels
             def add_big_group(group, text_color):
                 if group.empty:
                     return
@@ -838,8 +828,27 @@ def generate_map_table_html_from_df(
                     )
                 )
 
-            add_big_group(dark_bg, label_light)
-            add_big_group(light_bg, label_dark)
+            if style_mode == "unbranded":
+                # bucket by where the state sits in the blue-orange-red scale
+                low_big  = df_big[df_big["fill_norm"] < (1.0/3.0)]                 # blue end
+                mid_big  = df_big[(df_big["fill_norm"] >= (1.0/3.0)) &
+                                  (df_big["fill_norm"] < (2.0/3.0))]              # orange middle
+                high_big = df_big[df_big["fill_norm"] >= (2.0/3.0)]                # red end
+
+                # text colors that match each end of the unbranded gradient
+                add_big_group(low_big,  "#1E40AF")  # dark blue on blue states
+                add_big_group(mid_big,  "#9A3412")  # dark orange on orange states
+                add_big_group(high_big, "#B91C1C")  # dark red on red states
+            else:
+                # original branded behavior: light text on darkest fills, darker text on light fills
+                label_light = "#FFFFFF"
+                label_dark = map_scale[2] if len(map_scale) >= 3 else "#111827"
+
+                dark_bg = df_big[df_big["fill_norm"] >= 0.55]
+                light_bg = df_big[df_big["fill_norm"] < 0.55]
+
+                add_big_group(dark_bg, label_light)
+                add_big_group(light_bg, label_dark)
 
         if not df_small.empty:
             df_small = df_small.copy()
