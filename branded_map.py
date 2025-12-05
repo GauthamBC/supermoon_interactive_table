@@ -743,6 +743,14 @@ def generate_map_table_html_from_df(
     # Rank states by metric (1 = highest)
     df["rank"] = df[value_col].rank(ascending=False, method="min").astype(int)
 
+    # Normalized metric for label contrast (0 = lowest, 1 = highest)
+    val_min = df[value_col].min()
+    val_max = df[value_col].max()
+    if val_max > val_min:
+        df["fill_norm"] = (df[value_col] - val_min) / (val_max - val_min)
+    else:
+        df["fill_norm"] = 0.5
+
     # Numeric columns (for hover + tables)
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
     if value_col not in numeric_cols:
@@ -820,22 +828,38 @@ def generate_map_table_html_from_df(
         df_big = label_df[~small_mask]
         df_small = label_df[small_mask]
 
-        # Big states: centered labels inside polygons (dark-ish fill => white text)
+        # Big states: centered labels inside polygons with gradient-aware text colors
         if not df_big.empty:
-            fig.add_trace(
-                go.Scattergeo(
-                    locationmode="USA-states",
-                    locations=df_big["state_abbr"],
-                    text=df_big["label_text"],
-                    mode="text",
-                    textfont=dict(
-                        size=9,
-                        color="#FFFFFF",  # light text on darker state fills
-                    ),
-                    hoverinfo="skip",
-                    showlegend=False,
+
+            # Split by normalized value so we can invert the gradient for text
+            dark_bg = df_big[df_big["fill_norm"] >= 0.66]   # darker fills -> use light text
+            mid_bg  = df_big[(df_big["fill_norm"] > 0.33) & (df_big["fill_norm"] < 0.66)]
+            light_bg = df_big[df_big["fill_norm"] <= 0.33]  # lighter fills -> use dark text
+
+            def add_big_group(group, text_color):
+                if group.empty:
+                    return
+                fig.add_trace(
+                    go.Scattergeo(
+                        locationmode="USA-states",
+                        locations=group["state_abbr"],
+                        text=group["label_text"],
+                        mode="text",
+                        textfont=dict(
+                            size=9,
+                            color=text_color,
+                        ),
+                        hoverinfo="skip",
+                        showlegend=False,
+                    )
                 )
-            )
+
+            # On very dark fills (high values), use light end of gradient
+            add_big_group(dark_bg, map_scale[0])
+            # On mid tones, use the middle color
+            add_big_group(mid_bg, map_scale[1])
+            # On very light fills (low values), use the dark end of gradient
+            add_big_group(light_bg, map_scale[2])
 
         # Small NE states: callouts off the coast with brand-colored labels/lines
         if not df_small.empty:
@@ -872,16 +896,15 @@ def generate_map_table_html_from_df(
                     offset_lon = 4.8 - down_j * 0.4
                     lon1 = lon0 + offset_lon
                     lat1 = min_lat - 1.8 - down_j * 0.35
-                
+
                     # Extra spacing for specific states (DE / MD) so their
                     # labels and leader lines don't overlap.
                     nudge = DOWN_CALLOUT_NUDGE.get(abbr)
                     if nudge:
                         lon1 += nudge.get("d_lon", 0.0)
                         lat1 += nudge.get("d_lat", 0.0)
-                
-                    down_j += 1
 
+                    down_j += 1
 
                 # Leader line: centroid -> label
                 line_lons += [lon0, lon1, None]
