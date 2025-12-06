@@ -830,26 +830,20 @@ def generate_map_table_html_from_df(
                 )
 
             if style_mode == "unbranded":
-                # bucket by where the state sits in the blue-orange-red scale
-                low_mask = df_big["fill_norm"] < (1.0 / 3.0)          # blue end
-                mid_mask = (df_big["fill_norm"] >= (1.0 / 3.0)) & \
-                           (df_big["fill_norm"] < (2.0 / 3.0))        # orange middle
-                high_mask = df_big["fill_norm"] >= (2.0 / 3.0)        # red end
+                low_mask = df_big["fill_norm"] < (1.0 / 3.0)
+                mid_mask = (df_big["fill_norm"] >= (1.0 / 3.0)) & (df_big["fill_norm"] < (2.0 / 3.0))
+                high_mask = df_big["fill_norm"] >= (2.0 / 3.0)
 
-                # split out Hawaii from the other blue states so we can give it DARK blue text
-                low_hi     = df_big[low_mask & (df_big["state_abbr"] == "HI")]
+                low_hi = df_big[low_mask & (df_big["state_abbr"] == "HI")]
                 low_non_hi = df_big[low_mask & (df_big["state_abbr"] != "HI")]
-
-                mid_big  = df_big[mid_mask]
+                mid_big = df_big[mid_mask]
                 high_big = df_big[high_mask]
 
-                # blue & red fills: white text (except HI), orange fills: dark text
-                add_big_group(low_non_hi, "#FFFFFF")    # other blue states = white text
-                add_big_group(low_hi, "#1E3A8A")        # HI = dark blue text
-                add_big_group(mid_big, "#111827")       # orange states = dark text
-                add_big_group(high_big, "#FFFFFF")      # red states = white text
+                add_big_group(low_non_hi, "#FFFFFF")
+                add_big_group(low_hi, "#1E3A8A")
+                add_big_group(mid_big, "#111827")
+                add_big_group(high_big, "#FFFFFF")
             else:
-                # original branded behavior
                 label_light = "#FFFFFF"
                 label_dark = map_scale[2] if len(map_scale) >= 3 else "#111827"
 
@@ -898,7 +892,6 @@ def generate_map_table_html_from_df(
 
                     down_j += 1
 
-                # Always use dark accent for callouts (on white background)
                 line_lons += [lon0, lon1, None]
                 line_lats += [lat0, lat1, None]
 
@@ -906,7 +899,6 @@ def generate_map_table_html_from_df(
                 label_lats.append(lat1)
                 label_texts.append(row["label_text"])
 
-            # leader lines
             fig.add_trace(
                 go.Scattergeo(
                     lon=line_lons,
@@ -918,7 +910,6 @@ def generate_map_table_html_from_df(
                 )
             )
 
-            # labels (dark accent)
             fig.add_trace(
                 go.Scattergeo(
                     lon=label_lons,
@@ -959,7 +950,6 @@ def generate_map_table_html_from_df(
         },
     )
 
-    # Table columns
     if table_cols is None or len(table_cols) == 0:
         default_table_cols = [c for c in numeric_cols if c != "rank"]
         table_cols = [value_col] + [c for c in default_table_cols if c != value_col]
@@ -1085,8 +1075,6 @@ st.caption(
     f"Expected GitHub Pages URL (iframe src):\n\n`{expected_embed_url}`"
 )
 
-# ---- helper text + single button under the URL --------------
-
 st.markdown(
     "<p style='font-size:0.85rem; color:#c4c4c4;'>"
     "Click <strong>Create / update widget</strong> to publish the map page. "
@@ -1113,11 +1101,10 @@ if not GITHUB_TOKEN:
 elif not effective_github_user or not repo_name.strip():
     st.info("Fill in username and campaign name above.")
 
-# If user clicks create/update without a CSV, nudge them.
 if create_clicked and uploaded_file is None:
     st.error("Upload a CSV file before creating/updating the widget.")
 
-# ---------- Availability result + options (shown right under button) ----------
+# ---------- Availability result + options (under button) ----------
 availability = st.session_state.get("map_availability")
 if GITHUB_TOKEN and effective_github_user and repo_name.strip() and availability:
     repo_exists = availability.get("repo_exists", False)
@@ -1131,13 +1118,11 @@ if GITHUB_TOKEN and effective_github_user and repo_name.strip() and availability
             "When you click **Create / update widget**, the repo will be created and "
             f"your map will be saved as `{checked_filename}`."
         )
-        st.session_state["map_widget_file_name"] = checked_filename
     elif repo_exists and not file_exists:
         st.success(
             f"Repo exists and `{checked_filename}` is available. "
             "Create / update widget will save your map to this file."
         )
-        st.session_state["map_widget_file_name"] = checked_filename
     else:
         st.warning(
             f"A page named `{checked_filename}` already exists in this repo."
@@ -1152,10 +1137,8 @@ if GITHUB_TOKEN and effective_github_user and repo_name.strip() and availability
             key="map_file_conflict_choice",
         )
         if choice.startswith("Replace"):
-            st.session_state["map_widget_file_name"] = checked_filename
             st.info(f"Create / update widget will overwrite `{checked_filename}` in this repo.")
         elif choice.startswith("Create additional"):
-            st.session_state["map_widget_file_name"] = suggested_new_filename
             st.info(
                 f"Create / update widget will create a new file `{suggested_new_filename}` "
                 "in the same repo for this widget."
@@ -1180,12 +1163,10 @@ if uploaded_file is not None:
 
     all_columns = list(df.columns)
 
-    # ---------- Config tabs: Widget / Map / Table ----------
     tab_widget, tab_map, tab_table = st.tabs(
         ["Widget text", "Map settings", "Table settings"]
     )
 
-    # ---------- Widget text (tab) ----------
     with tab_widget:
         st.markdown("### Widget text")
 
@@ -1225,16 +1206,13 @@ if uploaded_file is not None:
                 key="map_state_col",
             )
 
-    # Determine numeric columns after we know state_col
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
     if not numeric_cols:
         numeric_cols = [c for c in all_columns if c != st.session_state.get("map_state_col", state_col)]
 
-    # Shared vars for other tabs
     state_col = st.session_state.get("map_state_col", state_col)
     available_cols = [c for c in all_columns if c != state_col]
 
-    # ---------- Map settings (tab) ----------
     with tab_map:
         st.markdown("### Map settings")
 
@@ -1244,7 +1222,6 @@ if uploaded_file is not None:
             key="map_value_col",
         )
 
-        # Hover columns (map) with "All columns" option
         hover_options = ["All columns"] + available_cols
         if "map_hover_cols" in st.session_state:
             default_hover_selection = st.session_state["map_hover_cols"]
@@ -1278,7 +1255,6 @@ if uploaded_file is not None:
                 key="map_legend_high",
             )
 
-    # ---------- Table settings (tab) ----------
     with tab_table:
         st.markdown("### Table settings")
 
@@ -1329,7 +1305,6 @@ if uploaded_file is not None:
                 key="map_low_sub",
             )
 
-    # --- Create / update widget (publish) logic ---
     if create_clicked and uploaded_file is not None:
         if not can_run_github:
             st.error("Cannot create/update widget – add your GitHub token, username and repo first.")
@@ -1338,7 +1313,6 @@ if uploaded_file is not None:
         else:
             checked_filename = widget_file_name.strip()
             try:
-                # --- Availability check for this filename ---
                 repo_exists = check_repo_exists(
                     effective_github_user,
                     repo_name.strip(),
@@ -1373,7 +1347,6 @@ if uploaded_file is not None:
                 filename_to_use = checked_filename
 
                 if conflict and not choice:
-                    # Conflict, but choice will be made via radio above; just don't publish yet.
                     should_publish = False
                 elif conflict and choice:
                     if choice.startswith("Create additional"):
@@ -1384,11 +1357,10 @@ if uploaded_file is not None:
                             "Change the widget name above, then click **Create / update widget** again."
                         )
                         should_publish = False
-                    else:  # Replace
+                    else:
                         filename_to_use = checked_filename
                         st.session_state["map_widget_file_name"] = filename_to_use
                 else:
-                    # No conflict – just use the typed name
                     st.session_state["map_widget_file_name"] = filename_to_use
 
                 if should_publish:
@@ -1478,7 +1450,6 @@ if uploaded_file is not None:
                     st.success("Branded map widget created/updated. Open the tabs below to preview and embed it.")
 
             except Exception as e:
-                # If progress bar exists, clear it
                 try:
                     progress_placeholder.empty()
                 except Exception:
@@ -1487,7 +1458,6 @@ if uploaded_file is not None:
 
     st.markdown("---")
 
-    # ---------- Preview / HTML / iframe tabs ----------
     widget_file_name = st.session_state.get("map_widget_file_name", widget_file_name or BASE_WIDGET_FILENAME)
     expected_embed_url = compute_expected_embed_url(
         effective_github_user, repo_name, widget_file_name
