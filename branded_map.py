@@ -1004,6 +1004,9 @@ BASE_WIDGET_FILENAME = "branded_map.html"
 if "map_publish_filename" not in st.session_state:
     st.session_state["map_publish_filename"] = BASE_WIDGET_FILENAME
 
+# Track whether a widget has been successfully created/updated yet
+if "map_has_generated" not in st.session_state:
+    st.session_state["map_has_generated"] = False
 
 st.title("Branded Map + Table Generator")
 st.write(
@@ -1302,6 +1305,7 @@ if uploaded_file is not None:
             st.error("Enter a widget name (e.g. branded_map.html) before creating/updating.")
         else:
             checked_filename = widget_name_input.strip()
+            progress_placeholder = None
             try:
                 # --- Availability check for this filename ---
                 repo_exists = check_repo_exists(
@@ -1443,14 +1447,15 @@ if uploaded_file is not None:
                             style="border:0;" loading="lazy"></iframe>""")
 
                     st.session_state["map_iframe_snippet"] = iframe_snippet
-                    st.session_state["map_has_generated"] = True
+                    st.session_state["map_has_generated"] = True  # <-- now we have a real widget
 
                     st.success("Branded map widget created/updated. Open the tabs below to preview and embed it.")
 
             except Exception as e:
                 # If progress bar exists, clear it
                 try:
-                    progress_placeholder.empty()
+                    if progress_placeholder is not None:
+                        progress_placeholder.empty()
                 except Exception:
                     pass
                 st.error(f"GitHub publish failed: {e}")
@@ -1506,100 +1511,108 @@ if uploaded_file is not None:
 
     st.markdown("---")
 
-    # ---------- Preview / HTML / iframe tabs ----------
-    final_widget_filename = get_effective_widget_filename()
-    expected_embed_url = compute_expected_embed_url(
-        effective_github_user, repo_name, final_widget_filename
-    )
-
-    tab_config, tab_embed = st.tabs(
-        [
-            "Preview map page",
-            "Widget HTML/Iframe",
-        ]
-    )
-
-    with tab_config:
-        col_style, col_labels = st.columns([3, 2])
-        with col_style:
-            style_mode = st.selectbox(
-                "Color style",
-                options=["Branded", "Unbranded"],
-                index=0 if st.session_state.get("map_style_mode", "Branded") == "Branded" else 1,
-                key="map_style_mode",
-                help="Branded uses site-specific palettes; Unbranded uses a neutral multi-color palette.",
-            )
-        with col_labels:
-            show_labels = st.checkbox(
-                "Show state rank labels",
-                value=st.session_state.get("map_show_labels", False),
-                key="map_show_labels",
-                help="Overlay labels like 'CA (3)' on the map (small Northeast states use callouts).",
-            )
-
-        brand_meta_preview = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
-        html_preview = generate_map_table_html_from_df(
-            df,
-            brand_meta_preview,
-            state_col=state_col,
-            value_col=st.session_state.get("map_value_col", numeric_cols[0]),
-            page_title=st.session_state.get("map_page_title", "State Metric Map"),
-            subtitle=st.session_state.get("map_subtitle", "Visualizing your selected metric by U.S. state."),
-            strapline=st.session_state.get("map_strapline", f"{brand.upper()} · DATA VISUALIZATION"),
-            legend_low=st.session_state.get("map_legend_low", "Lowest value"),
-            legend_high=st.session_state.get("map_legend_high", "Highest value"),
-            high_title=st.session_state.get("map_high_title", "States With the Highest Values"),
-            high_sub=st.session_state.get("map_high_sub", "Ranked by the selected metric."),
-            low_title=st.session_state.get("map_low_title", "States With the Lowest Values"),
-            low_sub=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
-            top_n=10,
-            show_state_labels=show_labels,
-            table_cols=table_cols,
-            hover_cols=hover_cols,
+    # ---------- Preview / HTML / iframe tabs (ONLY after successful publish) ----------
+    if st.session_state.get("map_has_generated", False):
+        final_widget_filename = get_effective_widget_filename()
+        expected_embed_url = compute_expected_embed_url(
+            effective_github_user, repo_name, final_widget_filename
         )
 
-        components.html(html_preview, height=1000, scrolling=True)
-
-    with tab_embed:
-        style_mode = st.session_state.get("map_style_mode", "Branded")
-        show_labels = st.session_state.get("map_show_labels", False)
-        brand_meta_embed = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
-        html_embed = generate_map_table_html_from_df(
-            df,
-            brand_meta_embed,
-            state_col=state_col,
-            value_col=st.session_state.get("map_value_col", numeric_cols[0]),
-            page_title=st.session_state.get("map_page_title", "State Metric Map"),
-            subtitle=st.session_state.get("map_subtitle", "Visualizing your selected metric by U.S. state."),
-            strapline=st.session_state.get("map_strapline", f"{brand.upper()} · DATA VISUALIZATION"),
-            legend_low=st.session_state.get("map_legend_low", "Lowest value"),
-            legend_high=st.session_state.get("map_legend_high", "Highest value"),
-            high_title=st.session_state.get("map_high_title", "States With the Highest Values"),
-            high_sub=st.session_state.get("map_high_sub", "Ranked by the selected metric."),
-            low_title=st.session_state.get("map_low_title", "States With the Lowest Values"),
-            low_sub=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
-            top_n=10,
-            show_state_labels=show_labels,
-            table_cols=table_cols,
-            hover_cols=hover_cols,
+        tab_config, tab_embed = st.tabs(
+            [
+                "Preview map page",
+                "Widget HTML/Iframe",
+            ]
         )
 
-        subtab_html, subtab_iframe = st.tabs(["HTML file contents", "Iframe code"])
-
-        with subtab_html:
-            st.text_area(
-                label="",
-                value=html_embed,
-                height=350,
-                label_visibility="collapsed",
-            )
-
-        with subtab_iframe:
-            st.markdown("**Current iframe code:**")
-            if st.session_state.get("map_iframe_snippet"):
-                st.code(st.session_state["map_iframe_snippet"], language="html")
-            else:
-                st.info(
-                    "No iframe yet – click **Create / update widget** above to generate it. "
-                    "It will use height=700 and scrolling=\"no\"."
+        with tab_config:
+            col_style, col_labels = st.columns([3, 2])
+            with col_style:
+                style_mode = st.selectbox(
+                    "Color style",
+                    options=["Branded", "Unbranded"],
+                    index=0 if st.session_state.get("map_style_mode", "Branded") == "Branded" else 1,
+                    key="map_style_mode",
+                    help="Branded uses site-specific palettes; Unbranded uses a neutral multi-color palette.",
                 )
+            with col_labels:
+                show_labels = st.checkbox(
+                    "Show state rank labels",
+                    value=st.session_state.get("map_show_labels", False),
+                    key="map_show_labels",
+                    help="Overlay labels like 'CA (3)' on the map (small Northeast states use callouts).",
+                )
+
+            brand_meta_preview = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
+            html_preview = generate_map_table_html_from_df(
+                df,
+                brand_meta_preview,
+                state_col=state_col,
+                value_col=st.session_state.get("map_value_col", numeric_cols[0]),
+                page_title=st.session_state.get("map_page_title", "State Metric Map"),
+                subtitle=st.session_state.get("map_subtitle", "Visualizing your selected metric by U.S. state."),
+                strapline=st.session_state.get("map_strapline", f"{brand.upper()} · DATA VISUALIZATION"),
+                legend_low=st.session_state.get("map_legend_low", "Lowest value"),
+                legend_high=st.session_state.get("map_legend_high", "Highest value"),
+                high_title=st.session_state.get("map_high_title", "States With the Highest Values"),
+                high_sub=st.session_state.get("map_high_sub", "Ranked by the selected metric."),
+                low_title=st.session_state.get("map_low_title", "States With the Lowest Values"),
+                low_sub=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
+                top_n=10,
+                show_state_labels=show_labels,
+                table_cols=table_cols,
+                hover_cols=hover_cols,
+            )
+
+            components.html(html_preview, height=1000, scrolling=True)
+
+        with tab_embed:
+            style_mode = st.session_state.get("map_style_mode", "Branded")
+            show_labels = st.session_state.get("map_show_labels", False)
+            brand_meta_embed = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
+            html_embed = generate_map_table_html_from_df(
+                df,
+                brand_meta_embed,
+                state_col=state_col,
+                value_col=st.session_state.get("map_value_col", numeric_cols[0]),
+                page_title=st.session_state.get("map_page_title", "State Metric Map"),
+                subtitle=st.session_state.get("map_subtitle", "Visualizing your selected metric by U.S. state."),
+                strapline=st.session_state.get("map_strapline", f"{brand.upper()} · DATA VISUALIZATION"),
+                legend_low=st.session_state.get("map_legend_low", "Lowest value"),
+                legend_high=st.session_state.get("map_legend_high", "Highest value"),
+                high_title=st.session_state.get("map_high_title", "States With the Highest Values"),
+                high_sub=st.session_state.get("map_high_sub", "Ranked by the selected metric."),
+                low_title=st.session_state.get("map_low_title", "States With the Lowest Values"),
+                low_sub=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
+                top_n=10,
+                show_state_labels=show_labels,
+                table_cols=table_cols,
+                hover_cols=hover_cols,
+            )
+
+            subtab_html, subtab_iframe = st.tabs(["HTML file contents", "Iframe code"])
+
+            with subtab_html:
+                st.text_area(
+                    label="",
+                    value=html_embed,
+                    height=350,
+                    label_visibility="collapsed",
+                )
+
+            with subtab_iframe:
+                st.markdown("**Current iframe code:**")
+                if st.session_state.get("map_iframe_snippet"):
+                    st.code(st.session_state["map_iframe_snippet"], language="html")
+                else:
+                    st.info(
+                        "No iframe yet – click **Create / update widget** above to generate it. "
+                        'It will use height=700 and scrolling="no".'
+                    )
+    else:
+        # No widget has been generated yet in this session
+        st.info(
+            "Upload your CSV and configure the settings above, then click "
+            "**Create / update widget**. The preview and embed code will appear here "
+            "after the widget is created or updated."
+        )
