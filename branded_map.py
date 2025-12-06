@@ -1000,6 +1000,11 @@ st.set_page_config(page_title="Branded Map + Table Generator", layout="wide")
 
 BASE_WIDGET_FILENAME = "branded_map.html"
 
+# This holds the *effective* filename we will publish to (never a widget key)
+if "map_publish_filename" not in st.session_state:
+    st.session_state["map_publish_filename"] = BASE_WIDGET_FILENAME
+
+
 st.title("Branded Map + Table Generator")
 st.write(
     "Upload a CSV of U.S. states and one or more metrics, choose a brand, then click "
@@ -1030,7 +1035,12 @@ uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
 saved_gh_user = st.session_state.get("map_gh_user", "")
 saved_gh_repo = st.session_state.get("map_gh_repo", "branded-map-widget")
-saved_widget_name = st.session_state.get("map_widget_file_name", BASE_WIDGET_FILENAME)
+
+# Use either what the user last typed into the widget, or our effective filename
+saved_widget_name = st.session_state.get(
+    "map_widget_name_input",
+    st.session_state.get("map_publish_filename", BASE_WIDGET_FILENAME),
+)
 
 username_options = ["GauthamBC", "ActionNetwork", "MoonWatcher", "SampleUser"]
 if GITHUB_USER_DEFAULT and GITHUB_USER_DEFAULT not in username_options:
@@ -1055,10 +1065,10 @@ repo_name = st.text_input(
     key="map_gh_repo",
 )
 
-widget_file_name = st.text_input(
+widget_name_input = st.text_input(
     "Widget name",
     value=saved_widget_name,
-    key="map_widget_file_name",
+    key="map_widget_name_input",
     help="This becomes the HTML file name in the GitHub repo, e.g. burnout_odds_map.html",
 )
 
@@ -1067,13 +1077,28 @@ def compute_expected_embed_url(user: str, repo: str, fname: str) -> str:
         return f"https://{user}.github.io/{repo.strip()}/{fname.strip()}"
     return "https://example.github.io/your-repo/widget.html"
 
+def get_effective_widget_filename() -> str:
+    """Filename we’ll actually publish to."""
+    publish_name = (st.session_state.get("map_publish_filename") or "").strip()
+    user_typed = (st.session_state.get("map_widget_name_input") or "").strip()
+
+    if publish_name:
+        return publish_name
+    if user_typed:
+        return user_typed
+    return BASE_WIDGET_FILENAME
+
+effective_widget_filename = get_effective_widget_filename()
+
 expected_embed_url = compute_expected_embed_url(
-    effective_github_user, repo_name, widget_file_name or BASE_WIDGET_FILENAME
+    effective_github_user, repo_name, effective_widget_filename
 )
 
 st.caption(
     f"Expected GitHub Pages URL (iframe src):\n\n`{expected_embed_url}`"
 )
+
+# ---- helper text + single button under the URL --------------
 
 st.markdown(
     "<p style='font-size:0.85rem; color:#c4c4c4;'>"
@@ -1101,52 +1126,9 @@ if not GITHUB_TOKEN:
 elif not effective_github_user or not repo_name.strip():
     st.info("Fill in username and campaign name above.")
 
+# If user clicks create/update without a CSV, nudge them.
 if create_clicked and uploaded_file is None:
     st.error("Upload a CSV file before creating/updating the widget.")
-
-# ---------- Availability result + options (under button) ----------
-availability = st.session_state.get("map_availability")
-if GITHUB_TOKEN and effective_github_user and repo_name.strip() and availability:
-    repo_exists = availability.get("repo_exists", False)
-    file_exists = availability.get("file_exists", False)
-    checked_filename = availability.get("checked_filename", widget_file_name or BASE_WIDGET_FILENAME)
-    suggested_new_filename = availability.get("suggested_new_filename") or "t1.html"
-
-    if not repo_exists:
-        st.info(
-            "No existing repo found for this campaign. "
-            "When you click **Create / update widget**, the repo will be created and "
-            f"your map will be saved as `{checked_filename}`."
-        )
-    elif repo_exists and not file_exists:
-        st.success(
-            f"Repo exists and `{checked_filename}` is available. "
-            "Create / update widget will save your map to this file."
-        )
-    else:
-        st.warning(
-            f"A page named `{checked_filename}` already exists in this repo."
-        )
-        choice = st.radio(
-            "What would you like to do?",
-            options=[
-                "Replace existing widget (overwrite file)",
-                f"Create additional widget file in same repo (use {suggested_new_filename})",
-                "Change widget name above",
-            ],
-            key="map_file_conflict_choice",
-        )
-        if choice.startswith("Replace"):
-            st.info(f"Create / update widget will overwrite `{checked_filename}` in this repo.")
-        elif choice.startswith("Create additional"):
-            st.info(
-                f"Create / update widget will create a new file `{suggested_new_filename}` "
-                "in the same repo for this widget."
-            )
-        else:
-            st.info(
-                "Change the widget name above, then click **Create / update widget** again."
-            )
 
 # =====================================================================
 
@@ -1163,10 +1145,12 @@ if uploaded_file is not None:
 
     all_columns = list(df.columns)
 
+    # ---------- Config tabs: Widget / Map / Table ----------
     tab_widget, tab_map, tab_table = st.tabs(
         ["Widget text", "Map settings", "Table settings"]
     )
 
+    # ---------- Widget text (tab) ----------
     with tab_widget:
         st.markdown("### Widget text")
 
@@ -1206,13 +1190,16 @@ if uploaded_file is not None:
                 key="map_state_col",
             )
 
+    # Determine numeric columns after we know state_col
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
     if not numeric_cols:
         numeric_cols = [c for c in all_columns if c != st.session_state.get("map_state_col", state_col)]
 
+    # Shared vars for other tabs
     state_col = st.session_state.get("map_state_col", state_col)
     available_cols = [c for c in all_columns if c != state_col]
 
+    # ---------- Map settings (tab) ----------
     with tab_map:
         st.markdown("### Map settings")
 
@@ -1222,6 +1209,7 @@ if uploaded_file is not None:
             key="map_value_col",
         )
 
+        # Hover columns (map) with "All columns" option
         hover_options = ["All columns"] + available_cols
         if "map_hover_cols" in st.session_state:
             default_hover_selection = st.session_state["map_hover_cols"]
@@ -1255,6 +1243,7 @@ if uploaded_file is not None:
                 key="map_legend_high",
             )
 
+    # ---------- Table settings (tab) ----------
     with tab_table:
         st.markdown("### Table settings")
 
@@ -1305,14 +1294,16 @@ if uploaded_file is not None:
                 key="map_low_sub",
             )
 
-    if create_clicked and uploaded_file is not None:
+    # --- Create / update widget (publish) logic ---
+    if create_clicked:
         if not can_run_github:
             st.error("Cannot create/update widget – add your GitHub token, username and repo first.")
-        elif not (widget_file_name and widget_file_name.strip()):
+        elif not (widget_name_input and widget_name_input.strip()):
             st.error("Enter a widget name (e.g. branded_map.html) before creating/updating.")
         else:
-            checked_filename = widget_file_name.strip()
+            checked_filename = widget_name_input.strip()
             try:
+                # --- Availability check for this filename ---
                 repo_exists = check_repo_exists(
                     effective_github_user,
                     repo_name.strip(),
@@ -1347,21 +1338,28 @@ if uploaded_file is not None:
                 filename_to_use = checked_filename
 
                 if conflict and not choice:
+                    # First time seeing the conflict – show options and wait for another click
+                    st.warning(
+                        f"A page named `{checked_filename}` already exists in this repo. "
+                        "Choose what you'd like to do in the options below, then click "
+                        "**Create / update widget** again."
+                    )
                     should_publish = False
                 elif conflict and choice:
                     if choice.startswith("Create additional"):
                         filename_to_use = next_fname or checked_filename
-                        st.session_state["map_widget_file_name"] = filename_to_use
+                        st.session_state["map_publish_filename"] = filename_to_use
                     elif choice.startswith("Change widget"):
                         st.info(
                             "Change the widget name above, then click **Create / update widget** again."
                         )
                         should_publish = False
-                    else:
+                    else:  # Replace
                         filename_to_use = checked_filename
-                        st.session_state["map_widget_file_name"] = filename_to_use
+                        st.session_state["map_publish_filename"] = filename_to_use
                 else:
-                    st.session_state["map_widget_file_name"] = filename_to_use
+                    # No conflict – just use the typed name
+                    st.session_state["map_publish_filename"] = filename_to_use
 
                 if should_publish:
                     progress_placeholder = st.empty()
@@ -1450,17 +1448,68 @@ if uploaded_file is not None:
                     st.success("Branded map widget created/updated. Open the tabs below to preview and embed it.")
 
             except Exception as e:
+                # If progress bar exists, clear it
                 try:
                     progress_placeholder.empty()
                 except Exception:
                     pass
                 st.error(f"GitHub publish failed: {e}")
 
+    # ---------- Availability result + options ----------
+    availability = st.session_state.get("map_availability")
+    if GITHUB_TOKEN and effective_github_user and repo_name.strip():
+        if availability:
+            repo_exists = availability.get("repo_exists", False)
+            file_exists = availability.get("file_exists", False)
+            checked_filename = availability.get("checked_filename", get_effective_widget_filename())
+            suggested_new_filename = availability.get("suggested_new_filename") or "t1.html"
+
+            if not repo_exists:
+                st.info(
+                    "No existing repo found for this campaign. "
+                    "When you click **Create / update widget**, the repo will be created and "
+                    f"your map will be saved as `{checked_filename}`."
+                )
+                st.session_state["map_publish_filename"] = checked_filename
+            elif repo_exists and not file_exists:
+                st.success(
+                    f"Repo exists and `{checked_filename}` is available. "
+                    "Create / update widget will save your map to this file."
+                )
+                st.session_state["map_publish_filename"] = checked_filename
+            else:
+                st.warning(
+                    f"A page named `{checked_filename}` already exists in this repo."
+                )
+                choice = st.radio(
+                    "What would you like to do?",
+                    options=[
+                        "Replace existing widget (overwrite file)",
+                        f"Create additional widget file in same repo (use {suggested_new_filename})",
+                        "Change widget name above",
+                    ],
+                    key="map_file_conflict_choice",
+                )
+                if choice.startswith("Replace"):
+                    st.session_state["map_publish_filename"] = checked_filename
+                    st.info(f"Create / update widget will overwrite `{checked_filename}` in this repo.")
+                elif choice.startswith("Create additional"):
+                    st.session_state["map_publish_filename"] = suggested_new_filename
+                    st.info(
+                        f"Create / update widget will create a new file `{suggested_new_filename}` "
+                        "in the same repo for this widget."
+                    )
+                else:
+                    st.info(
+                        "Change the widget name above, then click **Create / update widget** again."
+                    )
+
     st.markdown("---")
 
-    widget_file_name = st.session_state.get("map_widget_file_name", widget_file_name or BASE_WIDGET_FILENAME)
+    # ---------- Preview / HTML / iframe tabs ----------
+    final_widget_filename = get_effective_widget_filename()
     expected_embed_url = compute_expected_embed_url(
-        effective_github_user, repo_name, widget_file_name
+        effective_github_user, repo_name, final_widget_filename
     )
 
     tab_config, tab_embed = st.tabs(
