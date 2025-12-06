@@ -1133,6 +1133,67 @@ elif not effective_github_user or not repo_name.strip():
 if create_clicked and uploaded_file is None:
     st.error("Upload a CSV file before creating/updating the widget.")
 
+# ---------------------------------------------------------------------
+#  STATUS + AVAILABILITY MESSAGES (directly under the button, above tabs)
+# ---------------------------------------------------------------------
+if uploaded_file is not None:
+    # General guidance about preview/embed visibility until first publish
+    if not st.session_state.get("map_has_generated", False):
+        st.info(
+            "Upload your CSV and configure the settings below, then click "
+            "**Create / update widget**. The preview and embed code will appear "
+            "after the widget is created or updated."
+        )
+
+    # Repo / file availability + conflict handling
+    if GITHUB_TOKEN and effective_github_user and repo_name.strip():
+        availability = st.session_state.get("map_availability")
+        if availability:
+            repo_exists = availability.get("repo_exists", False)
+            file_exists = availability.get("file_exists", False)
+            checked_filename = availability.get("checked_filename", get_effective_widget_filename())
+            suggested_new_filename = availability.get("suggested_new_filename") or "t1.html"
+
+            if not repo_exists:
+                st.info(
+                    "No existing repo found for this campaign. "
+                    "When you click **Create / update widget**, the repo will be created and "
+                    f"your map will be saved as `{checked_filename}`."
+                )
+                st.session_state["map_publish_filename"] = checked_filename
+            elif repo_exists and not file_exists:
+                st.success(
+                    f"Repo exists and `{checked_filename}` is available. "
+                    "Create / update widget will save your map to this file."
+                )
+                st.session_state["map_publish_filename"] = checked_filename
+            else:
+                st.warning(
+                    f"A page named `{checked_filename}` already exists in this repo."
+                )
+                choice = st.radio(
+                    "What would you like to do?",
+                    options=[
+                        "Replace existing widget (overwrite file)",
+                        f"Create additional widget file in same repo (use {suggested_new_filename})",
+                        "Change widget name above",
+                    ],
+                    key="map_file_conflict_choice",
+                )
+                if choice.startswith("Replace"):
+                    st.session_state["map_publish_filename"] = checked_filename
+                    st.info(f"Create / update widget will overwrite `{checked_filename}` in this repo.")
+                elif choice.startswith("Create additional"):
+                    st.session_state["map_publish_filename"] = suggested_new_filename
+                    st.info(
+                        f"Create / update widget will create a new file `{suggested_new_filename}` "
+                        "in the same repo for this widget."
+                    )
+                else:
+                    st.info(
+                        "Change the widget name above, then click **Create / update widget** again."
+                    )
+
 # =====================================================================
 
 if uploaded_file is not None:
@@ -1342,12 +1403,8 @@ if uploaded_file is not None:
                 filename_to_use = checked_filename
 
                 if conflict and not choice:
-                    # First time seeing the conflict – show options and wait for another click
-                    st.warning(
-                        f"A page named `{checked_filename}` already exists in this repo. "
-                        "Choose what you'd like to do in the options below, then click "
-                        "**Create / update widget** again."
-                    )
+                    # Conflict, but user hasn't chosen what to do yet.
+                    # Availability block above will show options; do not publish.
                     should_publish = False
                 elif conflict and choice:
                     if choice.startswith("Create additional"):
@@ -1447,7 +1504,7 @@ if uploaded_file is not None:
                             style="border:0;" loading="lazy"></iframe>""")
 
                     st.session_state["map_iframe_snippet"] = iframe_snippet
-                    st.session_state["map_has_generated"] = True  # <-- now we have a real widget
+                    st.session_state["map_has_generated"] = True  # now we have a real widget
 
                     st.success("Branded map widget created/updated. Open the tabs below to preview and embed it.")
 
@@ -1459,55 +1516,6 @@ if uploaded_file is not None:
                 except Exception:
                     pass
                 st.error(f"GitHub publish failed: {e}")
-
-    # ---------- Availability result + options ----------
-    availability = st.session_state.get("map_availability")
-    if GITHUB_TOKEN and effective_github_user and repo_name.strip():
-        if availability:
-            repo_exists = availability.get("repo_exists", False)
-            file_exists = availability.get("file_exists", False)
-            checked_filename = availability.get("checked_filename", get_effective_widget_filename())
-            suggested_new_filename = availability.get("suggested_new_filename") or "t1.html"
-
-            if not repo_exists:
-                st.info(
-                    "No existing repo found for this campaign. "
-                    "When you click **Create / update widget**, the repo will be created and "
-                    f"your map will be saved as `{checked_filename}`."
-                )
-                st.session_state["map_publish_filename"] = checked_filename
-            elif repo_exists and not file_exists:
-                st.success(
-                    f"Repo exists and `{checked_filename}` is available. "
-                    "Create / update widget will save your map to this file."
-                )
-                st.session_state["map_publish_filename"] = checked_filename
-            else:
-                st.warning(
-                    f"A page named `{checked_filename}` already exists in this repo."
-                )
-                choice = st.radio(
-                    "What would you like to do?",
-                    options=[
-                        "Replace existing widget (overwrite file)",
-                        f"Create additional widget file in same repo (use {suggested_new_filename})",
-                        "Change widget name above",
-                    ],
-                    key="map_file_conflict_choice",
-                )
-                if choice.startswith("Replace"):
-                    st.session_state["map_publish_filename"] = checked_filename
-                    st.info(f"Create / update widget will overwrite `{checked_filename}` in this repo.")
-                elif choice.startswith("Create additional"):
-                    st.session_state["map_publish_filename"] = suggested_new_filename
-                    st.info(
-                        f"Create / update widget will create a new file `{suggested_new_filename}` "
-                        "in the same repo for this widget."
-                    )
-                else:
-                    st.info(
-                        "Change the widget name above, then click **Create / update widget** again."
-                    )
 
     st.markdown("---")
 
@@ -1609,10 +1617,3 @@ if uploaded_file is not None:
                         "No iframe yet – click **Create / update widget** above to generate it. "
                         'It will use height=700 and scrolling="no".'
                     )
-    else:
-        # No widget has been generated yet in this session
-        st.info(
-            "Upload your CSV and configure the settings above, then click "
-            "**Create / update widget**. The preview and embed code will appear here "
-            "after the widget is created or updated."
-        )
