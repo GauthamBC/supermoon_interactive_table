@@ -1060,16 +1060,16 @@ github_username_input = st.selectbox(
 effective_github_user = github_username_input.strip()
 
 repo_name = st.text_input(
-    "Widget hosting repository name",
+    "Campaign name (Please fill in text without any space such as Burnoutodds or Burnout_odds)",
     value=saved_gh_repo,
     key="map_gh_repo",
 )
 
 widget_file_name = st.text_input(
-    "Widget file name in repo (e.g. branded_map.html)",
+    "Widget name",
     value=saved_widget_name,
     key="map_widget_file_name",
-    help="This is the HTML file that will be created or updated in the GitHub repo.",
+    help="This becomes the HTML file name in the GitHub repo, e.g. burnout_odds_map.html",
 )
 
 def compute_expected_embed_url(user: str, repo: str, fname: str) -> str:
@@ -1286,7 +1286,7 @@ if uploaded_file is not None:
         if not can_run_github:
             st.error("Cannot create/update widget – add your GitHub token, username and repo first.")
         elif not (widget_file_name and widget_file_name.strip()):
-            st.error("Enter a widget file name (e.g. branded_map.html) before creating/updating.")
+            st.error("Enter a widget name (e.g. branded_map.html) before creating/updating.")
         else:
             checked_filename = widget_file_name.strip()
             try:
@@ -1338,7 +1338,7 @@ if uploaded_file is not None:
                         st.session_state["map_widget_file_name"] = filename_to_use
                     elif choice.startswith("Change widget"):
                         st.info(
-                            "Change the widget file name above, then click **Create / update widget** again."
+                            "Change the widget name above, then click **Create / update widget** again."
                         )
                         should_publish = False
                     else:  # Replace
@@ -1473,7 +1473,7 @@ if uploaded_file is not None:
                     options=[
                         "Replace existing widget (overwrite file)",
                         f"Create additional widget file in same repo (use {suggested_new_filename})",
-                        "Change widget file name above",
+                        "Change widget name above",
                     ],
                     key="map_file_conflict_choice",
                 )
@@ -1488,7 +1488,7 @@ if uploaded_file is not None:
                     )
                 else:
                     st.info(
-                        "Change the widget file name above, then click **Create / update widget** again."
+                        "Change the widget name above, then click **Create / update widget** again."
                     )
 
     st.markdown("---")
