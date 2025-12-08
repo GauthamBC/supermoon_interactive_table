@@ -460,6 +460,44 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   max-width:140px;
   height:auto;
 }
+.vi-map-brand-link img{
+  display:block;
+  max-width:140px;
+  height:auto;
+}
+
+/* Brand-tinted logos in the header */
+.vi-map-card.brand-actionnetwork .vi-map-brand-link img{
+  /* Action Network green */
+  filter:
+    brightness(0) saturate(100%)
+    invert(62%) sepia(23%) saturate(1250%) hue-rotate(78deg)
+    brightness(96%) contrast(92%);
+}
+
+.vi-map-card.brand-vegasinsider .vi-map-brand-link img{
+  /* VegasInsider yellow */
+  filter:
+    brightness(0) saturate(100%)
+    invert(72%) sepia(63%) saturate(652%) hue-rotate(6deg)
+    brightness(95%) contrast(101%);
+}
+
+.vi-map-card.brand-canadasb .vi-map-brand-link img{
+  /* Canada Sports Betting red */
+  filter:
+    brightness(0) saturate(100%)
+    invert(32%) sepia(85%) saturate(2386%) hue-rotate(347deg)
+    brightness(96%) contrast(104%);
+}
+
+.vi-map-card.brand-rotogrinders .vi-map-brand-link img{
+  /* RotoGrinders blue */
+  filter:
+    brightness(0) saturate(100%)
+    invert(23%) sepia(95%) saturate(1704%) hue-rotate(203deg)
+    brightness(93%) contrast(96%);
+}
 
 /* Strapline + title + subtitle */
 .vi-map-strapline{
