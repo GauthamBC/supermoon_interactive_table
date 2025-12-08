@@ -123,6 +123,7 @@ def upload_file_to_github(
     if r.status_code not in (200, 201):
         raise RuntimeError(f"Error uploading file: {r.status_code} {r.text}")
 
+
 def trigger_pages_build(owner: str, repo: str, token: str) -> bool:
     """
     Ask GitHub to build the Pages site (legacy mode).
@@ -203,7 +204,7 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
     brand_clean = (brand or "").strip() or "Action Network"
     style_mode = (style_mode or "Branded").strip().lower()
 
-    # base meta
+    # base meta (with defaults)
     meta = {
         "name": brand_clean,
         "brand_class": "",
@@ -213,6 +214,10 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
         "accent_soft": "#DCFCE7",
         "accent_softer": "#F3FBF7",
         "branded_scale": UNBRANDED_SCALE,
+        # NEW: site URL + logo size (used in header, right-hand side)
+        "site_url": "https://www.actionnetwork.com/",
+        "logo_width": 140,
+        "logo_height": 32,
     }
 
     if brand_clean == "Action Network":
@@ -224,6 +229,9 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "accent_soft": "#DCFCE7",
             "accent_softer": "#F3FBF7",
             "branded_scale": ["#BBF7D0", "#4ADE80", "#166534"],
+            "site_url": "https://www.actionnetwork.com/",
+            "logo_width": 140,
+            "logo_height": 32,
         })
     elif brand_clean == "VegasInsider":
         meta.update({
@@ -234,6 +242,9 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "accent_soft": "#FFF3C7",
             "accent_softer": "#FFF9EC",
             "branded_scale": ["#FFF9EC", "#FCD34D", "#B45309"],
+            "site_url": "https://www.vegasinsider.com/",
+            "logo_width": 140,
+            "logo_height": 32,
         })
     elif brand_clean == "Canada Sports Betting":
         meta.update({
@@ -244,6 +255,9 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "accent_soft": "#FEE2E2",
             "accent_softer": "#FFF5F5",
             "branded_scale": ["#FECACA", "#FB7185", "#B91C1C"],
+            "site_url": "https://www.canadasportsbetting.ca/",
+            "logo_width": 140,
+            "logo_height": 32,
         })
     elif brand_clean == "RotoGrinders":
         meta.update({
@@ -254,6 +268,9 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "accent_soft": "#E0F2FE",
             "accent_softer": "#F3FAFF",
             "branded_scale": ["#BFDBFE", "#38BDF8", "#1D4ED8"],
+            "site_url": "https://rotogrinders.com/",
+            "logo_width": 140,
+            "logo_height": 32,
         })
 
     # remember style_mode so downstream code can behave differently
@@ -420,10 +437,31 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   filter:brightness(0.9);
 }
 
-/* Top strapline + title */
+/* Top header: copy left, logo/link right */
 .vi-map-header{
   margin-bottom:10px;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
 }
+.vi-map-header-main{
+  flex:1 1 auto;
+  min-width:0;
+}
+.vi-map-brand-link{
+  flex-shrink:0;
+  display:inline-flex;
+  align-items:flex-start;
+  text-decoration:none;
+}
+.vi-map-brand-link img{
+  display:block;
+  max-width:140px;
+  height:auto;
+}
+
+/* Strapline + title + subtitle */
 .vi-map-strapline{
   font-size:11px;
   letter-spacing:.12em;
@@ -570,9 +608,19 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 <div class="vi-map-shell">
 
   <header class="vi-map-header">
-    <div class="vi-map-strapline">[[STRAPLINE]]</div>
-    <h1 class="vi-map-title">[[PAGE_TITLE]]</h1>
-    <p class="vi-map-subtitle">[[SUBTITLE]]</p>
+    <div class="vi-map-header-main">
+      <div class="vi-map-strapline">[[STRAPLINE]]</div>
+      <h1 class="vi-map-title">[[PAGE_TITLE]]</h1>
+      <p class="vi-map-subtitle">[[SUBTITLE]]</p>
+    </div>
+    <a href="[[BRAND_URL]]" target="_blank" rel="noopener noreferrer" class="vi-map-brand-link">
+      <img src="[[BRAND_LOGO_URL]]"
+           alt="[[BRAND_LOGO_ALT]]"
+           width="[[BRAND_LOGO_WIDTH]]"
+           height="[[BRAND_LOGO_HEIGHT]]"
+           loading="lazy"
+           decoding="async" />
+    </a>
   </header>
 
   <div class="vi-map-legend">
@@ -688,6 +736,7 @@ def build_ranked_table_html(df: pd.DataFrame, value_col: str, top_n: int = 10) -
 </table>
 """
     return table_html
+
 
 def generate_map_table_html_from_df(
     df: pd.DataFrame,
@@ -992,6 +1041,11 @@ def generate_map_table_html_from_df(
         .replace("[[SCALE_START]]", scale_start)
         .replace("[[SCALE_MID]]", scale_mid)
         .replace("[[SCALE_END]]", scale_end)
+        .replace("[[BRAND_LOGO_URL]]", brand_meta.get("logo_url", ""))
+        .replace("[[BRAND_LOGO_ALT]]", html_mod.escape(brand_meta.get("logo_alt", "")))
+        .replace("[[BRAND_URL]]", html_mod.escape(brand_meta.get("site_url", "")))
+        .replace("[[BRAND_LOGO_WIDTH]]", str(brand_meta.get("logo_width", 140)))
+        .replace("[[BRAND_LOGO_HEIGHT]]", str(brand_meta.get("logo_height", 32)))
     )
     return html
 
