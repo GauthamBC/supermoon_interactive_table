@@ -512,7 +512,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   font-size:clamp(22px,2.6vw,26px);
   line-height:1.1;
   font-weight:800;
-  color:#0F172A;
+  color:var(--accent);
 }
 .vi-map-subtitle{
   margin:0;
