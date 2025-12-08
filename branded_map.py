@@ -123,7 +123,6 @@ def upload_file_to_github(
     if r.status_code not in (200, 201):
         raise RuntimeError(f"Error uploading file: {r.status_code} {r.text}")
 
-
 def trigger_pages_build(owner: str, repo: str, token: str) -> bool:
     """
     Ask GitHub to build the Pages site (legacy mode).
@@ -214,7 +213,7 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
         "accent_soft": "#DCFCE7",
         "accent_softer": "#F3FBF7",
         "branded_scale": UNBRANDED_SCALE,
-        # NEW: site URL + logo size (used in header, right-hand side)
+        # site URL + logo size (used in header, right-hand side)
         "site_url": "https://www.actionnetwork.com/",
         "logo_width": 140,
         "logo_height": 32,
@@ -774,7 +773,6 @@ def build_ranked_table_html(df: pd.DataFrame, value_col: str, top_n: int = 10) -
 </table>
 """
     return table_html
-
 
 def generate_map_table_html_from_df(
     df: pd.DataFrame,
@@ -1585,7 +1583,8 @@ if uploaded_file is not None and st.session_state.get("map_can_configure", False
                 time.sleep(0.12)
                 progress.progress(pct)
 
-            style_mode = st.session_state.get("map_style_mode", "Branded")
+            # Always use Branded style
+            style_mode = "Branded"
             show_labels = st.session_state.get("map_show_labels", False)
             brand_meta_publish = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
 
@@ -1691,23 +1690,15 @@ if uploaded_file is not None and st.session_state.get("map_can_configure", False
         )
 
         with tab_config:
-            col_style, col_labels = st.columns([3, 2])
-            with col_style:
-                style_mode = st.selectbox(
-                    "Color style",
-                    options=["Branded", "Unbranded"],
-                    index=0 if st.session_state.get("map_style_mode", "Branded") == "Branded" else 1,
-                    key="map_style_mode",
-                    help="Branded uses site-specific palettes; Unbranded uses a neutral multi-color palette.",
-                )
-            with col_labels:
-                show_labels = st.checkbox(
-                    "Show state rank labels",
-                    value=st.session_state.get("map_show_labels", False),
-                    key="map_show_labels",
-                    help="Overlay labels like 'CA (3)' on the map (small Northeast states use callouts).",
-                )
+            # Only keep the label toggle; color style is fixed to Branded
+            show_labels = st.checkbox(
+                "Show state rank labels",
+                value=st.session_state.get("map_show_labels", False),
+                key="map_show_labels",
+                help="Overlay labels like 'CA (3)' on the map (small Northeast states use callouts).",
+            )
 
+            style_mode = "Branded"
             brand_meta_preview = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
             html_preview = generate_map_table_html_from_df(
                 df,
@@ -1732,7 +1723,7 @@ if uploaded_file is not None and st.session_state.get("map_can_configure", False
             components.html(html_preview, height=1000, scrolling=True)
 
         with tab_embed:
-            style_mode = st.session_state.get("map_style_mode", "Branded")
+            style_mode = "Branded"
             show_labels = st.session_state.get("map_show_labels", False)
             brand_meta_embed = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
             html_embed = generate_map_table_html_from_df(
