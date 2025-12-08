@@ -162,6 +162,7 @@ def find_next_widget_filename(owner: str, repo: str, token: str, branch: str = "
     """
     Look at the root of the repo and find the next available tN.html filename.
     Returns 't1.html' if none are found or on fallback.
+    (Kept for future use, but not used in the simplified UX.)
     """
     api_base = "https://api.github.com"
     headers = github_headers(token)
@@ -537,7 +538,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 .vi-map-table tbody tr:nth-child(odd){
   background:#FFFFFF;
 }
-.vi-map-table tbody tr:nth-child(even){
+vi-map-table tbody tr:nth-child(even){
   background:var(--accent-softer);
 }
 .vi-map-table tbody tr:hover{
@@ -1111,7 +1112,7 @@ st.markdown(
     "<p style='font-size:0.85rem; color:#c4c4c4;'>"
     "Click <strong>Create / update widget</strong> to publish the map page. "
     "If a widget with this file name already exists in the repo, you'll be asked whether to "
-    "replace it or create a new file.</p>",
+    "replace it or choose a new name.</p>",
     unsafe_allow_html=True,
 )
 
@@ -1177,7 +1178,7 @@ if create_clicked and uploaded_file is not None and can_run_github:
 
 # ---------------------------------------------------------------------
 #  STATUS + AVAILABILITY MESSAGES (directly under the button)
-#  + conflict options + Proceed button (for existing repo+file only)
+#  + conflict yes/no + Proceed button (for existing repo+file only)
 # ---------------------------------------------------------------------
 proceed_clicked = False  # default
 
@@ -1187,8 +1188,8 @@ if uploaded_file is not None:
         st.info(
             "Upload your CSV and configure the settings below, then click "
             "**Create / update widget**. If an existing widget is found, you'll be asked "
-            "how to handle it, then you can click **Proceed** to publish. The preview and "
-            "embed code will appear after the widget is created or updated."
+            "whether to replace it or change the name, then you can click **Proceed** to publish. "
+            "The preview and embed code will appear after the widget is created or updated."
         )
 
     availability = st.session_state.get("map_availability")
@@ -1196,7 +1197,8 @@ if uploaded_file is not None:
         repo_exists = availability.get("repo_exists", False)
         file_exists = availability.get("file_exists", False)
         checked_filename = availability.get("checked_filename", get_effective_widget_filename())
-        suggested_new_filename = availability.get("suggested_new_filename") or "t1.html"
+        # suggested_new_filename is computed but not shown anymore in the simplified UX
+        # suggested_new_filename = availability.get("suggested_new_filename") or "t1.html"
 
         if not repo_exists:
             st.info(
@@ -1212,27 +1214,33 @@ if uploaded_file is not None:
             )
             st.session_state["map_publish_filename"] = checked_filename
         else:
-            # Existing repo + existing file => show options + Proceed
+            # Existing repo + existing file => simple yes/no replace prompt
             st.warning(
                 f"A page named `{checked_filename}` already exists in this repo."
             )
-            choice = st.radio(
-                "What would you like to do?",
+            replace_choice = st.radio(
+                "This campaign widget already exists. Do you want to replace it?",
                 options=[
-                    "Replace existing widget (overwrite file)",
-                    f"Create additional widget file in same repo (use {suggested_new_filename})",
-                    "Change widget name above",
+                    "Yes – replace the existing widget",
+                    "No – I want to use a different name",
                 ],
                 key="map_file_conflict_choice",
             )
-            st.info(
-                "After selecting an option, click **Proceed** below to publish "
-                "with your current settings."
-            )
-            proceed_clicked = st.button(
-                "Proceed",
-                key="map_proceed_publish",
-            )
+
+            if replace_choice.startswith("Yes"):
+                st.info(
+                    "Click **Proceed** to overwrite this existing widget with your current settings."
+                )
+                proceed_clicked = st.button(
+                    "Proceed",
+                    key="map_proceed_publish",
+                )
+            else:
+                st.info(
+                    "Please enter a new campaign name or widget name above, then click "
+                    "**Create / update widget** again."
+                )
+                proceed_clicked = False
 
 # =====================================================================
 # CONFIG + PUBLISH BLOCK (tabs unlocked after first Create/Update)
@@ -1409,7 +1417,6 @@ if uploaded_file is not None and st.session_state.get("map_can_configure", False
         if availability
         else (widget_name_input.strip() if widget_name_input else BASE_WIDGET_FILENAME)
     )
-    next_fname = availability.get("suggested_new_filename") if availability else None
     conflict = repo_exists and file_exists
 
     filename_to_use = checked_filename
@@ -1417,23 +1424,18 @@ if uploaded_file is not None and st.session_state.get("map_can_configure", False
 
     if can_run_github and uploaded_file is not None:
         if conflict:
-            # Only publish when Proceed is clicked + a valid choice is selected
+            # Only publish when Proceed is clicked and user chose "Yes – replace..."
             if proceed_clicked:
                 choice = st.session_state.get("map_file_conflict_choice")
-                if not choice:
-                    st.error("Choose one of the options above before proceeding.")
-                elif choice.startswith("Create additional"):
-                    filename_to_use = next_fname or checked_filename
-                    st.session_state["map_publish_filename"] = filename_to_use
-                    should_publish = True
-                elif choice.startswith("Change widget"):
-                    st.info(
-                        "Change the widget name above, then click **Create / update widget** again."
-                    )
-                else:  # Replace existing widget
+                if choice and choice.startswith("Yes"):
                     filename_to_use = checked_filename
                     st.session_state["map_publish_filename"] = filename_to_use
                     should_publish = True
+                else:
+                    st.info(
+                        "Update your campaign or widget name above, then click "
+                        "**Create / update widget** again to publish with a new file."
+                    )
         else:
             # No conflict (new repo or new file) -> publish when Create/Update is clicked
             if create_clicked:
