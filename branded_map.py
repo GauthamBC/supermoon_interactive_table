@@ -538,7 +538,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 .vi-map-table tbody tr:nth-child(odd){
   background:#FFFFFF;
 }
-vi-map-table tbody tr:nth-child(even){
+.vi-map-table tbody tr:nth-child(even){
   background:var(--accent-softer);
 }
 .vi-map-table tbody tr:hover{
@@ -1183,15 +1183,6 @@ if create_clicked and uploaded_file is not None and can_run_github:
 proceed_clicked = False  # default
 
 if uploaded_file is not None:
-    # General guidance about preview/embed visibility until first publish
-    if not st.session_state.get("map_has_generated", False):
-        st.info(
-            "Upload your CSV and configure the settings below, then click "
-            "**Create / update widget**. If an existing widget is found, you'll be asked "
-            "whether to replace it or change the name, then you can click **Proceed** to publish. "
-            "The preview and embed code will appear after the widget is created or updated."
-        )
-
     availability = st.session_state.get("map_availability")
     if availability and GITHUB_TOKEN and effective_github_user and repo_name.strip():
         repo_exists = availability.get("repo_exists", False)
@@ -1216,7 +1207,7 @@ if uploaded_file is not None:
         else:
             # Existing repo + existing file => simple yes/no replace prompt
             st.warning(
-                f"A page named `{checked_filename}` already exists in this repo."
+                f"A campaign widget named `{checked_filename}` already exists in this repo."
             )
             replace_choice = st.radio(
                 "This campaign widget already exists. Do you want to replace it?",
