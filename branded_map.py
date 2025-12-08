@@ -965,8 +965,8 @@ def generate_map_table_html_from_df(
     df_high = df_for_tables.sort_values(by=value_col, ascending=False)
     df_low = df_for_tables.sort_values(by=value_col, ascending=True)
 
-    high_table_html = build_ranked_table_html(df_high, value_col=value_col, top_n=top_n)
-    low_table_html = build_ranked_table_html(df_low, value_col=value_col, top_n=top_n)
+    high_table_html = build_ranked_table_html(df_high, value_col=value_col, top_n=10)
+    low_table_html = build_ranked_table_html(df_low, value_col=value_col, top_n=10)
 
     scale_start, scale_mid, scale_end = map_scale[0], map_scale[1], map_scale[2]
 
@@ -1195,8 +1195,10 @@ if uploaded_file is not None:
                     )
 
 # =====================================================================
+# CONFIG + PUBLISH BLOCK (only after button click or existing widget)
+# =====================================================================
 
-if uploaded_file is not None:
+if uploaded_file is not None and (create_clicked or st.session_state.get("map_has_generated", False)):
     try:
         df = pd.read_csv(uploaded_file)
     except Exception as e:
