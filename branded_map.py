@@ -1013,6 +1013,14 @@ if "map_has_generated" not in st.session_state:
 if "map_can_configure" not in st.session_state:
     st.session_state["map_can_configure"] = False
 
+# Track whether the conflict for the current filename has been acknowledged with Proceed
+if "map_conflict_ack" not in st.session_state:
+    st.session_state["map_conflict_ack"] = False
+
+# Track which filename the current conflict applies to
+if "map_conflict_filename" not in st.session_state:
+    st.session_state["map_conflict_filename"] = ""
+
 st.title("Branded Map + Table Generator")
 st.write(
     "Upload a CSV of U.S. states and one or more metrics, choose a brand, then click "
@@ -1145,6 +1153,12 @@ if create_clicked and uploaded_file is not None and can_run_github:
     else:
         st.session_state["map_can_configure"] = True
         checked_filename = widget_name_input.strip()
+
+        # If the user changed the target filename, this is a "new" conflict, so reset ack
+        if checked_filename != st.session_state.get("map_conflict_filename", ""):
+            st.session_state["map_conflict_filename"] = checked_filename
+            st.session_state["map_conflict_ack"] = False
+
         try:
             repo_exists = check_repo_exists(
                 effective_github_user,
@@ -1204,34 +1218,52 @@ if uploaded_file is not None:
             )
             st.session_state["map_publish_filename"] = checked_filename
         else:
-            # Existing repo + existing file => simple yes/no replace prompt
-            conflict_active = True
-            st.warning(
-                f"A campaign widget named `{checked_filename}` already exists in this repo."
-            )
-            replace_choice = st.radio(
-                "This campaign widget already exists. Do you want to replace it?",
-                options=[
-                    "Yes – replace the existing widget",
-                    "No – I want to use a different name",
-                ],
-                key="map_file_conflict_choice",
-            )
+            # Existing repo + existing file
+            if not st.session_state.get("map_conflict_ack", False):
+                # Conflict has NOT been acknowledged yet: show Yes/No + Proceed,
+                # and hide the config tabs below.
+                conflict_active = True
+                st.warning(
+                    f"A campaign widget named `{checked_filename}` already exists in this repo."
+                )
+                replace_choice = st.radio(
+                    "This campaign widget already exists. Do you want to replace it?",
+                    options=[
+                        "Yes – replace the existing widget",
+                        "No – I want to use a different name",
+                    ],
+                    key="map_file_conflict_choice",
+                )
 
-            if replace_choice.startswith("Yes"):
-                st.info(
-                    "Click **Proceed** to overwrite this existing widget with your current settings."
-                )
-                proceed_clicked = st.button(
-                    "Proceed",
-                    key="map_proceed_publish",
-                )
+                if replace_choice.startswith("Yes"):
+                    st.info(
+                        "Click **Proceed** to overwrite this existing widget with your current settings."
+                    )
+                    proceed_clicked = st.button(
+                        "Proceed",
+                        key="map_proceed_publish",
+                    )
+                    if proceed_clicked:
+                        # User confirmed: remember that this conflict is acknowledged
+                        # so from now on we can show the tabs.
+                        st.session_state["map_conflict_ack"] = True
+                        conflict_active = False
+                        st.session_state["map_publish_filename"] = checked_filename
+                else:
+                    st.info(
+                        "Please enter a new campaign name or widget name above, then click "
+                        "**Create / update widget** again."
+                    )
+                    proceed_clicked = False
             else:
+                # Conflict already acknowledged earlier for this filename:
+                # just let the user work normally, with tabs visible.
+                conflict_active = False
                 st.info(
-                    "Please enter a new campaign name or widget name above, then click "
-                    "**Create / update widget** again."
+                    "This campaign widget already exists. Publishing again will overwrite "
+                    f"`{checked_filename}` with your updated settings."
                 )
-                proceed_clicked = False
+                st.session_state["map_publish_filename"] = checked_filename
 
 # =====================================================================
 # CONFIG + PUBLISH BLOCK (tabs unlocked after first Create/Update)
@@ -1402,7 +1434,6 @@ if uploaded_file is not None and st.session_state.get("map_can_configure", False
     available_cols = [c for c in all_columns if c != state_col]
 
     # Hover columns from session
-    hover_options = ["All columns"] + available_cols
     raw_hover_cols = st.session_state.get("map_hover_cols", ["All columns"])
     if "All columns" in raw_hover_cols or len(raw_hover_cols) == 0:
         hover_cols = available_cols
@@ -1417,6 +1448,7 @@ if uploaded_file is not None and st.session_state.get("map_can_configure", False
         table_cols = [c for c in raw_table_cols if c in available_cols]
 
     # --- Create / update / Proceed publishing logic ---
+
     availability = st.session_state.get("map_availability")
     repo_exists = availability.get("repo_exists", False) if availability else False
     file_exists = availability.get("file_exists", False) if availability else False
@@ -1425,7 +1457,8 @@ if uploaded_file is not None and st.session_state.get("map_can_configure", False
         if availability
         else (widget_name_input.strip() if widget_name_input else BASE_WIDGET_FILENAME)
     )
-    conflict = repo_exists and file_exists
+    # Conflict is only active for publishing if it has NOT been acknowledged yet
+    conflict = repo_exists and file_exists and not st.session_state.get("map_conflict_ack", False)
 
     filename_to_use = checked_filename
     should_publish = False
@@ -1445,8 +1478,8 @@ if uploaded_file is not None and st.session_state.get("map_can_configure", False
                         "**Create / update widget** again to publish with a new file."
                     )
         else:
-            # No conflict (new repo or new file) -> publish when Create/Update is clicked
-            if create_clicked:
+            # No conflict (new repo/file OR conflict already acknowledged)
+            if create_clicked or proceed_clicked:
                 filename_to_use = checked_filename
                 st.session_state["map_publish_filename"] = filename_to_use
                 should_publish = True
