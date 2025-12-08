@@ -1181,15 +1181,14 @@ if create_clicked and uploaded_file is not None and can_run_github:
 #  + conflict yes/no + Proceed button (for existing repo+file only)
 # ---------------------------------------------------------------------
 proceed_clicked = False  # default
+conflict_active = False
+availability = st.session_state.get("map_availability")
 
 if uploaded_file is not None:
-    availability = st.session_state.get("map_availability")
     if availability and GITHUB_TOKEN and effective_github_user and repo_name.strip():
         repo_exists = availability.get("repo_exists", False)
         file_exists = availability.get("file_exists", False)
         checked_filename = availability.get("checked_filename", get_effective_widget_filename())
-        # suggested_new_filename is computed but not shown anymore in the simplified UX
-        # suggested_new_filename = availability.get("suggested_new_filename") or "t1.html"
 
         if not repo_exists:
             st.info(
@@ -1206,6 +1205,7 @@ if uploaded_file is not None:
             st.session_state["map_publish_filename"] = checked_filename
         else:
             # Existing repo + existing file => simple yes/no replace prompt
+            conflict_active = True
             st.warning(
                 f"A campaign widget named `{checked_filename}` already exists in this repo."
             )
@@ -1250,154 +1250,171 @@ if uploaded_file is not None and st.session_state.get("map_can_configure", False
 
     all_columns = list(df.columns)
 
-    # ---------- Config tabs: Widget / Map / Table ----------
-    tab_widget, tab_map, tab_table = st.tabs(
-        ["Widget text", "Map settings", "Table settings"]
+    # --- derive state_col & column lists from session state (used even if tabs are hidden) ---
+    default_state_guess = next(
+        (c for c in all_columns if "state" in c.lower()), all_columns[0]
     )
+    state_col = st.session_state.get("map_state_col", default_state_guess)
 
-    # ---------- Widget text (tab) ----------
-    with tab_widget:
-        st.markdown("### Widget text")
-
-        default_page_title = "State Metric Map"
-        default_subtitle = "Visualizing your selected metric by U.S. state."
-        default_strapline = f"{brand.upper()} · DATA VISUALIZATION"
-
-        col_copy1, col_copy2 = st.columns(2)
-        with col_copy1:
-            page_title = st.text_input(
-                "Page title",
-                value=st.session_state.get("map_page_title", default_page_title),
-                key="map_page_title",
-            )
-        with col_copy2:
-            subtitle = st.text_input(
-                "Subtitle",
-                value=st.session_state.get("map_subtitle", default_subtitle),
-                key="map_subtitle",
-            )
-
-        col_meta1, col_meta2 = st.columns(2)
-        with col_meta1:
-            strapline = st.text_input(
-                "Strapline (top small text)",
-                value=st.session_state.get("map_strapline", default_strapline),
-                key="map_strapline",
-            )
-        with col_meta2:
-            guessed_state = next(
-                (c for c in all_columns if "state" in c.lower()), all_columns[0]
-            )
-            state_col = st.selectbox(
-                "State column (full U.S. state names or 2-letter codes)",
-                options=all_columns,
-                index=all_columns.index(guessed_state),
-                key="map_state_col",
-            )
-
-    # Determine numeric columns after we know state_col
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
     if not numeric_cols:
-        numeric_cols = [c for c in all_columns if c != st.session_state.get("map_state_col", state_col)]
+        numeric_cols = [c for c in all_columns if c != state_col]
 
-    # Shared vars for other tabs
-    state_col = st.session_state.get("map_state_col", state_col)
     available_cols = [c for c in all_columns if c != state_col]
 
-    # ---------- Map settings (tab) ----------
-    with tab_map:
-        st.markdown("### Map settings")
-
-        value_col = st.selectbox(
-            "Primary metric column (used to color the map)",
-            options=[c for c in numeric_cols if c != state_col],
-            key="map_value_col",
+    # ---------- Config tabs: Widget / Map / Table ----------
+    if not conflict_active:
+        tab_widget, tab_map, tab_table = st.tabs(
+            ["Widget text", "Map settings", "Table settings"]
         )
 
-        # Hover columns (map) with "All columns" option
-        hover_options = ["All columns"] + available_cols
-        if "map_hover_cols" in st.session_state:
-            default_hover_selection = st.session_state["map_hover_cols"]
-        else:
-            default_hover_selection = ["All columns"]
+        # ---------- Widget text (tab) ----------
+        with tab_widget:
+            st.markdown("### Widget text")
 
-        raw_hover_cols = st.multiselect(
-            "Columns to show in the map hover tooltip",
-            options=hover_options,
-            default=default_hover_selection,
-            key="map_hover_cols",
-            help="Select specific columns, or choose 'All columns' to include everything.",
-        )
+            default_page_title = "State Metric Map"
+            default_subtitle = "Visualizing your selected metric by U.S. state."
+            default_strapline = f"{brand.upper()} · DATA VISUALIZATION"
 
-        if "All columns" in raw_hover_cols or len(raw_hover_cols) == 0:
-            hover_cols = available_cols
-        else:
-            hover_cols = [c for c in raw_hover_cols if c in available_cols]
+            col_copy1, col_copy2 = st.columns(2)
+            with col_copy1:
+                page_title = st.text_input(
+                    "Page title",
+                    value=st.session_state.get("map_page_title", default_page_title),
+                    key="map_page_title",
+                )
+            with col_copy2:
+                subtitle = st.text_input(
+                    "Subtitle",
+                    value=st.session_state.get("map_subtitle", default_subtitle),
+                    key="map_subtitle",
+                )
 
-        col_leg1, col_leg2 = st.columns(2)
-        with col_leg1:
-            legend_low = st.text_input(
-                "Legend left label",
-                value=st.session_state.get("map_legend_low", "Lowest value"),
-                key="map_legend_low",
-            )
-        with col_leg2:
-            legend_high = st.text_input(
-                "Legend right label",
-                value=st.session_state.get("map_legend_high", "Highest value"),
-                key="map_legend_high",
-            )
+            col_meta1, col_meta2 = st.columns(2)
+            with col_meta1:
+                strapline = st.text_input(
+                    "Strapline (top small text)",
+                    value=st.session_state.get("map_strapline", default_strapline),
+                    key="map_strapline",
+                )
+            with col_meta2:
+                guessed_state = next(
+                    (c for c in all_columns if "state" in c.lower()), all_columns[0]
+                )
+                state_col = st.selectbox(
+                    "State column (full U.S. state names or 2-letter codes)",
+                    options=all_columns,
+                    index=all_columns.index(guessed_state),
+                    key="map_state_col",
+                )
 
-    # ---------- Table settings (tab) ----------
-    with tab_table:
-        st.markdown("### Table settings")
+        # ---------- Map settings (tab) ----------
+        with tab_map:
+            st.markdown("### Map settings")
 
-        table_options = ["All columns"] + available_cols
-        if "map_table_cols" in st.session_state:
-            default_table_selection = st.session_state["map_table_cols"]
-        else:
-            default_table_selection = ["All columns"]
-
-        raw_table_cols = st.multiselect(
-            "Columns to include in the ranked tables (besides the state column)",
-            options=table_options,
-            default=default_table_selection,
-            key="map_table_cols",
-            help="Select specific columns, or choose 'All columns' to include everything in the tables.",
-        )
-
-        if "All columns" in raw_table_cols or len(raw_table_cols) == 0:
-            table_cols = available_cols
-        else:
-            table_cols = [c for c in raw_table_cols if c in available_cols]
-
-        col_t1, col_t2 = st.columns(2)
-        with col_t1:
-            high_title = st.text_input(
-                "High table title",
-                value=st.session_state.get("map_high_title", "States With the Highest Values"),
-                key="map_high_title",
-            )
-        with col_t2:
-            low_title = st.text_input(
-                "Low table title",
-                value=st.session_state.get("map_low_title", "States With the Lowest Values"),
-                key="map_low_title",
+            value_col = st.selectbox(
+                "Primary metric column (used to color the map)",
+                options=[c for c in numeric_cols if c != state_col],
+                key="map_value_col",
             )
 
-        col_s1, col_s2 = st.columns(2)
-        with col_s1:
-            high_sub = st.text_input(
-                "High table subheading",
-                value=st.session_state.get("map_high_sub", "Ranked by the selected metric."),
-                key="map_high_sub",
+            # Hover columns (map) with "All columns" option
+            hover_options = ["All columns"] + available_cols
+            if "map_hover_cols" in st.session_state:
+                default_hover_selection = st.session_state["map_hover_cols"]
+            else:
+                default_hover_selection = ["All columns"]
+
+            raw_hover_cols = st.multiselect(
+                "Columns to show in the map hover tooltip",
+                options=hover_options,
+                default=default_hover_selection,
+                key="map_hover_cols",
+                help="Select specific columns, or choose 'All columns' to include everything.",
             )
-        with col_s2:
-            low_sub = st.text_input(
-                "Low table subheading",
-                value=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
-                key="map_low_sub",
+
+            col_leg1, col_leg2 = st.columns(2)
+            with col_leg1:
+                legend_low = st.text_input(
+                    "Legend left label",
+                    value=st.session_state.get("map_legend_low", "Lowest value"),
+                    key="map_legend_low",
+                )
+            with col_leg2:
+                legend_high = st.text_input(
+                    "Legend right label",
+                    value=st.session_state.get("map_legend_high", "Highest value"),
+                    key="map_legend_high",
+                )
+
+        # ---------- Table settings (tab) ----------
+        with tab_table:
+            st.markdown("### Table settings")
+
+            table_options = ["All columns"] + available_cols
+            if "map_table_cols" in st.session_state:
+                default_table_selection = st.session_state["map_table_cols"]
+            else:
+                default_table_selection = ["All columns"]
+
+            raw_table_cols = st.multiselect(
+                "Columns to include in the ranked tables (besides the state column)",
+                options=table_options,
+                default=default_table_selection,
+                key="map_table_cols",
+                help="Select specific columns, or choose 'All columns' to include everything in the tables.",
             )
+
+            col_t1, col_t2 = st.columns(2)
+            with col_t1:
+                high_title = st.text_input(
+                    "High table title",
+                    value=st.session_state.get("map_high_title", "States With the Highest Values"),
+                    key="map_high_title",
+                )
+            with col_t2:
+                low_title = st.text_input(
+                    "Low table title",
+                    value=st.session_state.get("map_low_title", "States With the Lowest Values"),
+                    key="map_low_title",
+                )
+
+            col_s1, col_s2 = st.columns(2)
+            with col_s1:
+                high_sub = st.text_input(
+                    "High table subheading",
+                    value=st.session_state.get("map_high_sub", "Ranked by the selected metric."),
+                    key="map_high_sub",
+                )
+            with col_s2:
+                low_sub = st.text_input(
+                    "Low table subheading",
+                    value=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
+                    key="map_low_sub",
+                )
+
+    # --- after (optional) tabs, recompute core config from session state ---
+
+    # State column
+    state_col = st.session_state.get("map_state_col", state_col)
+
+    # Rebuild available_cols with possibly updated state_col
+    available_cols = [c for c in all_columns if c != state_col]
+
+    # Hover columns from session
+    hover_options = ["All columns"] + available_cols
+    raw_hover_cols = st.session_state.get("map_hover_cols", ["All columns"])
+    if "All columns" in raw_hover_cols or len(raw_hover_cols) == 0:
+        hover_cols = available_cols
+    else:
+        hover_cols = [c for c in raw_hover_cols if c in available_cols]
+
+    # Table columns from session
+    raw_table_cols = st.session_state.get("map_table_cols", ["All columns"])
+    if "All columns" in raw_table_cols or len(raw_table_cols) == 0:
+        table_cols = available_cols
+    else:
+        table_cols = [c for c in raw_table_cols if c in available_cols]
 
     # --- Create / update / Proceed publishing logic ---
     availability = st.session_state.get("map_availability")
@@ -1447,6 +1464,8 @@ if uploaded_file is not None and st.session_state.get("map_can_configure", False
             show_labels = st.session_state.get("map_show_labels", False)
             brand_meta_publish = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
 
+            value_col_publish = st.session_state.get("map_value_col", numeric_cols[0])
+
             expected_embed_url = compute_expected_embed_url(
                 effective_github_user, repo_name, filename_to_use
             )
@@ -1455,7 +1474,7 @@ if uploaded_file is not None and st.session_state.get("map_can_configure", False
                 df,
                 brand_meta_publish,
                 state_col=state_col,
-                value_col=st.session_state.get("map_value_col", numeric_cols[0]),
+                value_col=value_col_publish,
                 page_title=st.session_state.get("map_page_title", "State Metric Map"),
                 subtitle=st.session_state.get("map_subtitle", "Visualizing your selected metric by U.S. state."),
                 strapline=st.session_state.get("map_strapline", f"{brand.upper()} · DATA VISUALIZATION"),
