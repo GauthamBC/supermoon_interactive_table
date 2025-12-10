@@ -358,7 +358,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
     .vi-compact-embed .details.open{margin:8px 0 12px;padding:12px;border-width:1px;max-height:420px;opacity:1;transform:translateY(0)}
     .vi-compact-embed .metrics-title{margin:0 0 10px;font-weight:800;font-size:14px;color:var(--brand-700)}
-    .vi-compact-embed .metrics-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+    .vi-compact-embed .metrics-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
     @media (max-width:640px){.vi-compact-embed .metrics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media (max-width:380px){.vi-compact-embed .metrics-grid{grid-template-columns:1fr}}
 
@@ -493,14 +493,6 @@ HTML_TEMPLATE = r"""<!doctype html>
             </div>
           </div>
         </div>
-
-        <!-- Fan experience score -->
-        <div class="metric-card">
-          <div class="metric-label"><span class="icon">⭐</span>Fan Experience Score</div>
-          <div class="metric-number"><span id="city-fan-val">0.0</span></div>
-          <div class="mini-bar"><span id="city-fan-bar" class="fill"></span></div>
-          <div class="metric-scale">0 • 100</div>
-        </div>
       </div>
       <button id="city-close" class="details-close" type="button" aria-label="Close metrics">Close ✕</button>
     </div>
@@ -560,17 +552,14 @@ HTML_TEMPLATE = r"""<!doctype html>
         const cv = document.getElementById('city-crime-val');
         const wv = document.getElementById('city-walk-val');
         const sv = document.getElementById('city-sent-val');
-        const fv = document.getElementById('city-fan-val');
 
         if(cv) cv.textContent = d.crime.toFixed(2);
         if(wv) wv.textContent = d.walk.toFixed(1);
         if(sv) sv.textContent = d.sentiment.toFixed(1) + '%';
-        if(fv) fv.textContent = d.fan.toFixed(2);
 
         // Bars: crime is inverted (safer = higher fill)
         setBar('city-crime-bar', 100 - d.crime, 100);
         setBar('city-walk-bar', d.walk, 100);
-        setBar('city-fan-bar', d.fan, 100);
 
         setDonut('city-sent-arc', d.sentiment);
       }
@@ -708,12 +697,19 @@ def generate_html_from_df(
         width_pct = fan / max_fan * 100.0
         bar_style = f"width:{width_pct:.2f}%;"
 
+        # Subtitle now shows Crime, Walk score and Sentiment with icons
+        subtitle_line = (
+            f"🚨 Crime index: {crime:.2f} &nbsp;•&nbsp; "
+            f"🚶 Walk score: {walk:.1f} &nbsp;•&nbsp; "
+            f"😊 Sentiment: {sent:.1f}%"
+        )
+
         row_html = f"""
     <div class="row is-clickable" data-city="{city}" data-rank="{rank}" aria-expanded="false" tabindex="0" role="button">
       <div class="rank">{rank}</div>
       <div class="city">
         <span class="city-main">{city}</span>
-        <span class="city-sub">⭐ Fan experience: {fan:.2f} &nbsp;•&nbsp; 😊 Sentiment: {sent:.1f}%</span>
+        <span class="city-sub">{subtitle_line}</span>
       </div>
       <div class="metric">
         <span class="bar" style="{bar_style}"></span>
