@@ -345,16 +345,30 @@ HTML_TEMPLATE = r"""<!doctype html>
       box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)
     }
 
-    /* Fan Experience gradient bands */
-    .vi-compact-embed .bar.fan-band.band-low{
+    /* Fan Experience gradient bands – smoother 6-step scale */
+    .vi-compact-embed .bar.fan-band.band-1{
+      background:linear-gradient(90deg,var(--brand-100),var(--brand-50))!important;
+    } /* very low */
+
+    .vi-compact-embed .bar.fan-band.band-2{
       background:linear-gradient(90deg,var(--brand-300),var(--brand-100))!important;
-    }
-    .vi-compact-embed .bar.fan-band.band-mid{
+    } /* low */
+
+    .vi-compact-embed .bar.fan-band.band-3{
       background:linear-gradient(90deg,var(--brand-500),var(--brand-300))!important;
-    }
-    .vi-compact-embed .bar.fan-band.band-high{
-      background:linear-gradient(90deg,var(--brand-700),var(--brand-500))!important;
-    }
+    } /* mid */
+
+    .vi-compact-embed .bar.fan-band.band-4{
+      background:linear-gradient(90deg,var(--brand-600),var(--brand-500))!important;
+    } /* mid-high */
+
+    .vi-compact-embed .bar.fan-band.band-5{
+      background:linear-gradient(90deg,var(--brand-700),var(--brand-600))!important;
+    } /* high */
+
+    .vi-compact-embed .bar.fan-band.band-6{
+      background:linear-gradient(90deg,var(--brand-900),var(--brand-700))!important;
+    } /* elite */
 
     .vi-compact-embed .val{
       position:absolute;right:6px;top:50%;transform:translateY(-50%);
@@ -588,7 +602,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 
         const cv = document.getElementById('city-crime-val');
         const wv = document.getElementById('city-walk-val');
-        const sv = document.getElementById('city-sent-val');
+        aconst sv = document.getElementById('city-sent-val');
 
         if(cv) cv.textContent = d.crime.toFixed(2);
         if(wv) wv.textContent = d.walk.toFixed(1);
@@ -726,13 +740,19 @@ def generate_html_from_df(
     max_fan = float(df["fan_score"].max() or 1.0)
 
     def band_for_fan(score: float) -> str:
-        # <40: light, 40–69.9: medium, >=70: dark
-        if score >= 70.0:
-            return "band-high"
-        elif score >= 40.0:
-            return "band-mid"
+        # 6 bands for smoother color steps
+        if score >= 75.0:
+            return "band-6"
+        elif score >= 65.0:
+            return "band-5"
+        elif score >= 55.0:
+            return "band-4"
+        elif score >= 45.0:
+            return "band-3"
+        elif score >= 35.0:
+            return "band-2"
         else:
-            return "band-low"
+            return "band-1"
 
     row_snippets = []
     for _, row in df.iterrows():
