@@ -602,7 +602,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 
         const cv = document.getElementById('city-crime-val');
         const wv = document.getElementById('city-walk-val');
-        aconst sv = document.getElementById('city-sent-val');
+        const sv = document.getElementById('city-sent-val');
 
         if(cv) cv.textContent = d.crime.toFixed(2);
         if(wv) wv.textContent = d.walk.toFixed(1);
