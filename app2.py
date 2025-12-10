@@ -334,7 +334,19 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .rank{display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--muted)}
     .vi-compact-embed .city{display:flex;flex-direction:column;gap:2px;font-weight:700;color:var(--ink)}
     .vi-compact-embed .city-main{font-size:14px}
-    .vi-compact-embed .city-sub{font-size:12px;color:var(--muted)}
+    .vi-compact-embed .city-sub{
+      font-size:12px;
+      color:var(--muted);
+      display:flex;
+      flex-wrap:wrap;
+      gap:2px 10px;
+      align-items:center;
+    }
+    .vi-compact-embed .city-sub .metric-pill{
+      white-space:nowrap;
+      display:inline-flex;
+      align-items:center;
+    }
 
     .vi-compact-embed .metric{
       position:relative;height:28px;border-radius:999px;background:#f9fafb;overflow:hidden;
@@ -422,7 +434,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .row.is-clickable[aria-expanded="true"]{border-color:var(--brand-600)!important}
 
     /* Scroll area */
-    .vi-compact-embed{ --pane-max-h:min(72vh,680px); }
+    .vi-compact-embed{ --pane-max-h:min(88vh,860px); }
     .vi-compact-embed .table{
       max-height:var(--pane-max-h);overflow:auto;-webkit-overflow-scrolling:touch;
       overscroll-behavior:contain;scrollbar-gutter:stable both-edges;
@@ -490,14 +502,14 @@ HTML_TEMPLATE = r"""<!doctype html>
   <div class="head">
     <h3 id="vi-compact-embed-title" class="title">[[TITLE]]</h3>
     <p class="sub"><em>[[SUBTITLE]]</em></p>
-    <p class="meta">Click <strong>a city</strong> to see stadium fan experience metrics.</p>
+    <p class="meta">Click <strong>a city</strong> to see women's stadium fan experience metrics.</p>
   </div>
 
   <div class="table">
     [[ROWS]]
 
     <div id="city-details" class="details" aria-hidden="true" role="region" aria-labelledby="metrics-title">
-      <h4 id="metrics-title" class="metrics-title">Stadium Fan Experience</h4>
+      <h4 id="metrics-title" class="metrics-title">Stadium Fan Experience for Women</h4>
       <div class="metrics-grid">
         <!-- Crime index -->
         <div class="metric-card">
@@ -598,7 +610,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         if(!d) return;
 
         const title = document.getElementById('metrics-title');
-        if(title) title.textContent = name + ' — Stadium Fan Experience';
+        if(title) title.textContent = name + ' — Stadium Fan Experience for Women';
 
         const cv = document.getElementById('city-crime-val');
         const wv = document.getElementById('city-walk-val');
@@ -768,9 +780,11 @@ def generate_html_from_df(
         band_class = band_for_fan(fan)
 
         subtitle_line = (
-            f"🚨 Crime index: {crime:.2f} &nbsp;•&nbsp; "
-            f"🚶 Walk score: {walk:.1f} &nbsp;•&nbsp; "
-            f"😊 Sentiment: {sent:.1f}%"
+            f'<span class="metric-pill">🚨 Crime index: {crime:.2f}</span>'
+            f' &nbsp;•&nbsp; '
+            f'<span class="metric-pill">🚶 Walk score: {walk:.1f}</span>'
+            f' &nbsp;•&nbsp; '
+            f'<span class="metric-pill">😊 Sentiment: {sent:.1f}%</span>'
         )
 
         row_html = f"""
@@ -817,12 +831,12 @@ def generate_html_from_df(
 
 # === 3. Streamlit App ================================================
 
-st.set_page_config(page_title="Stadium Fan Experience Table Generator", layout="wide")
+st.set_page_config(page_title="Women's Stadium Fan Experience Table Generator", layout="wide")
 
-st.title("Stadium Fan Experience Table Generator")
+st.title("Women's Stadium Fan Experience Table Generator")
 st.write(
     "Upload a CSV, choose a brand and GitHub campaign, then click **Update widget** "
-    "to publish your stadium fan experience table via GitHub Pages."
+    "to publish your women's stadium fan experience table via GitHub Pages."
 )
 
 # Brand selection
@@ -881,10 +895,10 @@ if uploaded_file is not None:
     df["fan_score"] = raw_df["Fan Experience Score"].astype(float)
 
     # Defaults for widget text
-    default_title = "Best U.S. Cities for Stadium Fan Experience"
+    default_title = "Best U.S. Cities for Women's Stadium Fan Experience"
     default_subtitle = (
-        "Ranking major U.S. cities on stadium fan experience, based on crime index, "
-        "walkability, stadium sentiment, and overall fan experience score."
+        "Ranking major U.S. cities on stadium fan experience for female fans, based on "
+        "city crime index, walkability, stadium sentiment, and an overall fan experience score."
     )
 
     # ---------- GitHub / hosting settings ----------
