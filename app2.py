@@ -189,7 +189,6 @@ def get_brand_meta(brand: str) -> dict:
     Brand metadata: name, logo, alt text, and a CSS class
     used to theme the widget.
     """
-    # Default to Action Network palette & logo
     default_logo = "https://i.postimg.cc/x1nG117r/AN-final2-logo.png"
     brand_clean = (brand or "").strip() or "Action Network"
 
@@ -374,6 +373,17 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .mini-bar{height:10px;border-radius:999px;background:var(--viz-soft-bg);overflow:hidden;align-self:center}
     .vi-compact-embed .mini-bar .fill{display:block;height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,var(--brand-600),var(--brand-500));transition:width .6s ease}
 
+    /* Walk score "step track" */
+    .vi-compact-embed .step-track{
+      display:flex;gap:4px;align-items:center;justify-content:flex-start;margin-top:2px;
+    }
+    .vi-compact-embed .step-track .step{
+      width:10px;height:10px;border-radius:999px;background:var(--viz-soft-bg);
+    }
+    .vi-compact-embed .step-track .step.filled{
+      background:linear-gradient(180deg,var(--brand-600),var(--brand-500));
+    }
+
     .vi-compact-embed .donut{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center}
     .vi-compact-embed .donut svg{width:56px;height:56px}
     .vi-compact-embed .donut circle.bg{stroke:var(--viz-soft-bg);stroke-width:8;fill:none}
@@ -442,7 +452,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     @media (max-width:640px){
       .vi-compact-embed{--pane-max-h:min(70vh,560px);}
       .vi-compact-embed .footer-inner{justify-content:space-between!important;padding:0 10px;gap:8px;}
-      .vi-compact-embed .embed-btn{position:static!important;transform:none!important;padding:6px 10px;font-size:12px;flex-shrink:0;}
+      .vi-compact-embed .embed-btn{position:static!important;transform:none!important;padding:6px 10px;font-size:12px;flex-shrink=0;}
       .vi-compact-embed .vi-footer img{height:44px;}
       .vi-compact-embed .embed-wrapper{
         position:absolute!important;bottom:calc(100% + 10px)!important;left:50%!important;transform:translateX(-50%)!important;
@@ -475,7 +485,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         <div class="metric-card">
           <div class="metric-label"><span class="icon">🚶</span>Stadium Walk Score</div>
           <div class="metric-number"><span id="city-walk-val">0.0</span></div>
-          <div class="mini-bar"><span id="city-walk-bar" class="fill"></span></div>
+          <div class="step-track" id="city-walk-steps" aria-hidden="true"></div>
           <div class="metric-scale">0 • 100</div>
         </div>
 
@@ -542,6 +552,21 @@ HTML_TEMPLATE = r"""<!doctype html>
         requestAnimationFrame(()=> arc.style.strokeDashoffset = (C*(1-pct)).toFixed(1));
       }
 
+      function buildWalkSteps(score){
+        const track = document.getElementById('city-walk-steps');
+        if(!track) return;
+        track.innerHTML = '';
+        const total = 10;
+        const safeScore = Math.max(0, Math.min(100, score));
+        const filled = Math.round(safeScore / 10);
+        for(let i=0;i<total;i++){
+          const dot = document.createElement('span');
+          dot.className = 'step';
+          if(i < filled) dot.classList.add('filled');
+          track.appendChild(dot);
+        }
+      }
+
       function renderCity(name){
         const d = DATA[name];
         if(!d) return;
@@ -557,10 +582,13 @@ HTML_TEMPLATE = r"""<!doctype html>
         if(wv) wv.textContent = d.walk.toFixed(1);
         if(sv) sv.textContent = d.sentiment.toFixed(1) + '%';
 
-        // Bars: crime is inverted (safer = higher fill)
+        // Crime bar: inverted (lower crime => more green)
         setBar('city-crime-bar', 100 - d.crime, 100);
-        setBar('city-walk-bar', d.walk, 100);
 
+        // Walk steps
+        buildWalkSteps(d.walk);
+
+        // Sentiment donut
         setDonut('city-sent-arc', d.sentiment);
       }
 
@@ -697,7 +725,6 @@ def generate_html_from_df(
         width_pct = fan / max_fan * 100.0
         bar_style = f"width:{width_pct:.2f}%;"
 
-        # Subtitle now shows Crime, Walk score and Sentiment with icons
         subtitle_line = (
             f"🚨 Crime index: {crime:.2f} &nbsp;•&nbsp; "
             f"🚶 Walk score: {walk:.1f} &nbsp;•&nbsp; "
