@@ -433,12 +433,23 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .row.is-clickable{cursor:pointer}
     .vi-compact-embed .row.is-clickable[aria-expanded="true"]{border-color:var(--brand-600)!important}
 
-    /* Scroll area */
-    .vi-compact-embed{ --pane-max-h:min(88vh,860px); }
-    .vi-compact-embed .table{
-      max-height:var(--pane-max-h);overflow:auto;-webkit-overflow-scrolling:touch;
-      overscroll-behavior:contain;scrollbar-gutter:stable both-edges;
+        /* Scroll area: keep footer visible, only rows scroll */
+    .vi-compact-embed{
+      --pane-max-h:min(88vh,860px);
+      max-height:var(--pane-max-h);
+      display:flex;
+      flex-direction:column;
     }
+
+    .vi-compact-embed .table{
+      flex:1 1 auto;
+      min-height:0;
+      overflow:auto;
+      -webkit-overflow-scrolling:touch;
+      overscroll-behavior:contain;
+      scrollbar-gutter:stable both-edges;
+    }
+
     .vi-compact-embed .table::-webkit-scrollbar{width:10px;height:8px}
     .vi-compact-embed .table::-webkit-scrollbar-track{background:var(--brand-50);border-radius:999px}
     .vi-compact-embed .table::-webkit-scrollbar-thumb{
