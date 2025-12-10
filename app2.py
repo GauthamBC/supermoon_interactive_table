@@ -344,6 +344,18 @@ HTML_TEMPLATE = r"""<!doctype html>
       background:linear-gradient(90deg,var(--brand-600),var(--brand-500))!important;
       box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)
     }
+
+    /* Fan Experience gradient bands */
+    .vi-compact-embed .bar.fan-band.band-low{
+      background:linear-gradient(90deg,var(--brand-300),var(--brand-100))!important;
+    }
+    .vi-compact-embed .bar.fan-band.band-mid{
+      background:linear-gradient(90deg,var(--brand-500),var(--brand-300))!important;
+    }
+    .vi-compact-embed .bar.fan-band.band-high{
+      background:linear-gradient(90deg,var(--brand-700),var(--brand-500))!important;
+    }
+
     .vi-compact-embed .val{
       position:absolute;right:6px;top:50%;transform:translateY(-50%);
       font-variant-numeric:tabular-nums;font-weight:800;font-size:13px;
@@ -713,6 +725,15 @@ def generate_html_from_df(
 
     max_fan = float(df["fan_score"].max() or 1.0)
 
+    def band_for_fan(score: float) -> str:
+        # <40: light, 40–69.9: medium, >=70: dark
+        if score >= 70.0:
+            return "band-high"
+        elif score >= 40.0:
+            return "band-mid"
+        else:
+            return "band-low"
+
     row_snippets = []
     for _, row in df.iterrows():
         rank = int(row["rank"])
@@ -724,6 +745,7 @@ def generate_html_from_df(
 
         width_pct = fan / max_fan * 100.0
         bar_style = f"width:{width_pct:.2f}%;"
+        band_class = band_for_fan(fan)
 
         subtitle_line = (
             f"🚨 Crime index: {crime:.2f} &nbsp;•&nbsp; "
@@ -739,7 +761,7 @@ def generate_html_from_df(
         <span class="city-sub">{subtitle_line}</span>
       </div>
       <div class="metric">
-        <span class="bar" style="{bar_style}"></span>
+        <span class="bar fan-band {band_class}" style="{bar_style}"></span>
         <span class="val">{fan:.2f}</span>
       </div>
     </div>""".rstrip()
