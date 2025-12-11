@@ -30,6 +30,7 @@ def github_headers(token: str):
     headers["X-GitHub-Api-Version"] = "2022-11-28"
     return headers
 
+
 def ensure_repo_exists(owner: str, repo: str, token: str) -> bool:
     """
     Ensure repo exists.
@@ -58,6 +59,7 @@ def ensure_repo_exists(owner: str, repo: str, token: str) -> bool:
 
     return True  # newly created
 
+
 def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main") -> None:
     """
     Attempt to enable GitHub Pages on the repo from the given branch root.
@@ -79,6 +81,7 @@ def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main"
     r = requests.post(f"{api_base}/repos/{owner}/{repo}/pages", headers=headers, json=payload)
     if r.status_code not in (201, 202):
         raise RuntimeError(f"Error enabling GitHub Pages: {r.status_code} {r.text}")
+
 
 def upload_file_to_github(
     owner: str,
@@ -118,6 +121,7 @@ def upload_file_to_github(
     if r.status_code not in (200, 201):
         raise RuntimeError(f"Error uploading file: {r.status_code} {r.text}")
 
+
 def trigger_pages_build(owner: str, repo: str, token: str) -> bool:
     """
     Ask GitHub to build the Pages site (legacy mode).
@@ -139,6 +143,7 @@ def check_repo_exists(owner: str, repo: str, token: str) -> bool:
         return False
     raise RuntimeError(f"Error checking repo: {r.status_code} {r.text}")
 
+
 def check_file_exists(owner: str, repo: str, token: str, path: str, branch: str = "main") -> bool:
     api_base = "https://api.github.com"
     headers = github_headers(token)
@@ -152,6 +157,7 @@ def check_file_exists(owner: str, repo: str, token: str, path: str, branch: str 
     if r.status_code == 404:
         return False
     raise RuntimeError(f"Error checking file: {r.status_code} {r.text}")
+
 
 def find_next_widget_filename(owner: str, repo: str, token: str, branch: str = "main") -> str:
     """
@@ -222,6 +228,7 @@ def get_brand_meta(brand: str) -> dict:
     return meta
 
 # === 1. HTML template for City / Stadium metrics ======================
+
 HTML_TEMPLATE = r"""<!doctype html>
 <html lang="en">
 <head>
@@ -433,7 +440,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .row.is-clickable{cursor:pointer}
     .vi-compact-embed .row.is-clickable[aria-expanded="true"]{border-color:var(--brand-600)!important}
 
-        /* Scroll area: keep footer visible, only rows scroll */
+    /* Scroll area: keep footer visible, only rows scroll */
     .vi-compact-embed{
       --pane-max-h:min(88vh,860px);
       max-height:var(--pane-max-h);
@@ -498,14 +505,63 @@ HTML_TEMPLATE = r"""<!doctype html>
       color:#111;background:#fff;padding:10px 12px;border:1px solid #ddd;border-radius:8px;resize:none;
     }
 
+    /* Mobile overrides (mirror Supermoon behaviour) */
     @media (max-width:640px){
-      .vi-compact-embed{--pane-max-h:min(70vh,560px);}
-      .vi-compact-embed .footer-inner{justify-content:space-between!important;padding:0 10px;gap:8px;}
-      .vi-compact-embed .embed-btn{position:static!important;transform:none!important;padding:6px 10px;font-size:12px;flex-shrink=0;}
+      html, body { height:auto !important; overflow:auto !important; }
+
+      .vi-compact-embed{
+        display:block;
+        min-height:auto;
+        overflow:visible;
+        --pane-max-h:min(70vh,560px);
+      }
+      .vi-compact-embed .table{
+        max-height:var(--pane-max-h)!important;
+        overflow:auto!important;
+        -webkit-overflow-scrolling:touch!important;
+      }
+
+      .vi-compact-embed .footer-inner{
+        justify-content:space-between!important;
+        padding:0 10px;
+        gap:8px;
+      }
+      .vi-compact-embed .embed-btn{
+        position:static!important;
+        transform:none!important;
+        padding:6px 10px;
+        font-size:12px;
+        flex-shrink:0;
+      }
       .vi-compact-embed .vi-footer img{height:44px;}
+
       .vi-compact-embed .embed-wrapper{
-        position:absolute!important;bottom:calc(100% + 10px)!important;left:50%!important;transform:translateX(-50%)!important;
-        width:min(600px, calc(100% - 24px))!important;max-height:65vh;overflow:auto;z-index:1000;
+        position:absolute!important;
+        bottom:calc(100% + 10px)!important;
+        left:50%!important;
+        transform:translateX(-50%)!important;
+        width:min(600px, calc(100% - 24px))!important;
+        max-height:65vh;
+        overflow:auto;
+        z-index:1000;
+      }
+
+      .vi-compact-embed .details.open{max-height:none!important;}
+      .vi-compact-embed .details{
+        display:flex;
+        flex-direction:column;
+        scroll-margin-top:8px;
+      }
+      .vi-compact-embed .details-close{
+        order:-1;
+        align-self:flex-end;
+        position:sticky;
+        top:8px;
+        z-index:5;
+        padding:8px 12px;
+        border-radius:999px;
+        background:#fff;
+        box-shadow:0 2px 6px rgba(0,0,0,.08);
       }
     }
   </style>
@@ -705,7 +761,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         btn.addEventListener('click', () => {
           const isHidden = wrapper.style.display === 'none' || wrapper.style.display === '';
           wrapper.style.display = isHidden ? 'block' : 'none';
-          btn.textContent = isHidden ? 'Hide Embed Code' : '\ud83d\udd17 Embed This Table';
+          btn.textContent = isHidden ? 'Hide Embed Code' : '🔗 Embed This Table';
           btn.setAttribute('aria-expanded', String(isHidden));
           if (isHidden) {
             ta.focus();
@@ -724,7 +780,7 @@ HTML_TEMPLATE = r"""<!doctype html>
           if (open && !wrapper.contains(e.target) && !btn.contains(e.target)) {
             wrapper.style.display = 'none';
             btn.setAttribute('aria-expanded','false');
-            btn.textContent = '\ud83d\udd17 Embed This Table';
+            btn.textContent = '🔗 Embed This Table';
             sendHeightToParent();
           }
         });
@@ -733,7 +789,7 @@ HTML_TEMPLATE = r"""<!doctype html>
           if (e.key === 'Escape' && wrapper.style.display === 'block') {
             wrapper.style.display = 'none';
             btn.setAttribute('aria-expanded','false');
-            btn.textContent = '\ud83d\udd17 Embed This Table';
+            btn.textContent = '🔗 Embed This Table';
             btn.focus();
             sendHeightToParent();
           }
@@ -906,9 +962,9 @@ if uploaded_file is not None:
     df["fan_score"] = raw_df["Fan Experience Score"].astype(float)
 
     # Defaults for widget text
-    default_title = "Best U.S. Cities for Women's Stadium Fan Experience"
+    default_title = "Ranking 50 U.S. Cities for Women's Stadium Fan Experience"
     default_subtitle = (
-        "Ranking major U.S. cities on stadium fan experience for female fans, based on "
+        "All 50 cities in our dataset ranked on women's stadium fan experience, based on "
         "city crime index, walkability, stadium sentiment, and an overall fan experience score."
     )
 
