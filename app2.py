@@ -227,6 +227,61 @@ def get_brand_meta(brand: str) -> dict:
 
     return meta
 
+# === State flags by USPS abbreviation (for city chips) ===============
+
+STATE_FLAG_URLS_ABBR = {
+    "AL": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Alabama.svg",
+    "AK": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Alaska.svg",
+    "AZ": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Arizona.svg",
+    "AR": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Arkansas.svg",
+    "CA": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_California.svg",
+    "CO": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Colorado.svg",
+    "CT": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Connecticut.svg",
+    "DE": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Delaware.svg",
+    "FL": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Florida.svg",
+    "GA": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Georgia_(U.S._state).svg",
+    "HI": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Hawaii.svg",
+    "ID": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Idaho.svg",
+    "IL": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Illinois.svg",
+    "IN": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Indiana.svg",
+    "IA": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Iowa.svg",
+    "KS": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Kansas.svg",
+    "KY": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Kentucky.svg",
+    "LA": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Louisiana.svg",
+    "ME": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Maine.svg",
+    "MD": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Maryland.svg",
+    "MA": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Massachusetts.svg",
+    "MI": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Michigan.svg",
+    "MN": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Minnesota.svg",
+    "MS": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Mississippi.svg",
+    "MO": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Missouri.svg",
+    "MT": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Montana.svg",
+    "NE": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Nebraska.svg",
+    "NV": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Nevada.svg",
+    "NH": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_New_Hampshire.svg",
+    "NJ": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_New_Jersey.svg",
+    "NM": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_New_Mexico.svg",
+    "NY": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_New_York.svg",
+    "NC": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_North_Carolina.svg",
+    "ND": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_North_Dakota.svg",
+    "OH": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Ohio.svg",
+    "OK": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Oklahoma.svg",
+    "OR": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Oregon.svg",
+    "PA": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Pennsylvania.svg",
+    "RI": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Rhode_Island.svg",
+    "SC": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_South_Carolina.svg",
+    "SD": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_South_Dakota.svg",
+    "TN": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Tennessee.svg",
+    "TX": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Texas.svg",
+    "UT": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Utah.svg",
+    "VT": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Vermont.svg",
+    "VA": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Virginia.svg",
+    "WA": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Washington.svg",
+    "WV": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_West_Virginia.svg",
+    "WI": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Wisconsin.svg",
+    "WY": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Wyoming.svg",
+}
+
 # === 1. HTML template for City / Stadium metrics ======================
 
 HTML_TEMPLATE = r"""<!doctype html>
@@ -338,9 +393,25 @@ HTML_TEMPLATE = r"""<!doctype html>
       .vi-compact-embed .metric{grid-column:1 / -1}
     }
 
-    .vi-compact-embed .rank{display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--muted)}
-    .vi-compact-embed .city{display:flex;flex-direction:column;gap:2px;font-weight:700;color:var(--ink)}
-    .vi-compact-embed .city-main{font-size:14px}
+    .vi-compact-embed .rank{
+      display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--muted)
+    }
+    .vi-compact-embed .city{
+      display:flex;flex-direction:column;gap:2px;font-weight:700;color:var(--ink)
+    }
+    .vi-compact-embed .city-main{
+      font-size:14px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .vi-compact-embed .chip{
+      width:18px;height:18px;border-radius:50%;overflow:hidden;
+      border:1px solid #cfe4da;background:#fff;flex-shrink:0;
+    }
+    .vi-compact-embed .chip img{
+      width:100%;height:100%;object-fit:cover;
+    }
 
     .vi-compact-embed .metric{
       position:relative;height:28px;border-radius:999px;background:#f9fafb;overflow:hidden;
@@ -385,7 +456,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .details{
       margin:0;padding:0;border:1px solid var(--border);border-width:0;border-radius:12px;background:var(--brand-50);
       max-height:0;opacity:0;overflow:hidden;transform:translateY(-6px);
-      transition:max-height .28s ease,opacity .28s ease,transform .28s ease,padding .20s ease,margin .20s ease,border-width .20s ease;
+      transition:max-height .28s.ease,opacity .28s.ease,transform .28s.ease,padding .20s.ease,margin .20s.ease,border-width .20s.ease;
     }
     .vi-compact-embed .details.open{margin:8px 0 12px;padding:12px;border-width:1px;max-height:420px;opacity:1;transform:translateY(0)}
     .vi-compact-embed .metrics-title{margin:0 0 10px;font-weight:800;font-size:14px;color:var(--brand-700)}
@@ -403,7 +474,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .metric-scale{font-size:11px;color:#8a9099;margin:0}
 
     .vi-compact-embed .mini-bar{height:10px;border-radius:999px;background:var(--viz-soft-bg);overflow:hidden;align-self:center}
-    .vi-compact-embed .mini-bar .fill{display:block;height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,var(--brand-600),var(--brand-500));transition:width .6s ease}
+    .vi-compact-embed .mini-bar .fill{display:block;height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,var(--brand-600),var(--brand-500));transition:width .6s.ease}
 
     /* Walk score "step track" */
     .vi-compact-embed .step-track{
@@ -419,7 +490,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .donut{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center}
     .vi-compact-embed .donut svg{width:56px;height:56px}
     .vi-compact-embed .donut circle.bg{stroke:var(--viz-soft-bg);stroke-width:8;fill:none}
-    .vi-compact-embed .donut circle.fg{stroke:var(--brand-600);stroke-width:8;fill:none;stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset .7s ease}
+    .vi-compact-embed .donut circle.fg{stroke:var(--brand-600);stroke-width:8;fill:none;stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset .7s.ease}
 
     .vi-compact-embed .details-close{margin-top:10px;align-self:flex-end;background:#fff;border:1px solid var(--border);border-radius:999px;padding:6px 10px;font-weight:700;cursor:pointer}
     .vi-compact-embed .details-close:hover{border-color:var(--hover-ring)}
@@ -427,17 +498,15 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .row.is-clickable{cursor:pointer}
     .vi-compact-embed .row.is-clickable[aria-expanded="true"]{border-color:var(--brand-600)!important}
 
-    /* Scroll area: keep footer visible, only rows scroll */
+    /* Desktop internal scroll – match Supermoon behaviour */
     .vi-compact-embed{
-      --pane-max-h:min(88vh,860px);
-      max-height:var(--pane-max-h);
+      --pane-max-h: min(72vh, 680px);
       display:flex;
       flex-direction:column;
     }
 
     .vi-compact-embed .table{
-      flex:1 1 auto;
-      min-height:0;
+      max-height:var(--pane-max-h);
       overflow:auto;
       -webkit-overflow-scrolling:touch;
       overscroll-behavior:contain;
@@ -466,7 +535,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       position:absolute;left:14px;top:50%;transform:translateY(-50%);
       background:var(--brand-600);color:#fff;border:1px solid var(--brand-600);
       border-radius:8px;padding:6px 14px;font:13px/1.2 system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
-      cursor:pointer;transition:.2s ease;
+      cursor:pointer;transition:.2s.ease;
     }
     .vi-compact-embed .embed-btn:hover{background:var(--brand-700);border-color:var(--brand-700);}
     .vi-compact-embed .vi-footer img{
@@ -492,7 +561,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       color:#111;background:#fff;padding:10px 12px;border:1px solid #ddd;border-radius:8px;resize:none;
     }
 
-    /* Mobile overrides (mirror Supermoon behaviour) */
+    /* Mobile overrides – same pattern as Supermoon */
     @media (max-width:640px){
       html, body { height:auto !important; overflow:auto !important; }
 
@@ -823,7 +892,24 @@ def generate_html_from_df(
     row_snippets = []
     for _, row in df.iterrows():
         rank = int(row["rank"])
-        city = str(row["city"])
+        city_label = str(row["city"])  # expected like "San Diego, CA"
+
+        # Try to extract state abbreviation from the city label
+        state_abbrev = ""
+        if "," in city_label:
+            parts = [p.strip() for p in city_label.split(",")]
+            if len(parts) >= 2:
+                state_abbrev = parts[-1]
+
+        flag_url = STATE_FLAG_URLS_ABBR.get(state_abbrev, "")
+        if flag_url:
+            img_html = (
+                f'<img loading="lazy" decoding="async" alt="{state_abbrev} flag" '
+                f'width="18" height="18" src="{flag_url}">'
+            )
+        else:
+            img_html = ""
+
         crime = float(row["crime_index"])
         walk = float(row["walk_score"])
         sent = float(row["sentiment_pct"])
@@ -833,12 +919,15 @@ def generate_html_from_df(
         bar_style = f"width:{width_pct:.2f}%;"
         band_class = band_for_fan(fan)
 
-        # NOTE: row only shows city + overall fan score bar, NOT sub-metrics.
+        # Row shows rank + flag + city label + overall fan score bar (sub-metrics only in details)
         row_html = f"""
-    <div class="row is-clickable" data-city="{city}" data-rank="{rank}" aria-expanded="false" tabindex="0" role="button">
+    <div class="row is-clickable" data-city="{city_label}" data-rank="{rank}" aria-expanded="false" tabindex="0" role="button">
       <div class="rank">{rank}</div>
       <div class="city">
-        <span class="city-main">{city}</span>
+        <span class="city-main">
+          <span class="chip">{img_html}</span>
+          {city_label}
+        </span>
       </div>
       <div class="metric">
         <span class="bar fan-band {band_class}" style="{bar_style}"></span>
