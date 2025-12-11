@@ -341,19 +341,6 @@ HTML_TEMPLATE = r"""<!doctype html>
     .vi-compact-embed .rank{display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--muted)}
     .vi-compact-embed .city{display:flex;flex-direction:column;gap:2px;font-weight:700;color:var(--ink)}
     .vi-compact-embed .city-main{font-size:14px}
-    .vi-compact-embed .city-sub{
-      font-size:12px;
-      color:var(--muted);
-      display:flex;
-      flex-wrap:wrap;
-      gap:2px 10px;
-      align-items:center;
-    }
-    .vi-compact-embed .city-sub .metric-pill{
-      white-space:nowrap;
-      display:inline-flex;
-      align-items:center;
-    }
 
     .vi-compact-embed .metric{
       position:relative;height:28px;border-radius:999px;background:#f9fafb;overflow:hidden;
@@ -846,20 +833,12 @@ def generate_html_from_df(
         bar_style = f"width:{width_pct:.2f}%;"
         band_class = band_for_fan(fan)
 
-        subtitle_line = (
-            f'<span class="metric-pill">🚨 Crime index: {crime:.2f}</span>'
-            f' &nbsp;•&nbsp; '
-            f'<span class="metric-pill">🚶 Walk score: {walk:.1f}</span>'
-            f' &nbsp;•&nbsp; '
-            f'<span class="metric-pill">😊 Sentiment: {sent:.1f}%</span>'
-        )
-
+        # NOTE: row only shows city + overall fan score bar, NOT sub-metrics.
         row_html = f"""
     <div class="row is-clickable" data-city="{city}" data-rank="{rank}" aria-expanded="false" tabindex="0" role="button">
       <div class="rank">{rank}</div>
       <div class="city">
         <span class="city-main">{city}</span>
-        <span class="city-sub">{subtitle_line}</span>
       </div>
       <div class="metric">
         <span class="bar fan-band {band_class}" style="{bar_style}"></span>
