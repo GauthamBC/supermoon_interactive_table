@@ -1158,28 +1158,84 @@ def build_html_from_applied(df: pd.DataFrame) -> str:
 
 
 def apply_edits_and_update_preview(df: pd.DataFrame):
-    # copy edit_* -> applied_*
-    for k in list(st.session_state.keys()):
-        if k.startswith("edit_"):
-            st.session_state["applied_" + k[len("edit_"):]] = st.session_state[k]
+    """Apply current edit_* controls into applied_* snapshot and refresh preview HTML.
 
+    Robust against missing edit_* keys (prevents KeyError on first run / odd reruns).
+    IMPORTANT: do NOT write to edit_* keys here (those are widget-bound).
+    """
     cols = list(df.columns)
-    state_col = st.session_state["applied_state_col"]
+    if not cols:
+        st.session_state["draft_html"] = "<p style='padding:16px;font-family:sans-serif;'>No columns found.</p>"
+        st.session_state["draft_ready"] = True
+        return
+
+    # --- Safe getters (prefer edit_ → applied_ → inferred defaults) ---
+    def guess_state_col() -> str:
+        return next((c for c in cols if "state" in str(c).lower()), cols[0])
+
+    def guess_value_col(state_col: str) -> str:
+        numeric = df.select_dtypes(include=["number"]).columns.tolist()
+        for c in numeric:
+            if c != state_col:
+                return c
+        for c in cols:
+            if c != state_col:
+                return c
+        return cols[0]
+
+    state_col = st.session_state.get("edit_state_col") or st.session_state.get("applied_state_col") or guess_state_col()
+    if state_col not in cols:
+        state_col = guess_state_col()
+
+    value_col = st.session_state.get("edit_value_col") or st.session_state.get("applied_value_col") or guess_value_col(state_col)
+    if value_col not in cols or value_col == state_col:
+        value_col = guess_value_col(state_col)
+
+    brand = st.session_state.get("edit_brand") or st.session_state.get("applied_brand") or "Action Network"
+
+    page_title = st.session_state.get("edit_page_title") or st.session_state.get("applied_page_title") or "State Metric Map"
+    subtitle = st.session_state.get("edit_subtitle") or st.session_state.get("applied_subtitle") or "Visualizing your selected metric by U.S. state."
+    strapline = st.session_state.get("edit_strapline") or st.session_state.get("applied_strapline") or f"{str(brand).upper()} · DATA VISUALIZATION"
+
+    legend_low = st.session_state.get("edit_legend_low") or st.session_state.get("applied_legend_low") or "Lowest value"
+    legend_high = st.session_state.get("edit_legend_high") or st.session_state.get("applied_legend_high") or "Highest value"
+
+    high_title = st.session_state.get("edit_high_title") or st.session_state.get("applied_high_title") or "States With the Highest Values"
+    low_title = st.session_state.get("edit_low_title") or st.session_state.get("applied_low_title") or "States With the Lowest Values"
+    high_sub = st.session_state.get("edit_high_sub") or st.session_state.get("applied_high_sub") or "Ranked by the selected metric."
+    low_sub = st.session_state.get("edit_low_sub") or st.session_state.get("applied_low_sub") or "Ranked by the selected metric."
+
+    show_labels = bool(st.session_state.get("edit_show_labels", st.session_state.get("applied_show_labels", False)))
+
+    # --- Snapshot into applied_* ---
+    st.session_state["applied_brand"] = brand
+    st.session_state["applied_state_col"] = state_col
+    st.session_state["applied_value_col"] = value_col
+    st.session_state["applied_page_title"] = page_title
+    st.session_state["applied_subtitle"] = subtitle
+    st.session_state["applied_strapline"] = strapline
+    st.session_state["applied_legend_low"] = legend_low
+    st.session_state["applied_legend_high"] = legend_high
+    st.session_state["applied_high_title"] = high_title
+    st.session_state["applied_low_title"] = low_title
+    st.session_state["applied_high_sub"] = high_sub
+    st.session_state["applied_low_sub"] = low_sub
+    st.session_state["applied_show_labels"] = show_labels
+
+    # --- Derived columns for hover/tables ---
     available_cols = [c for c in cols if c != state_col]
 
-    st.session_state["applied_hover_cols"] = normalize_multi_select(
-        st.session_state.get("edit_hover_cols", ["All columns"]),
-        available_cols,
-    )
-    st.session_state["applied_table_cols"] = normalize_multi_select(
-        st.session_state.get("edit_table_cols", ["All columns"]),
-        available_cols,
-    )
+    raw_hover = st.session_state.get("edit_hover_cols") or st.session_state.get("applied_hover_cols") or ["All columns"]
+    raw_table = st.session_state.get("edit_table_cols") or st.session_state.get("applied_table_cols") or ["All columns"]
 
+    st.session_state["applied_hover_cols"] = normalize_multi_select(raw_hover, available_cols)
+    st.session_state["applied_table_cols"] = normalize_multi_select(raw_table, available_cols)
+
+    # --- Build preview HTML ---
     st.session_state["draft_html"] = build_html_from_applied(df)
     st.session_state["draft_ready"] = True
 
-    # Any content changes invalidate previously generated HTML/iframe
+    # Updating map content invalidates previously generated HTML/iframe
     st.session_state["html_generated"] = False
     st.session_state["generated_html"] = ""
     st.session_state["iframe_published"] = False
