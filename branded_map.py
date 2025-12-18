@@ -595,9 +595,34 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   margin-top:6px;
 }
 
-/* Tables */
-.vi-map-table{
+$1.vi-table-scroll{
   width:100%;
+  overflow-x:auto;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:6px; /* room for scrollbar */
+
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) transparent;
+}
+.vi-table-scroll::-webkit-scrollbar{
+  height:6px;
+}
+.vi-table-scroll::-webkit-scrollbar-track{
+  background:var(--accent-soft);
+  border-radius:999px;
+}
+.vi-table-scroll::-webkit-scrollbar-thumb{
+  background:var(--accent);
+  border-radius:999px;
+}
+.vi-table-scroll::-webkit-scrollbar-thumb:hover{
+  filter:brightness(0.9);
+}
+
+.vi-map-table{
+  width:max-content;
+  min-width:100%;
   border-collapse:collapse;
   font-size:13px;
   color:#111827;
@@ -765,6 +790,7 @@ def build_ranked_table_html(df: pd.DataFrame, value_col: str, top_n: int = 10) -
         body_rows.append("<tr>" + "".join(tds) + "</tr>")
 
     table_html = f"""
+<div class="vi-table-scroll">
 <table class="vi-map-table">
   <thead>
     {thead_html}
@@ -773,6 +799,7 @@ def build_ranked_table_html(df: pd.DataFrame, value_col: str, top_n: int = 10) -
     {''.join(body_rows)}
   </tbody>
 </table>
+</div>
 """
     return table_html
 
