@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 import plotly.express as px
-import plotly.graph_objects as go  # (kept; labels are disabled but no harm)
+import plotly.graph_objects as go
 
 # ============== 0. Secrets ==============
 
@@ -27,9 +27,7 @@ GITHUB_USER_DEFAULT = get_secret("GITHUB_USER", "")
 # === GitHub helpers ===================================================
 
 def github_headers(token: str):
-    headers = {
-        "Accept": "application/vnd.github+json",
-    }
+    headers = {"Accept": "application/vnd.github+json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
     headers["X-GitHub-Api-Version"] = "2022-11-28"
@@ -37,17 +35,12 @@ def github_headers(token: str):
 
 
 def ensure_repo_exists(owner: str, repo: str, token: str) -> bool:
-    """Ensure repo exists.
-    Returns:
-      True  -> repo was just created
-      False -> repo already existed
-    """
     api_base = "https://api.github.com"
     headers = github_headers(token)
 
     r = requests.get(f"{api_base}/repos/{owner}/{repo}", headers=headers)
     if r.status_code == 200:
-        return False  # already exists
+        return False
     if r.status_code != 404:
         raise RuntimeError(f"Error checking repo: {r.status_code} {r.text}")
 
@@ -61,13 +54,10 @@ def ensure_repo_exists(owner: str, repo: str, token: str) -> bool:
     if r.status_code not in (200, 201):
         raise RuntimeError(f"Error creating repo: {r.status_code} {r.text}")
 
-    return True  # newly created
+    return True
 
 
 def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main") -> None:
-    """Attempt to enable GitHub Pages on the repo from the given branch root.
-    If Pages is already enabled, this is a no-op.
-    """
     api_base = "https://api.github.com"
     headers = github_headers(token)
 
@@ -94,7 +84,6 @@ def upload_file_to_github(
     message: str,
     branch: str = "main",
 ) -> None:
-    """Create or update a file in the repo at the given path."""
     api_base = "https://api.github.com"
     headers = github_headers(token)
 
@@ -109,11 +98,7 @@ def upload_file_to_github(
 
     encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
 
-    payload = {
-        "message": message,
-        "content": encoded,
-        "branch": branch,
-    }
+    payload = {"message": message, "content": encoded, "branch": branch}
     if sha:
         payload["sha"] = sha
 
@@ -123,14 +108,11 @@ def upload_file_to_github(
 
 
 def trigger_pages_build(owner: str, repo: str, token: str) -> bool:
-    """Ask GitHub to build the Pages site (legacy mode)."""
     api_base = "https://api.github.com"
     headers = github_headers(token)
     r = requests.post(f"{api_base}/repos/{owner}/{repo}/pages/builds", headers=headers)
     return r.status_code in (201, 202)
 
-
-# --- Helpers for availability check -------------------------------
 
 def check_repo_exists(owner: str, repo: str, token: str) -> bool:
     api_base = "https://api.github.com"
@@ -159,10 +141,6 @@ def check_file_exists(owner: str, repo: str, token: str, path: str, branch: str 
 
 
 def find_next_widget_filename(owner: str, repo: str, token: str, branch: str = "main") -> str:
-    """Look at the root of the repo and find the next available tN.html filename.
-    Returns 't1.html' if none are found or on fallback.
-    (Kept for future use, but not used in the new UX.)
-    """
     api_base = "https://api.github.com"
     headers = github_headers(token)
     r = requests.get(
@@ -190,16 +168,9 @@ def find_next_widget_filename(owner: str, repo: str, token: str, branch: str = "
 
 # === Brand metadata ===================================================
 
-UNBRANDED_SCALE = ["#60A5FA", "#F97316", "#DC2626"]  # blue -> orange -> red
-
+UNBRANDED_SCALE = ["#60A5FA", "#F97316", "#DC2626"]
 
 def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
-    """Brand metadata for map + tables page.
-
-    style_mode:
-        "Branded"   -> use brand-specific map palettes
-        "Unbranded" -> use neutral UNBRANDED_SCALE for all brands
-    """
     brand_clean = (brand or "").strip() or "Action Network"
     style_mode = (style_mode or "Branded").strip().lower()
 
@@ -227,8 +198,6 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "accent_softer": "#F3FBF7",
             "branded_scale": ["#BBF7D0", "#4ADE80", "#166534"],
             "site_url": "https://www.actionnetwork.com/",
-            "logo_width": 140,
-            "logo_height": 32,
         })
     elif brand_clean == "VegasInsider":
         meta.update({
@@ -240,8 +209,6 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "accent_softer": "#FFF9EC",
             "branded_scale": ["#FFF9EC", "#FCD34D", "#B45309"],
             "site_url": "https://www.vegasinsider.com/",
-            "logo_width": 140,
-            "logo_height": 32,
         })
     elif brand_clean == "Canada Sports Betting":
         meta.update({
@@ -253,8 +220,6 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "accent_softer": "#FFF5F5",
             "branded_scale": ["#FECACA", "#FB7185", "#B91C1C"],
             "site_url": "https://www.canadasportsbetting.ca/",
-            "logo_width": 140,
-            "logo_height": 32,
         })
     elif brand_clean == "RotoGrinders":
         meta.update({
@@ -266,8 +231,6 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "accent_softer": "#F3FAFF",
             "branded_scale": ["#BFDBFE", "#38BDF8", "#1D4ED8"],
             "site_url": "https://rotogrinders.com/",
-            "logo_width": 140,
-            "logo_height": 32,
         })
 
     meta["style_mode"] = style_mode
@@ -308,8 +271,33 @@ for name, code in STATE_ABBR.items():
     STATE_LOOKUP[code.upper()] = code
     STATE_LOOKUP[code.lower()] = code
 
+# ---- Label support (optional, desktop only) --------------------------
 
-# === 2. HTML TEMPLATE: map + tables (tabbed tables) ===================
+SMALL_STATE_CENTROIDS = {
+    "CT": {"lat": 41.6, "lon": -72.7},
+    "DE": {"lat": 39.0, "lon": -75.5},
+    "MD": {"lat": 39.0, "lon": -76.7},
+    "MA": {"lat": 42.3, "lon": -71.8},
+    "NH": {"lat": 43.6, "lon": -71.6},
+    "NJ": {"lat": 40.1, "lon": -74.5},
+    "RI": {"lat": 41.7, "lon": -71.6},
+    "VT": {"lat": 44.0, "lon": -72.7},
+    "DC": {"lat": 38.9, "lon": -77.0},
+}
+SMALL_STATES = set(SMALL_STATE_CENTROIDS.keys())
+UP_CALLOUT_STATES = {"VT", "MA", "NH"}
+UP_CALLOUT_OFFSETS = {
+    "MA": {"d_lon": 5.8, "d_lat": 3.2},
+    "VT": {"d_lon": 5.3, "d_lat": 4.4},
+    "NH": {"d_lon": 6.4, "d_lat": 6.8},
+}
+DOWN_CALLOUT_NUDGE = {
+    "DE": {"d_lon": 0.45, "d_lat": 0.15},
+    "MD": {"d_lon": -0.35, "d_lat": -0.20},
+}
+
+
+# === 2. HTML TEMPLATE ==================================================
 
 HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 <html lang="en">
@@ -320,7 +308,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 </head>
 <body style="margin:0;background:#F3F4F6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0F172A;">
 
-<section class="vi-map-card [[BRAND_CLASS]]" style="width:100%;max-width:100%;margin:0;padding:0;">
+<section class="vi-map-card [[BRAND_CLASS]]" data-show-labels="[[SHOW_LABELS]]" style="width:100%;max-width:100%;margin:0;padding:0;">
 
 <style>
 .vi-map-card, .vi-map-card * { box-sizing:border-box; font-family:inherit; }
@@ -349,10 +337,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   scrollbar-width: thin;
   scrollbar-color: var(--accent) transparent;
 }
-.vi-map-shell::-webkit-scrollbar{
-  width:6px;
-  height:6px;
-}
+.vi-map-shell::-webkit-scrollbar{ width:6px; height:6px; }
 .vi-map-shell::-webkit-scrollbar-track{
   background:var(--accent-soft);
   border-radius:999px;
@@ -361,11 +346,9 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   background:var(--accent);
   border-radius:999px;
 }
-.vi-map-shell::-webkit-scrollbar-thumb:hover{
-  filter:brightness(0.9);
-}
+.vi-map-shell::-webkit-scrollbar-thumb:hover{ filter:brightness(0.9); }
 
-/* Top header: copy left, logo/link right */
+/* Top header */
 .vi-map-header{
   margin-bottom:10px;
   display:flex;
@@ -373,23 +356,16 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   align-items:flex-start;
   gap:12px;
 }
-.vi-map-header-main{
-  flex:1 1 auto;
-  min-width:0;
-}
+.vi-map-header-main{ flex:1 1 auto; min-width:0; }
 .vi-map-brand-link{
   flex-shrink:0;
   display:inline-flex;
   align-items:flex-start;
   text-decoration:none;
 }
-.vi-map-brand-link img{
-  display:block;
-  max-width:140px;
-  height:auto;
-}
+.vi-map-brand-link img{ display:block; max-width:140px; height:auto; }
 
-/* Brand-tinted logos in the header */
+/* Brand-tinted logos */
 .vi-map-card.brand-actionnetwork .vi-map-brand-link img{
   filter: brightness(0) saturate(100%) invert(62%) sepia(23%) saturate(1250%) hue-rotate(78deg) brightness(96%) contrast(92%);
 }
@@ -424,7 +400,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   color:#4B5563;
 }
 
-/* Gradient legend */
+/* Legend */
 .vi-map-legend-labels{
   display:flex;
   justify-content:space-between;
@@ -441,15 +417,13 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   overflow:hidden;
 }
 
-/* Map frame (DESKTOP) */
+/* Map frame */
 .vi-map-frame{
   margin-top:14px;
   border-radius:16px;
   background:#F9FAFB;
   border:1px solid #E5E7EB;
   overflow:hidden;
-
-  /* IMPORTANT: give the map a real height so Plotly can fill it */
   height: 520px;
 }
 
@@ -468,7 +442,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   pointer-events:none !important;
 }
 
-/* Tables & tabs */
+/* Tables */
 .vi-map-section-sub{
   margin:0 0 10px;
   font-size:12px;
@@ -512,11 +486,8 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   box-shadow:0 0 0 2px var(--accent-soft),0 0 0 4px rgba(15,23,42,.25);
 }
 
-.vi-tab-panel{
-  margin-top:6px;
-}
+.vi-tab-panel{ margin-top:6px; }
 
-/* horizontal scrolling for wide tables */
 .vi-table-scroll{
   width:100%;
   max-width:100%;
@@ -524,7 +495,6 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   overflow-y:hidden;
   -webkit-overflow-scrolling:touch;
   padding-bottom:6px;
-
   scrollbar-width: thin;
   scrollbar-color: var(--accent) transparent;
 }
@@ -572,7 +542,6 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   vertical-align:middle;
 }
 
-/* Rank pill */
 .vi-rank-pill{
   display:inline-flex;
   align-items:center;
@@ -587,22 +556,13 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   color:#FFFFFF;
 }
 
-/* --------- Mobile: smaller padding + tighter map height --------- */
+/* Mobile */
 @media (max-width: 560px){
-  .vi-map-shell{
-    padding:14px 12px 16px;
-  }
-  .vi-map-header{
-    flex-direction:column;
-    align-items:flex-start;
-    gap:10px;
-  }
+  .vi-map-shell{ padding:14px 12px 16px; }
+  .vi-map-header{ flex-direction:column; align-items:flex-start; gap:10px; }
   .vi-map-brand-link img{ max-width:120px; }
 
-  .vi-map-frame{
-    height: 360px; /* smaller so no big empty space above/below */
-    border-radius:14px;
-  }
+  .vi-map-frame{ height: 360px; border-radius:14px; }
 
   .vi-tab-header{
     display:flex;
@@ -646,12 +606,10 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
     <div class="vi-map-legend-bar"></div>
   </div>
 
-  <!-- Interactive map -->
   <div class="vi-map-frame">
     [[MAP_HTML]]
   </div>
 
-  <!-- Tabbed tables -->
   <section class="vi-map-tables" style="margin-top:4px;">
     <div class="vi-tab-header" role="tablist" aria-label="State rankings">
       <button class="vi-tab is-active" data-tab="high" role="tab" aria-selected="true" tabindex="0">
@@ -677,36 +635,47 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 
 <script>
 (function(){
-  // tab switcher
   var widgets = document.querySelectorAll('.vi-map-card');
   widgets.forEach(function(root){
     var tabs = root.querySelectorAll('.vi-tab-header .vi-tab');
     var panels = root.querySelectorAll('.vi-tab-panel');
     var subs = root.querySelectorAll('.vi-map-section-sub-tab');
-    if (!tabs.length) return;
 
-    tabs.forEach(function(btn){
-      btn.addEventListener('click', function(){
-        var target = this.getAttribute('data-tab');
+    if (tabs && tabs.length){
+      tabs.forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var target = this.getAttribute('data-tab');
 
-        tabs.forEach(function(b){
-          var active = b === btn;
-          b.classList.toggle('is-active', active);
-          b.setAttribute('aria-selected', active ? 'true' : 'false');
-          b.setAttribute('tabindex', active ? '0' : '-1');
-        });
+          tabs.forEach(function(b){
+            var active = (b === btn);
+            b.classList.toggle('is-active', active);
+            b.setAttribute('aria-selected', active ? 'true' : 'false');
+            b.setAttribute('tabindex', active ? '0' : '-1');
+          });
 
-        panels.forEach(function(p){
-          p.style.display = (p.getAttribute('data-panel') === target) ? 'block' : 'none';
-        });
+          panels.forEach(function(p){
+            p.style.display = (p.getAttribute('data-panel') === target) ? 'block' : 'none';
+          });
 
-        subs.forEach(function(s){
-          s.style.display = (s.getAttribute('data-tab') === target) ? 'block' : 'none';
+          subs.forEach(function(s){
+            s.style.display = (s.getAttribute('data-tab') === target) ? 'block' : 'none';
+          });
         });
       });
-    });
+    }
 
-    // Keep Plotly height matched to the frame + lock drag layers (extra safety)
+    function setLabelVisibility(gd, allowLabels){
+      if(!gd || !gd.data || !window.Plotly) return;
+      var labelIdx = [];
+      for (var i=0; i<gd.data.length; i++){
+        if (gd.data[i] && gd.data[i].name === "__labels__"){
+          labelIdx.push(i);
+        }
+      }
+      if (!labelIdx.length) return;
+      window.Plotly.restyle(gd, {visible: allowLabels ? true : false}, labelIdx);
+    }
+
     function lockAndFitPlotly(){
       var frame = root.querySelector('.vi-map-frame');
       if(!frame) return;
@@ -726,8 +695,13 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
       var w = frame.clientWidth || 800;
       var isMobile = w <= 560;
 
-      // slight zoom to reduce empty space in the map area
-      var projScale = isMobile ? 1.30 : 1.18;
+      // Zoom OUT a little to prevent clipping
+      var projScale = isMobile ? 0.98 : 1.04;
+
+      // labels: obey toggle on desktop, FORCE OFF on mobile
+      var wantLabels = (root.getAttribute('data-show-labels') === 'true');
+      var allowLabels = (!isMobile) && wantLabels;
+      setLabelVisibility(gd, allowLabels);
 
       Plotly.relayout(gd, {
         height: h,
@@ -759,7 +733,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 
 def build_ranked_table_html(df: pd.DataFrame, value_col: str, top_n: int = 10) -> str:
     cols = list(df.columns)
-    state_col = cols[0]  # assume first col is state
+    state_col = cols[0]
     other_cols = [c for c in cols if c not in (state_col,)]
     if value_col in other_cols:
         other_cols.remove(value_col)
@@ -782,19 +756,14 @@ def build_ranked_table_html(df: pd.DataFrame, value_col: str, top_n: int = 10) -
             tds.append(f'<td>{html_mod.escape(text)}</td>')
         body_rows.append("<tr>" + "".join(tds) + "</tr>")
 
-    table_html = f"""
+    return f"""
 <div class="vi-table-scroll">
 <table class="vi-map-table">
-  <thead>
-    {thead_html}
-  </thead>
-  <tbody>
-    {''.join(body_rows)}
-  </tbody>
+  <thead>{thead_html}</thead>
+  <tbody>{''.join(body_rows)}</tbody>
 </table>
 </div>
 """
-    return table_html
 
 
 def generate_map_table_html_from_df(
@@ -812,7 +781,7 @@ def generate_map_table_html_from_df(
     low_title: str,
     low_sub: str,
     top_n: int = 10,
-    show_state_labels: bool = False,  # kept but we FORCE it off from Streamlit
+    show_state_labels: bool = False,
     table_cols=None,
     hover_cols=None,
 ) -> str:
@@ -856,7 +825,6 @@ def generate_map_table_html_from_df(
 
     seen = set()
     metrics_for_hover = [c for c in metrics_for_hover if not (c in seen or seen.add(c))]
-
     custom_cols = [state_col] + metrics_for_hover
 
     v_min = df[value_col].min()
@@ -868,6 +836,7 @@ def generate_map_table_html_from_df(
 
     map_scale = brand_meta["map_scale"]
     accent = brand_meta.get("accent", "#16A34A")
+    style_mode = brand_meta.get("style_mode", "branded")
 
     fig = px.choropleth(
         df,
@@ -910,15 +879,114 @@ def generate_map_table_html_from_df(
         showlegend=False,
     )
 
-    # Labels are intentionally disabled for cleaner mobile UX.
-    # (show_state_labels kept in signature for backward compatibility, but never used.)
+    # --- Optional labels (desktop only enforced via JS) ---
+    if show_state_labels:
+        label_df = df.copy()
+        label_df["label_text"] = label_df["state_abbr"] + " (" + label_df["rank"].astype(str) + ")"
 
+        small_mask = label_df["state_abbr"].isin(SMALL_STATES)
+        df_big = label_df[~small_mask]
+        df_small = label_df[small_mask]
+
+        if not df_big.empty:
+            def add_big_group(group, text_color):
+                if group.empty:
+                    return
+                fig.add_trace(
+                    go.Scattergeo(
+                        locationmode="USA-states",
+                        locations=group["state_abbr"],
+                        text=group["label_text"],
+                        mode="text",
+                        textfont=dict(size=10, color=text_color),
+                        hoverinfo="skip",
+                        showlegend=False,
+                        name="__labels__",
+                    )
+                )
+
+            if style_mode == "unbranded":
+                dark_bg = df_big[df_big["fill_norm"] >= 0.55]
+                light_bg = df_big[df_big["fill_norm"] < 0.55]
+                add_big_group(dark_bg, "#FFFFFF")
+                add_big_group(light_bg, "#111827")
+            else:
+                dark_bg = df_big[df_big["fill_norm"] >= 0.55]
+                light_bg = df_big[df_big["fill_norm"] < 0.55]
+                add_big_group(dark_bg, "#FFFFFF")
+                add_big_group(light_bg, map_scale[2] if len(map_scale) >= 3 else "#111827")
+
+        if not df_small.empty:
+            df_small = df_small.copy()
+            df_small["centroid_lat"] = df_small["state_abbr"].map(lambda s: SMALL_STATE_CENTROIDS[s]["lat"])
+            df_small["centroid_lon"] = df_small["state_abbr"].map(lambda s: SMALL_STATE_CENTROIDS[s]["lon"])
+            df_small = df_small.sort_values("centroid_lat", ascending=False).reset_index(drop=True)
+
+            min_lat = df_small["centroid_lat"].min()
+            down_j = 0
+
+            line_lons, line_lats = [], []
+            label_lons, label_lats, label_texts = [], [], []
+
+            for _, row in df_small.iterrows():
+                abbr = row["state_abbr"]
+                c = SMALL_STATE_CENTROIDS[abbr]
+                lon0, lat0 = c["lon"], c["lat"]
+
+                if abbr in UP_CALLOUT_STATES:
+                    offs = UP_CALLOUT_OFFSETS.get(abbr, {"d_lon": 4.5, "d_lat": 3.0})
+                    lon1 = lon0 - offs["d_lon"]
+                    lat1 = lat0 + offs["d_lat"]
+                else:
+                    offset_lon = 4.8 - down_j * 0.4
+                    lon1 = lon0 + offset_lon
+                    lat1 = min_lat - 1.8 - down_j * 0.35
+
+                    nudge = DOWN_CALLOUT_NUDGE.get(abbr)
+                    if nudge:
+                        lon1 += nudge.get("d_lon", 0.0)
+                        lat1 += nudge.get("d_lat", 0.0)
+
+                    down_j += 1
+
+                line_lons += [lon0, lon1, None]
+                line_lats += [lat0, lat1, None]
+
+                label_lons.append(lon1)
+                label_lats.append(lat1)
+                label_texts.append(row["label_text"])
+
+            fig.add_trace(
+                go.Scattergeo(
+                    lon=line_lons,
+                    lat=line_lats,
+                    mode="lines",
+                    line=dict(width=1, color=accent),
+                    hoverinfo="skip",
+                    showlegend=False,
+                    name="__labels__",
+                )
+            )
+            fig.add_trace(
+                go.Scattergeo(
+                    lon=label_lons,
+                    lat=label_lats,
+                    mode="text",
+                    text=label_texts,
+                    textfont=dict(size=10, color=accent),
+                    hoverinfo="skip",
+                    showlegend=False,
+                    name="__labels__",
+                )
+            )
+
+    # Lower default scale (zoom OUT a bit) to avoid clipping
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),
         paper_bgcolor="#F9FAFB",
         plot_bgcolor="#F9FAFB",
         showlegend=False,
-        dragmode=False,  # extra safety
+        dragmode=False,
         geo=dict(
             bgcolor="#F9FAFB",
             lakecolor="#F9FAFB",
@@ -928,10 +996,10 @@ def generate_map_table_html_from_df(
             showframe=False,
             showcoastlines=False,
             showcountries=False,
-            projection=dict(scale=1.18),  # fills better on desktop; mobile gets boosted via JS
+            projection=dict(scale=1.04),
         ),
         coloraxis_showscale=False,
-        height=520,  # match default desktop frame height
+        height=520,
     )
 
     map_html = fig.to_html(
@@ -952,11 +1020,7 @@ def generate_map_table_html_from_df(
         table_cols = [c for c in table_cols if c in df.columns and c != state_col]
         table_cols = [value_col] + [c for c in table_cols if c != value_col]
 
-    df_for_tables = pd.DataFrame({
-        state_col: df[state_col],
-        **{c: df[c] for c in table_cols},
-    })
-
+    df_for_tables = pd.DataFrame({state_col: df[state_col], **{c: df[c] for c in table_cols}})
     df_high = df_for_tables.sort_values(by=value_col, ascending=False)
     df_low = df_for_tables.sort_values(by=value_col, ascending=True)
 
@@ -964,6 +1028,8 @@ def generate_map_table_html_from_df(
     low_table_html = build_ranked_table_html(df_low, value_col=value_col, top_n=10)
 
     scale_start, scale_mid, scale_end = map_scale[0], map_scale[1], map_scale[2]
+
+    show_labels_str = "true" if bool(show_state_labels) else "false"
 
     html = (
         HTML_TEMPLATE_MAP_TABLE
@@ -991,12 +1057,13 @@ def generate_map_table_html_from_df(
         .replace("[[BRAND_URL]]", html_mod.escape(brand_meta.get("site_url", "")))
         .replace("[[BRAND_LOGO_WIDTH]]", str(brand_meta.get("logo_width", 140)))
         .replace("[[BRAND_LOGO_HEIGHT]]", str(brand_meta.get("logo_height", 32)))
+        .replace("[[SHOW_LABELS]]", show_labels_str)
     )
     return html
 
 
 # =====================================================================
-# STREAMLIT UX (your requested flow)
+# STREAMLIT UX
 # =====================================================================
 
 st.title("Branded Map + Table Generator")
@@ -1017,10 +1084,8 @@ def ss_init(key: str, value):
 def reset_generation_state():
     st.session_state["draft_html"] = ""
     st.session_state["draft_ready"] = False
-
     st.session_state["html_generated"] = False
     st.session_state["generated_html"] = ""
-
     st.session_state["iframe_published"] = False
     st.session_state["iframe_snippet"] = ""
     st.session_state["published_url"] = ""
@@ -1057,7 +1122,7 @@ def build_html_from_applied(df: pd.DataFrame) -> str:
         low_title=st.session_state["applied_low_title"],
         low_sub=st.session_state["applied_low_sub"],
         top_n=10,
-        show_state_labels=False,  # FORCE OFF
+        show_state_labels=bool(st.session_state.get("applied_show_labels", False)),
         table_cols=st.session_state["applied_table_cols"],
         hover_cols=st.session_state["applied_hover_cols"],
     )
@@ -1105,6 +1170,8 @@ def apply_edits_and_update_preview(df: pd.DataFrame):
     high_sub = st.session_state.get("edit_high_sub") or st.session_state.get("applied_high_sub") or "Ranked by the selected metric."
     low_sub = st.session_state.get("edit_low_sub") or st.session_state.get("applied_low_sub") or "Ranked by the selected metric."
 
+    show_labels = bool(st.session_state.get("edit_show_labels", st.session_state.get("applied_show_labels", False)))
+
     st.session_state["applied_brand"] = brand
     st.session_state["applied_state_col"] = state_col
     st.session_state["applied_value_col"] = value_col
@@ -1117,9 +1184,9 @@ def apply_edits_and_update_preview(df: pd.DataFrame):
     st.session_state["applied_low_title"] = low_title
     st.session_state["applied_high_sub"] = high_sub
     st.session_state["applied_low_sub"] = low_sub
+    st.session_state["applied_show_labels"] = show_labels
 
     available_cols = [c for c in cols if c != state_col]
-
     raw_hover = st.session_state.get("edit_hover_cols") or st.session_state.get("applied_hover_cols") or ["All columns"]
     raw_table = st.session_state.get("edit_table_cols") or st.session_state.get("applied_table_cols") or ["All columns"]
 
@@ -1129,7 +1196,6 @@ def apply_edits_and_update_preview(df: pd.DataFrame):
     st.session_state["draft_html"] = build_html_from_applied(df)
     st.session_state["draft_ready"] = True
 
-    # invalidate downstream artifacts
     st.session_state["html_generated"] = False
     st.session_state["generated_html"] = ""
     st.session_state["iframe_published"] = False
@@ -1205,6 +1271,8 @@ if fp != st.session_state.get("csv_fingerprint", ""):
     st.session_state["edit_hover_cols"] = ["All columns"]
     st.session_state["edit_table_cols"] = ["All columns"]
 
+    st.session_state["edit_show_labels"] = False  # NEW default
+
     apply_edits_and_update_preview(df)
 
 if not st.session_state.get("draft_ready", False):
@@ -1255,6 +1323,13 @@ with left:
             index=candidate_value_cols.index(st.session_state.get("edit_value_col", candidate_value_cols[0]))
             if st.session_state.get("edit_value_col", candidate_value_cols[0]) in candidate_value_cols else 0,
             key="edit_value_col",
+        )
+
+        # NEW: labels optional toggle (desktop only; mobile forced OFF by JS)
+        st.checkbox(
+            "Show state rank labels (desktop only)",
+            value=st.session_state.get("edit_show_labels", False),
+            key="edit_show_labels",
         )
 
         st.markdown("#### Text")
