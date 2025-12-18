@@ -204,7 +204,6 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
     brand_clean = (brand or "").strip() or "Action Network"
     style_mode = (style_mode or "Branded").strip().lower()
 
-    # base meta (with defaults)
     meta = {
         "name": brand_clean,
         "brand_class": "",
@@ -214,7 +213,6 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
         "accent_soft": "#DCFCE7",
         "accent_softer": "#F3FBF7",
         "branded_scale": UNBRANDED_SCALE,
-        # site URL + logo size (used in header, right-hand side)
         "site_url": "https://www.actionnetwork.com/",
         "logo_width": 140,
         "logo_height": 32,
@@ -273,16 +271,13 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "logo_height": 32,
         })
 
-    # remember style_mode so downstream code can behave differently
     meta["style_mode"] = style_mode
 
-    # Decide which scale & accent set to actually use on the map + legend
     if style_mode == "unbranded":
         meta["map_scale"] = UNBRANDED_SCALE
-        # softer accent set based on red so it still feels neutral-ish
-        meta["accent"] = "#EF4444"        # soft red
-        meta["accent_soft"] = "#FEE2E2"   # very light red
-        meta["accent_softer"] = "#FEF2F2" # almost white with red tint
+        meta["accent"] = "#EF4444"
+        meta["accent_soft"] = "#FEE2E2"
+        meta["accent_softer"] = "#FEF2F2"
     else:
         meta["map_scale"] = meta["branded_scale"]
 
@@ -344,7 +339,6 @@ STATE_ABBR = {
     "Wyoming": "WY",
 }
 
-# Helper lookup that accepts full names or 2-letter codes
 STATE_LOOKUP = {}
 for name, code in STATE_ABBR.items():
     STATE_LOOKUP[name] = code
@@ -355,7 +349,6 @@ for name, code in STATE_ABBR.items():
     STATE_LOOKUP[code.upper()] = code
     STATE_LOOKUP[code.lower()] = code
 
-# Small, dense Northeast states => callouts with leader lines
 SMALL_STATE_CENTROIDS = {
     "CT": {"lat": 41.6, "lon": -72.7},
     "DE": {"lat": 39.0, "lon": -75.5},
@@ -414,7 +407,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 
   max-height: 100vh;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: hidden; /* keep shell clean; tables scroll horizontally inside their own wrapper */
 }
 
 /* Scrollbar */
@@ -461,39 +454,27 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   max-width:140px;
   height:auto;
 }
-.vi-map-brand-link img{
-  display:block;
-  max-width:140px;
-  height:auto;
-}
 
 /* Brand-tinted logos in the header */
 .vi-map-card.brand-actionnetwork .vi-map-brand-link img{
-  /* Action Network green */
   filter:
     brightness(0) saturate(100%)
     invert(62%) sepia(23%) saturate(1250%) hue-rotate(78deg)
     brightness(96%) contrast(92%);
 }
-
 .vi-map-card.brand-vegasinsider .vi-map-brand-link img{
-  /* VegasInsider yellow */
   filter:
     brightness(0) saturate(100%)
     invert(72%) sepia(63%) saturate(652%) hue-rotate(6deg)
     brightness(95%) contrast(101%);
 }
-
 .vi-map-card.brand-canadasb .vi-map-brand-link img{
-  /* Canada Sports Betting red */
   filter:
     brightness(0) saturate(100%)
     invert(32%) sepia(85%) saturate(2386%) hue-rotate(347deg)
     brightness(96%) contrast(104%);
 }
-
 .vi-map-card.brand-rotogrinders .vi-map-brand-link img{
-  /* RotoGrinders blue */
   filter:
     brightness(0) saturate(100%)
     invert(23%) sepia(95%) saturate(1704%) hue-rotate(203deg)
@@ -595,19 +576,19 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   margin-top:6px;
 }
 
-$1.vi-table-scroll{
+/* --------- KEY FIX: horizontal scrolling for wide tables ---------- */
+.vi-table-scroll{
   width:100%;
+  max-width:100%;
   overflow-x:auto;
   overflow-y:hidden;
   -webkit-overflow-scrolling:touch;
-  padding-bottom:6px; /* room for scrollbar */
+  padding-bottom:6px;
 
   scrollbar-width: thin;
   scrollbar-color: var(--accent) transparent;
 }
-.vi-table-scroll::-webkit-scrollbar{
-  height:6px;
-}
+.vi-table-scroll::-webkit-scrollbar{ height:6px; }
 .vi-table-scroll::-webkit-scrollbar-track{
   background:var(--accent-soft);
   border-radius:999px;
@@ -616,17 +597,23 @@ $1.vi-table-scroll{
   background:var(--accent);
   border-radius:999px;
 }
-.vi-table-scroll::-webkit-scrollbar-thumb:hover{
-  filter:brightness(0.9);
-}
+.vi-table-scroll::-webkit-scrollbar-thumb:hover{ filter:brightness(0.9); }
 
 .vi-map-table{
-  width:max-content;
-  min-width:100%;
+  display:inline-table;  /* makes width:max-content reliable */
+  width:max-content;     /* expand to fit all columns */
+  min-width:100%;        /* but never smaller than wrapper */
   border-collapse:collapse;
   font-size:13px;
   color:#111827;
 }
+
+/* prevent wrapping so the table must overflow horizontally */
+.vi-map-table th,
+.vi-map-table td{
+  white-space:nowrap;
+}
+
 .vi-map-table thead th{
   text-align:left;
   padding:8px 10px;
@@ -637,12 +624,8 @@ $1.vi-table-scroll{
   background:var(--accent-soft);
   border-bottom:1px solid rgba(148,163,184,.35);
 }
-.vi-map-table tbody tr:nth-child(odd){
-  background:#FFFFFF;
-}
-.vi-map-table tbody tr:nth-child(even){
-  background:var(--accent-softer);
-}
+.vi-map-table tbody tr:nth-child(odd){ background:#FFFFFF; }
+.vi-map-table tbody tr:nth-child(even){ background:var(--accent-softer); }
 .vi-map-table tbody tr:hover{
   background:var(--accent-soft);
   filter:brightness(0.96);
@@ -854,7 +837,6 @@ def generate_map_table_html_from_df(
     if value_col not in numeric_cols:
         numeric_cols = [value_col] + numeric_cols
 
-    # Hover metrics
     if hover_cols is None or len(hover_cols) == 0:
         default_hover = [c for c in numeric_cols if c != "rank"]
         metrics_for_hover = [value_col] + [c for c in default_hover if c != value_col][:2]
@@ -919,7 +901,6 @@ def generate_map_table_html_from_df(
         showlegend=False,
     )
 
-    # ---------- State rank labels ----------
     if show_state_labels:
         label_df = df.copy()
         label_df["label_text"] = label_df["state_abbr"] + " (" + label_df["rank"].astype(str) + ")"
@@ -928,7 +909,6 @@ def generate_map_table_html_from_df(
         df_big = label_df[~small_mask]
         df_small = label_df[small_mask]
 
-        # Big contiguous states (including AK + HI)
         if not df_big.empty:
             def add_big_group(group, text_color):
                 if group.empty:
@@ -969,15 +949,10 @@ def generate_map_table_html_from_df(
                 add_big_group(dark_bg, label_light)
                 add_big_group(light_bg, label_dark)
 
-        # Small NE states (callouts)
         if not df_small.empty:
             df_small = df_small.copy()
-            df_small["centroid_lat"] = df_small["state_abbr"].map(
-                lambda s: SMALL_STATE_CENTROIDS[s]["lat"]
-            )
-            df_small["centroid_lon"] = df_small["state_abbr"].map(
-                lambda s: SMALL_STATE_CENTROIDS[s]["lon"]
-            )
+            df_small["centroid_lat"] = df_small["state_abbr"].map(lambda s: SMALL_STATE_CENTROIDS[s]["lat"])
+            df_small["centroid_lon"] = df_small["state_abbr"].map(lambda s: SMALL_STATE_CENTROIDS[s]["lon"])
 
             df_small = df_small.sort_values("centroid_lat", ascending=False).reset_index(drop=True)
 
@@ -1196,7 +1171,6 @@ def apply_edits_and_update_preview(df: pd.DataFrame):
         st.session_state["draft_ready"] = True
         return
 
-    # --- Safe getters (prefer edit_ → applied_ → inferred defaults) ---
     def guess_state_col() -> str:
         return next((c for c in cols if "state" in str(c).lower()), cols[0])
 
@@ -1234,7 +1208,6 @@ def apply_edits_and_update_preview(df: pd.DataFrame):
 
     show_labels = bool(st.session_state.get("edit_show_labels", st.session_state.get("applied_show_labels", False)))
 
-    # --- Snapshot into applied_* ---
     st.session_state["applied_brand"] = brand
     st.session_state["applied_state_col"] = state_col
     st.session_state["applied_value_col"] = value_col
@@ -1249,7 +1222,6 @@ def apply_edits_and_update_preview(df: pd.DataFrame):
     st.session_state["applied_low_sub"] = low_sub
     st.session_state["applied_show_labels"] = show_labels
 
-    # --- Derived columns for hover/tables ---
     available_cols = [c for c in cols if c != state_col]
 
     raw_hover = st.session_state.get("edit_hover_cols") or st.session_state.get("applied_hover_cols") or ["All columns"]
@@ -1258,11 +1230,9 @@ def apply_edits_and_update_preview(df: pd.DataFrame):
     st.session_state["applied_hover_cols"] = normalize_multi_select(raw_hover, available_cols)
     st.session_state["applied_table_cols"] = normalize_multi_select(raw_table, available_cols)
 
-    # --- Build preview HTML ---
     st.session_state["draft_html"] = build_html_from_applied(df)
     st.session_state["draft_ready"] = True
 
-    # Updating map content invalidates previously generated HTML/iframe
     st.session_state["html_generated"] = False
     st.session_state["generated_html"] = ""
     st.session_state["iframe_published"] = False
@@ -1280,21 +1250,18 @@ ss_init("iframe_published", False)
 ss_init("iframe_snippet", "")
 ss_init("published_url", "")
 
-# Upload first (important: do not create widgets tied to edit_* before we init defaults)
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
 if uploaded_file is None:
     st.info("Upload a CSV to see the preview and editing panel.")
     st.stop()
 
-# Read bytes to detect a new upload
 try:
     raw_bytes = uploaded_file.getvalue()
     fp = f"{uploaded_file.name}:{len(raw_bytes)}:{hash(raw_bytes)}"
 except Exception:
     fp = f"{uploaded_file.name}:{time.time()}"
 
-# Load df
 try:
     df = pd.read_csv(uploaded_file)
 except Exception as e:
@@ -1305,7 +1272,6 @@ if df.empty:
     st.error("Uploaded CSV has no rows.")
     st.stop()
 
-# New CSV: reset + init defaults BEFORE we render edit widgets
 if fp != st.session_state.get("csv_fingerprint", ""):
     st.session_state["csv_fingerprint"] = fp
     reset_generation_state()
@@ -1323,8 +1289,7 @@ if fp != st.session_state.get("csv_fingerprint", ""):
         non_state = [c for c in cols if c != guessed_state]
         value_guess = non_state[0] if non_state else cols[0]
 
-    # Defaults for edit_* (safe: no widgets created yet)
-    st.session_state["edit_brand"] = "VegasInsider" if "VegasInsider" in ["Action Network","VegasInsider","Canada Sports Betting","RotoGrinders"] else "Action Network"
+    st.session_state["edit_brand"] = "VegasInsider"
     st.session_state["edit_page_title"] = "State Metric Map"
     st.session_state["edit_subtitle"] = "Visualizing your selected metric by U.S. state."
     st.session_state["edit_strapline"] = f"{st.session_state['edit_brand'].upper()} · DATA VISUALIZATION"
@@ -1344,19 +1309,12 @@ if fp != st.session_state.get("csv_fingerprint", ""):
     st.session_state["edit_hover_cols"] = ["All columns"]
     st.session_state["edit_table_cols"] = ["All columns"]
 
-    # Apply immediately so preview shows right away
     apply_edits_and_update_preview(df)
 
-# If we have df but draft not built (edge case), build from applied
 if not st.session_state.get("draft_ready", False):
-    # Ensure applied exists; if not, mirror edit into applied
     if "applied_state_col" not in st.session_state:
         apply_edits_and_update_preview(df)
 
-
-# -----------------------------
-# Main two-panel layout
-# -----------------------------
 left, right = st.columns([0.42, 0.58], gap="large")
 
 with left:
@@ -1413,7 +1371,6 @@ with left:
         st.text_input("Page title", key="edit_page_title")
         st.text_input("Subtitle", key="edit_subtitle")
 
-        # Helpful: if strapline still equals previous brand strapline, auto-sync on brand change
         current_brand = st.session_state.get("edit_brand", "Action Network")
         default_strapline = f"{current_brand.upper()} · DATA VISUALIZATION"
         if "edit_strapline" not in st.session_state or not st.session_state["edit_strapline"]:
@@ -1556,10 +1513,10 @@ with left:
 
                         published_url = compute_expected_embed_url(gh_user.strip(), gh_repo.strip(), gh_file.strip())
                         iframe_snippet = dedent(f"""\
-                        <iframe src=\"{published_url}\"
-                                title=\"{html_mod.escape(st.session_state.get('applied_page_title', 'State Metric Map'))}\"
-                                width=\"100%\" height=\"1000\" scrolling=\"no\"
-                                style=\"border:0;\" loading=\"lazy\"></iframe>""")
+                        <iframe src="{published_url}"
+                                title="{html_mod.escape(st.session_state.get('applied_page_title', 'State Metric Map'))}"
+                                width="100%" height="1000" scrolling="no"
+                                style="border:0;" loading="lazy"></iframe>""")
 
                         st.session_state["iframe_published"] = True
                         st.session_state["published_url"] = published_url
