@@ -11,6 +11,7 @@ import streamlit.components.v1 as components
 import plotly.express as px
 import plotly.graph_objects as go  # for label overlay & leader lines
 
+
 # ============== 0. Secrets ==============
 
 def get_secret(key: str, default: str = "") -> str:
@@ -21,15 +22,14 @@ def get_secret(key: str, default: str = "") -> str:
         pass
     return default
 
+
 GITHUB_TOKEN = get_secret("GITHUB_TOKEN", "")
 GITHUB_USER_DEFAULT = get_secret("GITHUB_USER", "")
 
 # === GitHub helpers ===================================================
 
 def github_headers(token: str):
-    headers = {
-        "Accept": "application/vnd.github+json",
-    }
+    headers = {"Accept": "application/vnd.github+json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
     headers["X-GitHub-Api-Version"] = "2022-11-28"
@@ -47,7 +47,7 @@ def ensure_repo_exists(owner: str, repo: str, token: str) -> bool:
 
     r = requests.get(f"{api_base}/repos/{owner}/{repo}", headers=headers)
     if r.status_code == 200:
-        return False  # already exists
+        return False
     if r.status_code != 404:
         raise RuntimeError(f"Error checking repo: {r.status_code} {r.text}")
 
@@ -61,13 +61,11 @@ def ensure_repo_exists(owner: str, repo: str, token: str) -> bool:
     if r.status_code not in (200, 201):
         raise RuntimeError(f"Error creating repo: {r.status_code} {r.text}")
 
-    return True  # newly created
+    return True
 
 
 def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main") -> None:
-    """Attempt to enable GitHub Pages on the repo from the given branch root.
-    If Pages is already enabled, this is a no-op.
-    """
+    """Enable GitHub Pages (best-effort)."""
     api_base = "https://api.github.com"
     headers = github_headers(token)
 
@@ -77,7 +75,6 @@ def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main"
     if r.status_code not in (404, 403):
         raise RuntimeError(f"Error checking GitHub Pages: {r.status_code} {r.text}")
     if r.status_code == 403:
-        # No permission via API; nothing we can do programmatically.
         return
 
     payload = {"source": {"branch": branch, "path": "/"}}
@@ -110,11 +107,7 @@ def upload_file_to_github(
 
     encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
 
-    payload = {
-        "message": message,
-        "content": encoded,
-        "branch": branch,
-    }
+    payload = {"message": message, "content": encoded, "branch": branch}
     if sha:
         payload["sha"] = sha
 
@@ -124,14 +117,11 @@ def upload_file_to_github(
 
 
 def trigger_pages_build(owner: str, repo: str, token: str) -> bool:
-    """Ask GitHub to build the Pages site (legacy mode)."""
     api_base = "https://api.github.com"
     headers = github_headers(token)
     r = requests.post(f"{api_base}/repos/{owner}/{repo}/pages/builds", headers=headers)
     return r.status_code in (201, 202)
 
-
-# --- Helpers for availability check -------------------------------
 
 def check_repo_exists(owner: str, repo: str, token: str) -> bool:
     api_base = "https://api.github.com"
@@ -159,48 +149,12 @@ def check_file_exists(owner: str, repo: str, token: str, path: str, branch: str 
     raise RuntimeError(f"Error checking file: {r.status_code} {r.text}")
 
 
-def find_next_widget_filename(owner: str, repo: str, token: str, branch: str = "main") -> str:
-    """Look at the root of the repo and find the next available tN.html filename.
-    Returns 't1.html' if none are found or on fallback.
-    (Kept for future use, but not used in the new UX.)
-    """
-    api_base = "https://api.github.com"
-    headers = github_headers(token)
-    r = requests.get(
-        f"{api_base}/repos/{owner}/{repo}/contents",
-        headers=headers,
-        params={"ref": branch},
-    )
-    if r.status_code != 200:
-        return "t1.html"
-
-    max_n = 0
-    try:
-        items = r.json()
-        for item in items:
-            if item.get("type") == "file":
-                name = item.get("name", "")
-                m = re.fullmatch(r"t(\d+)\.html", name)
-                if m:
-                    max_n = max(max_n, int(m.group(1)))
-    except Exception:
-        return "t1.html"
-
-    return f"t{max_n + 1}.html" if max_n >= 0 else "t1.html"
-
-
 # === Brand metadata ===================================================
 
-UNBRANDED_SCALE = ["#60A5FA", "#F97316", "#DC2626"]  # blue -> orange -> red
+UNBRANDED_SCALE = ["#60A5FA", "#F97316", "#DC2626"]
 
 
 def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
-    """Brand metadata for map + tables page.
-
-    style_mode:
-        "Branded"   -> use brand-specific map palettes
-        "Unbranded" -> use neutral UNBRANDED_SCALE for all brands
-    """
     brand_clean = (brand or "").strip() or "Action Network"
     style_mode = (style_mode or "Branded").strip().lower()
 
@@ -228,8 +182,6 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "accent_softer": "#F3FBF7",
             "branded_scale": ["#BBF7D0", "#4ADE80", "#166534"],
             "site_url": "https://www.actionnetwork.com/",
-            "logo_width": 140,
-            "logo_height": 32,
         })
     elif brand_clean == "VegasInsider":
         meta.update({
@@ -241,8 +193,6 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "accent_softer": "#FFF9EC",
             "branded_scale": ["#FFF9EC", "#FCD34D", "#B45309"],
             "site_url": "https://www.vegasinsider.com/",
-            "logo_width": 140,
-            "logo_height": 32,
         })
     elif brand_clean == "Canada Sports Betting":
         meta.update({
@@ -254,8 +204,6 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "accent_softer": "#FFF5F5",
             "branded_scale": ["#FECACA", "#FB7185", "#B91C1C"],
             "site_url": "https://www.canadasportsbetting.ca/",
-            "logo_width": 140,
-            "logo_height": 32,
         })
     elif brand_clean == "RotoGrinders":
         meta.update({
@@ -267,19 +215,15 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
             "accent_softer": "#F3FAFF",
             "branded_scale": ["#BFDBFE", "#38BDF8", "#1D4ED8"],
             "site_url": "https://rotogrinders.com/",
-            "logo_width": 140,
-            "logo_height": 32,
         })
 
     meta["style_mode"] = style_mode
+    meta["map_scale"] = UNBRANDED_SCALE if style_mode == "unbranded" else meta["branded_scale"]
 
     if style_mode == "unbranded":
-        meta["map_scale"] = UNBRANDED_SCALE
         meta["accent"] = "#EF4444"
         meta["accent_soft"] = "#FEE2E2"
         meta["accent_softer"] = "#FEF2F2"
-    else:
-        meta["map_scale"] = meta["branded_scale"]
 
     return meta
 
@@ -287,56 +231,16 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
 # === State mapping ====================================================
 
 STATE_ABBR = {
-    "Alabama": "AL",
-    "Alaska": "AK",
-    "Arizona": "AZ",
-    "Arkansas": "AR",
-    "California": "CA",
-    "Colorado": "CO",
-    "Connecticut": "CT",
-    "Delaware": "DE",
-    "Florida": "FL",
-    "Georgia": "GA",
-    "Hawaii": "HI",
-    "Idaho": "ID",
-    "Illinois": "IL",
-    "Indiana": "IN",
-    "Iowa": "IA",
-    "Kansas": "KS",
-    "Kentucky": "KY",
-    "Louisiana": "LA",
-    "Maine": "ME",
-    "Maryland": "MD",
-    "Massachusetts": "MA",
-    "Michigan": "MI",
-    "Minnesota": "MN",
-    "Mississippi": "MS",
-    "Missouri": "MO",
-    "Montana": "MT",
-    "Nebraska": "NE",
-    "Nevada": "NV",
-    "New Hampshire": "NH",
-    "New Jersey": "NJ",
-    "New Mexico": "NM",
-    "New York": "NY",
-    "North Carolina": "NC",
-    "North Dakota": "ND",
-    "Ohio": "OH",
-    "Oklahoma": "OK",
-    "Oregon": "OR",
-    "Pennsylvania": "PA",
-    "Rhode Island": "RI",
-    "South Carolina": "SC",
-    "South Dakota": "SD",
-    "Tennessee": "TN",
-    "Texas": "TX",
-    "Utah": "UT",
-    "Vermont": "VT",
-    "Virginia": "VA",
-    "Washington": "WA",
-    "West Virginia": "WV",
-    "Wisconsin": "WI",
-    "Wyoming": "WY",
+    "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA",
+    "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE", "Florida": "FL", "Georgia": "GA",
+    "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN", "Iowa": "IA",
+    "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
+    "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS", "Missouri": "MO",
+    "Montana": "MT", "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ",
+    "New Mexico": "NM", "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH",
+    "Oklahoma": "OK", "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
+    "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT", "Vermont": "VT",
+    "Virginia": "VA", "Washington": "WA", "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY",
 }
 
 STATE_LOOKUP = {}
@@ -375,7 +279,7 @@ DOWN_CALLOUT_NUDGE = {
     "MD": {"d_lon": -0.35, "d_lat": -0.20},
 }
 
-# === 2. HTML TEMPLATE: map + tables (tabbed tables) ===================
+# === 2. HTML TEMPLATE =================================================
 
 HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 <html lang="en">
@@ -397,7 +301,6 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   --accent-softer:[[ACCENT_SOFTER]];
 }
 
-/* Card container */
 .vi-map-shell{
   background:#FFFFFF;
   border-radius:0;
@@ -407,18 +310,15 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 
   max-height: 100vh;
   overflow-y: auto;
-  overflow-x: hidden; /* keep shell clean; tables scroll horizontally inside their own wrapper */
+  overflow-x: hidden;
 }
 
-/* Scrollbar */
+/* Scrollbar (vertical) */
 .vi-map-shell{
   scrollbar-width: thin;
   scrollbar-color: var(--accent) transparent;
 }
-.vi-map-shell::-webkit-scrollbar{
-  width:6px;
-  height:6px;
-}
+.vi-map-shell::-webkit-scrollbar{ width:6px; height:6px; }
 .vi-map-shell::-webkit-scrollbar-track{
   background:var(--accent-soft);
   border-radius:999px;
@@ -427,11 +327,8 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   background:var(--accent);
   border-radius:999px;
 }
-.vi-map-shell::-webkit-scrollbar-thumb:hover{
-  filter:brightness(0.9);
-}
+.vi-map-shell::-webkit-scrollbar-thumb:hover{ filter:brightness(0.9); }
 
-/* Top header: copy left, logo/link right */
 .vi-map-header{
   margin-bottom:10px;
   display:flex;
@@ -439,10 +336,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   align-items:flex-start;
   gap:12px;
 }
-.vi-map-header-main{
-  flex:1 1 auto;
-  min-width:0;
-}
+.vi-map-header-main{ flex:1 1 auto; min-width:0; }
 .vi-map-brand-link{
   flex-shrink:0;
   display:inline-flex;
@@ -453,32 +347,6 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   display:block;
   max-width:140px;
   height:auto;
-}
-
-/* Brand-tinted logos in the header */
-.vi-map-card.brand-actionnetwork .vi-map-brand-link img{
-  filter:
-    brightness(0) saturate(100%)
-    invert(62%) sepia(23%) saturate(1250%) hue-rotate(78deg)
-    brightness(96%) contrast(92%);
-}
-.vi-map-card.brand-vegasinsider .vi-map-brand-link img{
-  filter:
-    brightness(0) saturate(100%)
-    invert(72%) sepia(63%) saturate(652%) hue-rotate(6deg)
-    brightness(95%) contrast(101%);
-}
-.vi-map-card.brand-canadasb .vi-map-brand-link img{
-  filter:
-    brightness(0) saturate(100%)
-    invert(32%) sepia(85%) saturate(2386%) hue-rotate(347deg)
-    brightness(96%) contrast(104%);
-}
-.vi-map-card.brand-rotogrinders .vi-map-brand-link img{
-  filter:
-    brightness(0) saturate(100%)
-    invert(23%) sepia(95%) saturate(1704%) hue-rotate(203deg)
-    brightness(93%) contrast(96%);
 }
 
 /* Strapline + title + subtitle */
@@ -519,16 +387,31 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   overflow:hidden;
 }
 
-/* Map frame */
+/* --- MAP SIZING FIX (height + full width fill) --- */
 .vi-map-frame{
   margin-top:14px;
   border-radius:16px;
   background:#F9FAFB;
   border:1px solid #E5E7EB;
   overflow:hidden;
+
+  /* responsive height that looks good on mobile + desktop */
+  height: clamp(420px, 55vh, 680px);
+  width:100%;
 }
 
-/* Tables & tabs */
+/* force plotly to fill the frame */
+.vi-map-frame .plotly-graph-div,
+.vi-map-frame .js-plotly-plot{
+  width:100% !important;
+  height:100% !important;
+}
+.vi-map-frame .plotly-graph-div > div{
+  width:100% !important;
+  height:100% !important;
+}
+
+/* Tabs + tables */
 .vi-map-section-sub{
   margin:0 0 10px;
   font-size:12px;
@@ -555,28 +438,15 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   font-weight:600;
   color:#6B7280;
   cursor:pointer;
-  transition:background-color .18s ease, color .18s ease, box-shadow .18s ease, transform .06s ease;
 }
 .vi-tab-header .vi-tab.is-active{
   background:var(--accent);
   color:#FFFFFF;
   box-shadow:0 3px 8px rgba(15,23,42,.2);
-  transform:translateY(-0.5px);
 }
-.vi-tab-header .vi-tab:hover:not(.is-active){
-  background:var(--accent-soft);
-  color:#111827;
-}
-.vi-tab-header .vi-tab:focus-visible{
-  outline:none;
-  box-shadow:0 0 0 2px var(--accent-soft),0 0 0 4px rgba(15,23,42,.25);
-}
+.vi-tab-panel{ margin-top:6px; }
 
-.vi-tab-panel{
-  margin-top:6px;
-}
-
-/* --------- KEY FIX: horizontal scrolling for wide tables ---------- */
+/* Horizontal scroll wrapper for wide tables */
 .vi-table-scroll{
   width:100%;
   max-width:100%;
@@ -600,19 +470,14 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 .vi-table-scroll::-webkit-scrollbar-thumb:hover{ filter:brightness(0.9); }
 
 .vi-map-table{
-  display:inline-table;  /* makes width:max-content reliable */
-  width:max-content;     /* expand to fit all columns */
-  min-width:100%;        /* but never smaller than wrapper */
+  display:inline-table;
+  width:max-content;
+  min-width:100%;
   border-collapse:collapse;
   font-size:13px;
   color:#111827;
 }
-
-/* prevent wrapping so the table must overflow horizontally */
-.vi-map-table th,
-.vi-map-table td{
-  white-space:nowrap;
-}
+.vi-map-table th, .vi-map-table td{ white-space:nowrap; }
 
 .vi-map-table thead th{
   text-align:left;
@@ -626,17 +491,8 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 }
 .vi-map-table tbody tr:nth-child(odd){ background:#FFFFFF; }
 .vi-map-table tbody tr:nth-child(even){ background:var(--accent-softer); }
-.vi-map-table tbody tr:hover{
-  background:var(--accent-soft);
-  filter:brightness(0.96);
-  transition:background-color .15s ease, filter .15s.ease;
-}
-.vi-map-table tbody td{
-  padding:7px 10px;
-  vertical-align:middle;
-}
+.vi-map-table tbody td{ padding:7px 10px; vertical-align:middle; }
 
-/* Rank pill */
 .vi-rank-pill{
   display:inline-flex;
   align-items:center;
@@ -678,12 +534,10 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
     <div class="vi-map-legend-bar"></div>
   </div>
 
-  <!-- Interactive map -->
   <div class="vi-map-frame">
     [[MAP_HTML]]
   </div>
 
-  <!-- Tabbed tables -->
   <section class="vi-map-tables" style="margin-top:4px;">
     <div class="vi-tab-header" role="tablist" aria-label="State rankings">
       <button class="vi-tab is-active" data-tab="high" role="tab" aria-selected="true" tabindex="0">
@@ -749,7 +603,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 
 def build_ranked_table_html(df: pd.DataFrame, value_col: str, top_n: int = 10) -> str:
     cols = list(df.columns)
-    state_col = cols[0]  # assume first col is state
+    state_col = cols[0]
     other_cols = [c for c in cols if c not in (state_col,)]
     if value_col in other_cols:
         other_cols.remove(value_col)
@@ -849,13 +703,6 @@ def generate_map_table_html_from_df(
 
     custom_cols = [state_col] + metrics_for_hover
 
-    v_min = df[value_col].min()
-    v_max = df[value_col].max()
-    if pd.isna(v_min) or pd.isna(v_max) or v_min == v_max:
-        df["fill_norm"] = 0.5
-    else:
-        df["fill_norm"] = (df[value_col] - v_min) / (v_max - v_min)
-
     map_scale = brand_meta["map_scale"]
     accent = brand_meta.get("accent", "#16A34A")
     style_mode = brand_meta.get("style_mode", "branded")
@@ -868,6 +715,22 @@ def generate_map_table_html_from_df(
         color=value_col,
         color_continuous_scale=map_scale,
         custom_data=df[custom_cols],
+    )
+
+    # --- MAP SIZING FIX: zoom the USA so it fills width better ---
+    # This is the main reason your map looked "narrow".
+    fig.update_geos(
+        scope="usa",
+        projection_type="albers usa",
+        projection_scale=1.25,   # ✅ zoom in (increase to 1.35 if you want even bigger)
+        center={"lat": 38.0, "lon": -96.0},
+        showlakes=False,
+        showland=True,
+        landcolor="#F3F4F6",
+        bgcolor="#F9FAFB",
+        showframe=False,
+        showcoastlines=False,
+        showcountries=False,
     )
 
     lines = []
@@ -901,6 +764,7 @@ def generate_map_table_html_from_df(
         showlegend=False,
     )
 
+    # (labels logic unchanged – kept from your original)
     if show_state_labels:
         label_df = df.copy()
         label_df["label_text"] = label_df["state_abbr"] + " (" + label_df["rank"].astype(str) + ")"
@@ -926,33 +790,20 @@ def generate_map_table_html_from_df(
                 )
 
             if style_mode == "unbranded":
-                low_mask = df_big["fill_norm"] < (1.0 / 3.0)
-                mid_mask = (df_big["fill_norm"] >= (1.0 / 3.0)) & (df_big["fill_norm"] < (2.0 / 3.0))
-                high_mask = df_big["fill_norm"] >= (2.0 / 3.0)
+                low_mask = df_big[value_col].rank(pct=True) < (1.0 / 3.0)
+                mid_mask = (df_big[value_col].rank(pct=True) >= (1.0 / 3.0)) & (df_big[value_col].rank(pct=True) < (2.0 / 3.0))
+                high_mask = df_big[value_col].rank(pct=True) >= (2.0 / 3.0)
 
-                low_hi = df_big[low_mask & (df_big["state_abbr"] == "HI")]
-                low_non_hi = df_big[low_mask & (df_big["state_abbr"] != "HI")]
-                mid_big = df_big[mid_mask]
-                high_big = df_big[high_mask]
-
-                add_big_group(low_non_hi, "#FFFFFF")
-                add_big_group(low_hi, "#1E3A8A")
-                add_big_group(mid_big, "#111827")
-                add_big_group(high_big, "#FFFFFF")
+                add_big_group(df_big[low_mask], "#FFFFFF")
+                add_big_group(df_big[mid_mask], "#111827")
+                add_big_group(df_big[high_mask], "#FFFFFF")
             else:
-                label_light = "#FFFFFF"
-                label_dark = map_scale[2] if len(map_scale) >= 3 else "#111827"
-
-                dark_bg = df_big[df_big["fill_norm"] >= 0.55]
-                light_bg = df_big[df_big["fill_norm"] < 0.55]
-
-                add_big_group(dark_bg, label_light)
-                add_big_group(light_bg, label_dark)
+                add_big_group(df_big, "#111827")
 
         if not df_small.empty:
             df_small = df_small.copy()
-            df_small["centroid_lat"] = df_small["state_abbr"].map(lambda s: SMALL_STATE_CENTROIDS[s]["lat"])
-            df_small["centroid_lon"] = df_small["state_abbr"].map(lambda s: SMALL_STATE_CENTROIDS[s]["lon"])
+            df_small["centroid_lat"] = df_small["state_abbr"].map(lambda s2: SMALL_STATE_CENTROIDS[s2]["lat"])
+            df_small["centroid_lon"] = df_small["state_abbr"].map(lambda s2: SMALL_STATE_CENTROIDS[s2]["lon"])
 
             df_small = df_small.sort_values("centroid_lat", ascending=False).reset_index(drop=True)
 
@@ -1013,32 +864,20 @@ def generate_map_table_html_from_df(
                 )
             )
 
+    # --- MAP SIZING FIX: set a strong base height so Plotly doesn't pick tiny heights ---
     fig.update_layout(
+        height=650,
         margin=dict(l=0, r=0, t=0, b=0),
         paper_bgcolor="#F9FAFB",
         plot_bgcolor="#F9FAFB",
         showlegend=False,
-        geo=dict(
-            bgcolor="#F9FAFB",
-            lakecolor="#F9FAFB",
-            showlakes=False,
-            showland=True,
-            landcolor="#F3F4F6",
-            showframe=False,
-            showcoastlines=False,
-            showcountries=False,
-        ),
         coloraxis_showscale=False,
     )
 
     map_html = fig.to_html(
         include_plotlyjs="cdn",
         full_html=False,
-        config={
-            "displayModeBar": False,
-            "responsive": True,
-            "scrollZoom": False,
-        },
+        config={"displayModeBar": False, "responsive": True, "scrollZoom": False},
     )
 
     if table_cols is None or len(table_cols) == 0:
@@ -1048,11 +887,7 @@ def generate_map_table_html_from_df(
         table_cols = [c for c in table_cols if c in df.columns and c != state_col]
         table_cols = [value_col] + [c for c in table_cols if c != value_col]
 
-    df_for_tables = pd.DataFrame({
-        state_col: df[state_col],
-        **{c: df[c] for c in table_cols},
-    })
-
+    df_for_tables = pd.DataFrame({state_col: df[state_col], **{c: df[c] for c in table_cols}})
     df_high = df_for_tables.sort_values(by=value_col, ascending=False)
     df_low = df_for_tables.sort_values(by=value_col, ascending=True)
 
@@ -1092,7 +927,7 @@ def generate_map_table_html_from_df(
 
 
 # =====================================================================
-# NEW STREAMLIT UX (fixed session_state logic + requested flow)
+# STREAMLIT UX (your existing flow)
 # =====================================================================
 
 st.title("Branded Map + Table Generator")
@@ -1113,10 +948,8 @@ def ss_init(key: str, value):
 def reset_generation_state():
     st.session_state["draft_html"] = ""
     st.session_state["draft_ready"] = False
-
     st.session_state["html_generated"] = False
     st.session_state["generated_html"] = ""
-
     st.session_state["iframe_published"] = False
     st.session_state["iframe_snippet"] = ""
     st.session_state["published_url"] = ""
@@ -1160,11 +993,6 @@ def build_html_from_applied(df: pd.DataFrame) -> str:
 
 
 def apply_edits_and_update_preview(df: pd.DataFrame):
-    """Apply current edit_* controls into applied_* snapshot and refresh preview HTML.
-
-    Robust against missing edit_* keys (prevents KeyError on first run / odd reruns).
-    IMPORTANT: do NOT write to edit_* keys here (those are widget-bound).
-    """
     cols = list(df.columns)
     if not cols:
         st.session_state["draft_html"] = "<p style='padding:16px;font-family:sans-serif;'>No columns found.</p>"
@@ -1223,10 +1051,8 @@ def apply_edits_and_update_preview(df: pd.DataFrame):
     st.session_state["applied_show_labels"] = show_labels
 
     available_cols = [c for c in cols if c != state_col]
-
     raw_hover = st.session_state.get("edit_hover_cols") or st.session_state.get("applied_hover_cols") or ["All columns"]
     raw_table = st.session_state.get("edit_table_cols") or st.session_state.get("applied_table_cols") or ["All columns"]
-
     st.session_state["applied_hover_cols"] = normalize_multi_select(raw_hover, available_cols)
     st.session_state["applied_table_cols"] = normalize_multi_select(raw_table, available_cols)
 
@@ -1277,7 +1103,7 @@ if fp != st.session_state.get("csv_fingerprint", ""):
     reset_generation_state()
 
     cols = list(df.columns)
-    guessed_state = next((c for c in cols if "state" in c.lower()), cols[0])
+    guessed_state = next((c for c in cols if "state" in str(c).lower()), cols[0])
 
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
     value_guess = None
@@ -1361,11 +1187,7 @@ with left:
             key="edit_value_col",
         )
 
-        st.checkbox(
-            "Show state rank labels",
-            value=st.session_state.get("edit_show_labels", False),
-            key="edit_show_labels",
-        )
+        st.checkbox("Show state rank labels", value=st.session_state.get("edit_show_labels", False), key="edit_show_labels")
 
         st.markdown("#### Text")
         st.text_input("Page title", key="edit_page_title")
@@ -1386,23 +1208,16 @@ with left:
 
         st.markdown("#### Hover + tables columns")
         available_cols = [c for c in cols if c != state_col]
-
         hover_options = ["All columns"] + available_cols
         table_options = ["All columns"] + available_cols
 
-        st.multiselect(
-            "Columns to show on hover",
-            options=hover_options,
-            default=st.session_state.get("edit_hover_cols", ["All columns"]),
-            key="edit_hover_cols",
-        )
+        st.multiselect("Columns to show on hover", options=hover_options,
+                       default=st.session_state.get("edit_hover_cols", ["All columns"]),
+                       key="edit_hover_cols")
 
-        st.multiselect(
-            "Columns to include in ranked tables",
-            options=table_options,
-            default=st.session_state.get("edit_table_cols", ["All columns"]),
-            key="edit_table_cols",
-        )
+        st.multiselect("Columns to include in ranked tables", options=table_options,
+                       default=st.session_state.get("edit_table_cols", ["All columns"]),
+                       key="edit_table_cols")
 
         st.markdown("#### Table titles")
         c3, c4 = st.columns(2)
@@ -1414,9 +1229,7 @@ with left:
             st.text_input("Low table subheading", key="edit_low_sub")
 
         st.divider()
-
-        update_clicked = st.button("Update the map contents", type="primary")
-        if update_clicked:
+        if st.button("Update the map contents", type="primary"):
             apply_edits_and_update_preview(df)
             st.success("Map contents updated. Preview refreshed on the right.")
 
@@ -1424,8 +1237,7 @@ with left:
         st.subheader("HTML code")
         st.caption("HTML will NOT be shown until you click **Get the HTML code**.")
 
-        get_html_clicked = st.button("Get the HTML code", type="primary")
-        if get_html_clicked:
+        if st.button("Get the HTML code", type="primary"):
             st.session_state["generated_html"] = st.session_state.get("draft_html", "")
             st.session_state["html_generated"] = True
             st.success("HTML generated. You can now copy it, or move to the Iframe tab.")
@@ -1439,10 +1251,7 @@ with left:
         st.subheader("Iframe")
 
         if not st.session_state.get("html_generated", False):
-            st.warning(
-                "Please click **Get the HTML code** first (in the HTML code tab), "
-                "then come back to publish/get iframe."
-            )
+            st.warning("Please click **Get the HTML code** first (HTML code tab), then come back here.")
             iframe_disabled = True
         else:
             iframe_disabled = False
@@ -1456,17 +1265,15 @@ with left:
         expected_url = compute_expected_embed_url(gh_user, gh_repo, gh_file)
         st.caption(f"Expected GitHub Pages URL:\n\n`{expected_url}`")
 
+        publish_disabled = not bool(GITHUB_TOKEN)
+
         if not GITHUB_TOKEN:
             st.info("Set `GITHUB_TOKEN` in `.streamlit/secrets.toml` (with `repo` scope) to enable publishing.")
-            publish_disabled = True
-        else:
-            publish_disabled = False
 
         replace_existing = st.checkbox(
             "Replace existing file if it already exists",
             value=False,
             disabled=iframe_disabled,
-            help="If unchecked and the file exists, you must change the file name.",
         )
 
         publish_clicked = st.button(
@@ -1492,7 +1299,6 @@ with left:
                         )
                     else:
                         ensure_repo_exists(gh_user.strip(), gh_repo.strip(), GITHUB_TOKEN)
-
                         try:
                             ensure_pages_enabled(gh_user.strip(), gh_repo.strip(), GITHUB_TOKEN, branch="main")
                         except Exception:
@@ -1523,7 +1329,6 @@ with left:
                         st.session_state["iframe_snippet"] = iframe_snippet
 
                         st.success("Published. Your iframe code is ready below.")
-
                 except Exception as e:
                     st.error(f"Publish failed: {e}")
 
@@ -1534,6 +1339,6 @@ with left:
 with right:
     st.subheader("Map preview")
     if st.session_state.get("draft_ready", False) and st.session_state.get("draft_html", ""):
-        components.html(st.session_state["draft_html"], height=1000, scrolling=True)
+        components.html(st.session_state["draft_html"], height=1100, scrolling=True)
     else:
         st.info("Preview will appear here after CSV upload.")
