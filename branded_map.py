@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 import plotly.express as px
-import plotly.graph_objects as go  # for label overlay & leader lines
+import plotly.graph_objects as go  # (kept; labels are disabled but no harm)
 
 # ============== 0. Secrets ==============
 
@@ -77,7 +77,6 @@ def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main"
     if r.status_code not in (404, 403):
         raise RuntimeError(f"Error checking GitHub Pages: {r.status_code} {r.text}")
     if r.status_code == 403:
-        # No permission via API; nothing we can do programmatically.
         return
 
     payload = {"source": {"branch": branch, "path": "/"}}
@@ -287,56 +286,16 @@ def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
 # === State mapping ====================================================
 
 STATE_ABBR = {
-    "Alabama": "AL",
-    "Alaska": "AK",
-    "Arizona": "AZ",
-    "Arkansas": "AR",
-    "California": "CA",
-    "Colorado": "CO",
-    "Connecticut": "CT",
-    "Delaware": "DE",
-    "Florida": "FL",
-    "Georgia": "GA",
-    "Hawaii": "HI",
-    "Idaho": "ID",
-    "Illinois": "IL",
-    "Indiana": "IN",
-    "Iowa": "IA",
-    "Kansas": "KS",
-    "Kentucky": "KY",
-    "Louisiana": "LA",
-    "Maine": "ME",
-    "Maryland": "MD",
-    "Massachusetts": "MA",
-    "Michigan": "MI",
-    "Minnesota": "MN",
-    "Mississippi": "MS",
-    "Missouri": "MO",
-    "Montana": "MT",
-    "Nebraska": "NE",
-    "Nevada": "NV",
-    "New Hampshire": "NH",
-    "New Jersey": "NJ",
-    "New Mexico": "NM",
-    "New York": "NY",
-    "North Carolina": "NC",
-    "North Dakota": "ND",
-    "Ohio": "OH",
-    "Oklahoma": "OK",
-    "Oregon": "OR",
-    "Pennsylvania": "PA",
-    "Rhode Island": "RI",
-    "South Carolina": "SC",
-    "South Dakota": "SD",
-    "Tennessee": "TN",
-    "Texas": "TX",
-    "Utah": "UT",
-    "Vermont": "VT",
-    "Virginia": "VA",
-    "Washington": "WA",
-    "West Virginia": "WV",
-    "Wisconsin": "WI",
-    "Wyoming": "WY",
+    "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA",
+    "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE", "Florida": "FL", "Georgia": "GA",
+    "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN", "Iowa": "IA",
+    "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
+    "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS", "Missouri": "MO",
+    "Montana": "MT", "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ",
+    "New Mexico": "NM", "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH",
+    "Oklahoma": "OK", "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
+    "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT", "Vermont": "VT",
+    "Virginia": "VA", "Washington": "WA", "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY",
 }
 
 STATE_LOOKUP = {}
@@ -349,31 +308,6 @@ for name, code in STATE_ABBR.items():
     STATE_LOOKUP[code.upper()] = code
     STATE_LOOKUP[code.lower()] = code
 
-SMALL_STATE_CENTROIDS = {
-    "CT": {"lat": 41.6, "lon": -72.7},
-    "DE": {"lat": 39.0, "lon": -75.5},
-    "MD": {"lat": 39.0, "lon": -76.7},
-    "MA": {"lat": 42.3, "lon": -71.8},
-    "NH": {"lat": 43.6, "lon": -71.6},
-    "NJ": {"lat": 40.1, "lon": -74.5},
-    "RI": {"lat": 41.7, "lon": -71.6},
-    "VT": {"lat": 44.0, "lon": -72.7},
-    "DC": {"lat": 38.9, "lon": -77.0},
-}
-SMALL_STATES = set(SMALL_STATE_CENTROIDS.keys())
-
-UP_CALLOUT_STATES = {"VT", "MA", "NH"}
-
-UP_CALLOUT_OFFSETS = {
-    "MA": {"d_lon": 5.8, "d_lat": 3.2},
-    "VT": {"d_lon": 5.3, "d_lat": 4.4},
-    "NH": {"d_lon": 6.4, "d_lat": 6.8},
-}
-
-DOWN_CALLOUT_NUDGE = {
-    "DE": {"d_lon": 0.45, "d_lat": 0.15},
-    "MD": {"d_lon": -0.35, "d_lat": -0.20},
-}
 
 # === 2. HTML TEMPLATE: map + tables (tabbed tables) ===================
 
@@ -407,7 +341,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 
   max-height: 100vh;
   overflow-y: auto;
-  overflow-x: hidden; /* keep shell clean; tables scroll horizontally inside their own wrapper */
+  overflow-x: hidden;
 }
 
 /* Scrollbar */
@@ -457,28 +391,16 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 
 /* Brand-tinted logos in the header */
 .vi-map-card.brand-actionnetwork .vi-map-brand-link img{
-  filter:
-    brightness(0) saturate(100%)
-    invert(62%) sepia(23%) saturate(1250%) hue-rotate(78deg)
-    brightness(96%) contrast(92%);
+  filter: brightness(0) saturate(100%) invert(62%) sepia(23%) saturate(1250%) hue-rotate(78deg) brightness(96%) contrast(92%);
 }
 .vi-map-card.brand-vegasinsider .vi-map-brand-link img{
-  filter:
-    brightness(0) saturate(100%)
-    invert(72%) sepia(63%) saturate(652%) hue-rotate(6deg)
-    brightness(95%) contrast(101%);
+  filter: brightness(0) saturate(100%) invert(72%) sepia(63%) saturate(652%) hue-rotate(6deg) brightness(95%) contrast(101%);
 }
 .vi-map-card.brand-canadasb .vi-map-brand-link img{
-  filter:
-    brightness(0) saturate(100%)
-    invert(32%) sepia(85%) saturate(2386%) hue-rotate(347deg)
-    brightness(96%) contrast(104%);
+  filter: brightness(0) saturate(100%) invert(32%) sepia(85%) saturate(2386%) hue-rotate(347deg) brightness(96%) contrast(104%);
 }
 .vi-map-card.brand-rotogrinders .vi-map-brand-link img{
-  filter:
-    brightness(0) saturate(100%)
-    invert(23%) sepia(95%) saturate(1704%) hue-rotate(203deg)
-    brightness(93%) contrast(96%);
+  filter: brightness(0) saturate(100%) invert(23%) sepia(95%) saturate(1704%) hue-rotate(203deg) brightness(93%) contrast(96%);
 }
 
 /* Strapline + title + subtitle */
@@ -519,13 +441,31 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   overflow:hidden;
 }
 
-/* Map frame */
+/* Map frame (DESKTOP) */
 .vi-map-frame{
   margin-top:14px;
   border-radius:16px;
   background:#F9FAFB;
   border:1px solid #E5E7EB;
   overflow:hidden;
+
+  /* IMPORTANT: give the map a real height so Plotly can fill it */
+  height: 520px;
+}
+
+/* Force Plotly to fill the frame */
+.vi-map-frame .plotly-graph-div,
+.vi-map-frame .js-plotly-plot,
+.vi-map-frame .svg-container{
+  width:100% !important;
+  height:100% !important;
+}
+
+/* HARD LOCK: prevent accidental pan/drag on mouse/touch */
+.vi-map-frame .draglayer,
+.vi-map-frame .zoomlayer,
+.vi-map-frame .panlayer{
+  pointer-events:none !important;
 }
 
 /* Tables & tabs */
@@ -576,7 +516,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   margin-top:6px;
 }
 
-/* --------- KEY FIX: horizontal scrolling for wide tables ---------- */
+/* horizontal scrolling for wide tables */
 .vi-table-scroll{
   width:100%;
   max-width:100%;
@@ -600,19 +540,15 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 .vi-table-scroll::-webkit-scrollbar-thumb:hover{ filter:brightness(0.9); }
 
 .vi-map-table{
-  display:inline-table;  /* makes width:max-content reliable */
-  width:max-content;     /* expand to fit all columns */
-  min-width:100%;        /* but never smaller than wrapper */
+  display:inline-table;
+  width:max-content;
+  min-width:100%;
   border-collapse:collapse;
   font-size:13px;
   color:#111827;
 }
-
-/* prevent wrapping so the table must overflow horizontally */
 .vi-map-table th,
-.vi-map-table td{
-  white-space:nowrap;
-}
+.vi-map-table td{ white-space:nowrap; }
 
 .vi-map-table thead th{
   text-align:left;
@@ -629,7 +565,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 .vi-map-table tbody tr:hover{
   background:var(--accent-soft);
   filter:brightness(0.96);
-  transition:background-color .15s ease, filter .15s.ease;
+  transition:background-color .15s ease, filter .15s ease;
 }
 .vi-map-table tbody td{
   padding:7px 10px;
@@ -649,6 +585,38 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
   font-weight:600;
   background:var(--accent);
   color:#FFFFFF;
+}
+
+/* --------- Mobile: smaller padding + tighter map height --------- */
+@media (max-width: 560px){
+  .vi-map-shell{
+    padding:14px 12px 16px;
+  }
+  .vi-map-header{
+    flex-direction:column;
+    align-items:flex-start;
+    gap:10px;
+  }
+  .vi-map-brand-link img{ max-width:120px; }
+
+  .vi-map-frame{
+    height: 360px; /* smaller so no big empty space above/below */
+    border-radius:14px;
+  }
+
+  .vi-tab-header{
+    display:flex;
+    width:100%;
+    flex-wrap:wrap;
+    gap:8px;
+    border-radius:16px;
+  }
+  .vi-tab-header .vi-tab{
+    flex:1 1 48%;
+    text-align:center;
+    padding:8px 10px;
+    white-space:normal;
+  }
 }
 </style>
 
@@ -709,6 +677,7 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
 
 <script>
 (function(){
+  // tab switcher
   var widgets = document.querySelectorAll('.vi-map-card');
   widgets.forEach(function(root){
     var tabs = root.querySelectorAll('.vi-tab-header .vi-tab');
@@ -736,6 +705,47 @@ HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
         });
       });
     });
+
+    // Keep Plotly height matched to the frame + lock drag layers (extra safety)
+    function lockAndFitPlotly(){
+      var frame = root.querySelector('.vi-map-frame');
+      if(!frame) return;
+
+      var gd = frame.querySelector('.js-plotly-plot');
+      if(!gd || !window.Plotly) return;
+
+      // lock drag layer even if Plotly injects inline styles later
+      var dl = frame.querySelector('.draglayer');
+      var zl = frame.querySelector('.zoomlayer');
+      var pl = frame.querySelector('.panlayer');
+      if (dl) dl.style.pointerEvents = 'none';
+      if (zl) zl.style.pointerEvents = 'none';
+      if (pl) pl.style.pointerEvents = 'none';
+
+      var h = frame.clientHeight || 520;
+      var w = frame.clientWidth || 800;
+      var isMobile = w <= 560;
+
+      // slight zoom to reduce empty space in the map area
+      var projScale = isMobile ? 1.30 : 1.18;
+
+      Plotly.relayout(gd, {
+        height: h,
+        "geo.projection.scale": projScale,
+        "dragmode": false
+      });
+    }
+
+    var tries = 0;
+    var timer = setInterval(function(){
+      tries += 1;
+      lockAndFitPlotly();
+      if ((window.Plotly && root.querySelector('.vi-map-frame .js-plotly-plot')) || tries > 25){
+        clearInterval(timer);
+      }
+    }, 200);
+
+    window.addEventListener('resize', function(){ setTimeout(lockAndFitPlotly, 120); });
   });
 })();
 </script>
@@ -802,7 +812,7 @@ def generate_map_table_html_from_df(
     low_title: str,
     low_sub: str,
     top_n: int = 10,
-    show_state_labels: bool = False,
+    show_state_labels: bool = False,  # kept but we FORCE it off from Streamlit
     table_cols=None,
     hover_cols=None,
 ) -> str:
@@ -858,7 +868,6 @@ def generate_map_table_html_from_df(
 
     map_scale = brand_meta["map_scale"]
     accent = brand_meta.get("accent", "#16A34A")
-    style_mode = brand_meta.get("style_mode", "branded")
 
     fig = px.choropleth(
         df,
@@ -901,123 +910,15 @@ def generate_map_table_html_from_df(
         showlegend=False,
     )
 
-    if show_state_labels:
-        label_df = df.copy()
-        label_df["label_text"] = label_df["state_abbr"] + " (" + label_df["rank"].astype(str) + ")"
-
-        small_mask = label_df["state_abbr"].isin(SMALL_STATES)
-        df_big = label_df[~small_mask]
-        df_small = label_df[small_mask]
-
-        if not df_big.empty:
-            def add_big_group(group, text_color):
-                if group.empty:
-                    return
-                fig.add_trace(
-                    go.Scattergeo(
-                        locationmode="USA-states",
-                        locations=group["state_abbr"],
-                        text=group["label_text"],
-                        mode="text",
-                        textfont=dict(size=9, color=text_color),
-                        hoverinfo="skip",
-                        showlegend=False,
-                    )
-                )
-
-            if style_mode == "unbranded":
-                low_mask = df_big["fill_norm"] < (1.0 / 3.0)
-                mid_mask = (df_big["fill_norm"] >= (1.0 / 3.0)) & (df_big["fill_norm"] < (2.0 / 3.0))
-                high_mask = df_big["fill_norm"] >= (2.0 / 3.0)
-
-                low_hi = df_big[low_mask & (df_big["state_abbr"] == "HI")]
-                low_non_hi = df_big[low_mask & (df_big["state_abbr"] != "HI")]
-                mid_big = df_big[mid_mask]
-                high_big = df_big[high_mask]
-
-                add_big_group(low_non_hi, "#FFFFFF")
-                add_big_group(low_hi, "#1E3A8A")
-                add_big_group(mid_big, "#111827")
-                add_big_group(high_big, "#FFFFFF")
-            else:
-                label_light = "#FFFFFF"
-                label_dark = map_scale[2] if len(map_scale) >= 3 else "#111827"
-
-                dark_bg = df_big[df_big["fill_norm"] >= 0.55]
-                light_bg = df_big[df_big["fill_norm"] < 0.55]
-
-                add_big_group(dark_bg, label_light)
-                add_big_group(light_bg, label_dark)
-
-        if not df_small.empty:
-            df_small = df_small.copy()
-            df_small["centroid_lat"] = df_small["state_abbr"].map(lambda s: SMALL_STATE_CENTROIDS[s]["lat"])
-            df_small["centroid_lon"] = df_small["state_abbr"].map(lambda s: SMALL_STATE_CENTROIDS[s]["lon"])
-
-            df_small = df_small.sort_values("centroid_lat", ascending=False).reset_index(drop=True)
-
-            min_lat = df_small["centroid_lat"].min()
-            down_j = 0
-
-            line_lons, line_lats = [], []
-            label_lons, label_lats, label_texts = [], [], []
-
-            for _, row in df_small.iterrows():
-                abbr = row["state_abbr"]
-                c = SMALL_STATE_CENTROIDS[abbr]
-                lon0, lat0 = c["lon"], c["lat"]
-
-                if abbr in UP_CALLOUT_STATES:
-                    offs = UP_CALLOUT_OFFSETS.get(abbr, {"d_lon": 4.5, "d_lat": 3.0})
-                    lon1 = lon0 - offs["d_lon"]
-                    lat1 = lat0 + offs["d_lat"]
-                else:
-                    offset_lon = 4.8 - down_j * 0.4
-                    lon1 = lon0 + offset_lon
-                    lat1 = min_lat - 1.8 - down_j * 0.35
-
-                    nudge = DOWN_CALLOUT_NUDGE.get(abbr)
-                    if nudge:
-                        lon1 += nudge.get("d_lon", 0.0)
-                        lat1 += nudge.get("d_lat", 0.0)
-
-                    down_j += 1
-
-                line_lons += [lon0, lon1, None]
-                line_lats += [lat0, lat1, None]
-
-                label_lons.append(lon1)
-                label_lats.append(lat1)
-                label_texts.append(row["label_text"])
-
-            fig.add_trace(
-                go.Scattergeo(
-                    lon=line_lons,
-                    lat=line_lats,
-                    mode="lines",
-                    line=dict(width=1, color=accent),
-                    hoverinfo="skip",
-                    showlegend=False,
-                )
-            )
-
-            fig.add_trace(
-                go.Scattergeo(
-                    lon=label_lons,
-                    lat=label_lats,
-                    mode="text",
-                    text=label_texts,
-                    textfont=dict(size=9, color=accent),
-                    hoverinfo="skip",
-                    showlegend=False,
-                )
-            )
+    # Labels are intentionally disabled for cleaner mobile UX.
+    # (show_state_labels kept in signature for backward compatibility, but never used.)
 
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),
         paper_bgcolor="#F9FAFB",
         plot_bgcolor="#F9FAFB",
         showlegend=False,
+        dragmode=False,  # extra safety
         geo=dict(
             bgcolor="#F9FAFB",
             lakecolor="#F9FAFB",
@@ -1027,8 +928,10 @@ def generate_map_table_html_from_df(
             showframe=False,
             showcoastlines=False,
             showcountries=False,
+            projection=dict(scale=1.18),  # fills better on desktop; mobile gets boosted via JS
         ),
         coloraxis_showscale=False,
+        height=520,  # match default desktop frame height
     )
 
     map_html = fig.to_html(
@@ -1038,6 +941,7 @@ def generate_map_table_html_from_df(
             "displayModeBar": False,
             "responsive": True,
             "scrollZoom": False,
+            "doubleClick": False,
         },
     )
 
@@ -1092,7 +996,7 @@ def generate_map_table_html_from_df(
 
 
 # =====================================================================
-# NEW STREAMLIT UX (fixed session_state logic + requested flow)
+# STREAMLIT UX (your requested flow)
 # =====================================================================
 
 st.title("Branded Map + Table Generator")
@@ -1153,18 +1057,13 @@ def build_html_from_applied(df: pd.DataFrame) -> str:
         low_title=st.session_state["applied_low_title"],
         low_sub=st.session_state["applied_low_sub"],
         top_n=10,
-        show_state_labels=st.session_state.get("applied_show_labels", False),
+        show_state_labels=False,  # FORCE OFF
         table_cols=st.session_state["applied_table_cols"],
         hover_cols=st.session_state["applied_hover_cols"],
     )
 
 
 def apply_edits_and_update_preview(df: pd.DataFrame):
-    """Apply current edit_* controls into applied_* snapshot and refresh preview HTML.
-
-    Robust against missing edit_* keys (prevents KeyError on first run / odd reruns).
-    IMPORTANT: do NOT write to edit_* keys here (those are widget-bound).
-    """
     cols = list(df.columns)
     if not cols:
         st.session_state["draft_html"] = "<p style='padding:16px;font-family:sans-serif;'>No columns found.</p>"
@@ -1206,8 +1105,6 @@ def apply_edits_and_update_preview(df: pd.DataFrame):
     high_sub = st.session_state.get("edit_high_sub") or st.session_state.get("applied_high_sub") or "Ranked by the selected metric."
     low_sub = st.session_state.get("edit_low_sub") or st.session_state.get("applied_low_sub") or "Ranked by the selected metric."
 
-    show_labels = bool(st.session_state.get("edit_show_labels", st.session_state.get("applied_show_labels", False)))
-
     st.session_state["applied_brand"] = brand
     st.session_state["applied_state_col"] = state_col
     st.session_state["applied_value_col"] = value_col
@@ -1220,7 +1117,6 @@ def apply_edits_and_update_preview(df: pd.DataFrame):
     st.session_state["applied_low_title"] = low_title
     st.session_state["applied_high_sub"] = high_sub
     st.session_state["applied_low_sub"] = low_sub
-    st.session_state["applied_show_labels"] = show_labels
 
     available_cols = [c for c in cols if c != state_col]
 
@@ -1233,6 +1129,7 @@ def apply_edits_and_update_preview(df: pd.DataFrame):
     st.session_state["draft_html"] = build_html_from_applied(df)
     st.session_state["draft_ready"] = True
 
+    # invalidate downstream artifacts
     st.session_state["html_generated"] = False
     st.session_state["generated_html"] = ""
     st.session_state["iframe_published"] = False
@@ -1305,7 +1202,6 @@ if fp != st.session_state.get("csv_fingerprint", ""):
     st.session_state["edit_high_sub"] = "Ranked by the selected metric."
     st.session_state["edit_low_sub"] = "Ranked by the selected metric."
 
-    st.session_state["edit_show_labels"] = False
     st.session_state["edit_hover_cols"] = ["All columns"]
     st.session_state["edit_table_cols"] = ["All columns"]
 
@@ -1359,12 +1255,6 @@ with left:
             index=candidate_value_cols.index(st.session_state.get("edit_value_col", candidate_value_cols[0]))
             if st.session_state.get("edit_value_col", candidate_value_cols[0]) in candidate_value_cols else 0,
             key="edit_value_col",
-        )
-
-        st.checkbox(
-            "Show state rank labels",
-            value=st.session_state.get("edit_show_labels", False),
-            key="edit_show_labels",
         )
 
         st.markdown("#### Text")
@@ -1537,4 +1427,3 @@ with right:
         components.html(st.session_state["draft_html"], height=1000, scrolling=True)
     else:
         st.info("Preview will appear here after CSV upload.")
-
