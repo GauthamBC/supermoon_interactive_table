@@ -1091,677 +1091,459 @@ st.set_page_config(page_title="Branded Map + Table Generator", layout="wide")
 
 BASE_WIDGET_FILENAME = "branded_map.html"
 
-# This holds the *effective* filename we will publish to (never a widget key)
-if "map_publish_filename" not in st.session_state:
-    st.session_state["map_publish_filename"] = BASE_WIDGET_FILENAME
+# -----------------------------
+# Session state helpers
+# -----------------------------
+def ss_init(key: str, value):
+    if key not in st.session_state:
+        st.session_state[key] = value
 
-# Track whether a widget has been successfully created/updated yet
-if "map_has_generated" not in st.session_state:
-    st.session_state["map_has_generated"] = False
-
-# Track whether user has "unlocked" config tabs by clicking Create/Update at least once
-if "map_can_configure" not in st.session_state:
-    st.session_state["map_can_configure"] = False
-
-# Track whether the conflict for the current filename has been acknowledged with Proceed
-if "map_conflict_ack" not in st.session_state:
-    st.session_state["map_conflict_ack"] = False
-
-# Track which filename the current conflict applies to
-if "map_conflict_filename" not in st.session_state:
-    st.session_state["map_conflict_filename"] = ""
-
-st.title("Branded Map + Table Generator")
-st.write(
-    "Upload a CSV of U.S. states and one or more metrics, choose a brand, then click "
-    "**Create / update widget** to publish an interactive map + ranked tables page via GitHub Pages."
-)
-
-# Brand selection
-brand_options = [
-    "Action Network",
-    "VegasInsider",
-    "Canada Sports Betting",
-    "RotoGrinders",
-]
-default_brand = st.session_state.get("map_brand", "VegasInsider")
-if default_brand not in brand_options:
-    default_brand = "Action Network"
-
-brand = st.selectbox(
-    "Choose a brand",
-    options=brand_options,
-    index=brand_options.index(default_brand),
-    key="map_brand",
-)
-
-uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
-
-# ---------- GitHub username + repo + widget name ----------
-
-saved_gh_user = st.session_state.get("map_gh_user", "")
-saved_gh_repo = st.session_state.get("map_gh_repo", "branded-map-widget")
-
-# Use either what the user last typed into the widget, or our effective filename
-saved_widget_name = st.session_state.get(
-    "map_widget_name_input",
-    st.session_state.get("map_publish_filename", BASE_WIDGET_FILENAME),
-)
-
-username_options = ["GauthamBC", "ActionNetwork", "MoonWatcher", "SampleUser"]
-if GITHUB_USER_DEFAULT and GITHUB_USER_DEFAULT not in username_options:
-    username_options.insert(0, GITHUB_USER_DEFAULT)
-
-if saved_gh_user in username_options:
-    default_idx = username_options.index(saved_gh_user)
-else:
-    default_idx = 0
-
-github_username_input = st.selectbox(
-    "Username (GitHub username)",
-    options=username_options,
-    index=default_idx,
-    key="map_gh_user",
-)
-effective_github_user = github_username_input.strip()
-
-repo_name = st.text_input(
-    "Campaign name (Please fill in text without any space such as Burnoutodds or Burnout_odds)",
-    value=saved_gh_repo,
-    key="map_gh_repo",
-)
-
-widget_name_input = st.text_input(
-    "Widget name",
-    value=saved_widget_name,
-    key="map_widget_name_input",
-    help="This becomes the HTML file name in the GitHub repo, e.g. burnout_odds_map.html",
-)
+def reset_generation_state():
+    # Anything derived from edits/publishing should reset on new CSV upload
+    st.session_state["draft_html"] = ""
+    st.session_state["draft_ready"] = False
+    st.session_state["html_generated"] = False
+    st.session_state["generated_html"] = ""
+    st.session_state["iframe_published"] = False
+    st.session_state["iframe_snippet"] = ""
+    st.session_state["published_url"] = ""
+    st.session_state["publish_status"] = ""
 
 def compute_expected_embed_url(user: str, repo: str, fname: str) -> str:
     if user and repo.strip() and fname.strip():
         return f"https://{user}.github.io/{repo.strip()}/{fname.strip()}"
     return "https://example.github.io/your-repo/widget.html"
 
-def get_effective_widget_filename() -> str:
-    """Filename we’ll actually publish to."""
-    publish_name = (st.session_state.get("map_publish_filename") or "").strip()
-    user_typed = (st.session_state.get("map_widget_name_input") or "").strip()
+def normalize_multi_select(selection, available_cols):
+    # supports ["All columns"] sentinel
+    if not selection or "All columns" in selection:
+        return list(available_cols)
+    return [c for c in selection if c in available_cols]
 
-    if publish_name:
-        return publish_name
-    if user_typed:
-        return user_typed
-    return BASE_WIDGET_FILENAME
+def build_html_from_applied(df: pd.DataFrame) -> str:
+    brand = st.session_state.get("applied_brand", "Action Network")
+    style_mode = "Branded"
 
-effective_widget_filename = get_effective_widget_filename()
+    brand_meta = get_brand_meta(brand, style_mode)
 
-expected_embed_url = compute_expected_embed_url(
-    effective_github_user, repo_name, effective_widget_filename
-)
-
-st.caption(
-    f"Expected GitHub Pages URL (iframe src):\n\n`{expected_embed_url}`"
-)
-
-# ---- helper text + single button under the URL --------------
-
-st.markdown(
-    "<p style='font-size:0.85rem; color:#c4c4c4;'>"
-    "Click <strong>Create / update widget</strong> to publish the map page. "
-    "If a widget with this file name already exists in the repo, you'll be asked whether to "
-    "replace it or choose a new name.</p>",
-    unsafe_allow_html=True,
-)
-
-iframe_snippet = st.session_state.get("map_iframe_snippet")
-
-can_run_github = bool(GITHUB_TOKEN and effective_github_user and repo_name.strip())
-
-create_clicked = st.button(
-    "Create / update widget",
-    key="map_create_update",
-    disabled=not can_run_github,
-)
-
-if not GITHUB_TOKEN:
-    st.info(
-        "Set `GITHUB_TOKEN` in `.streamlit/secrets.toml` (with `repo` scope) "
-        "to enable automatic GitHub publishing."
+    return generate_map_table_html_from_df(
+        df=df,
+        brand_meta=brand_meta,
+        state_col=st.session_state["applied_state_col"],
+        value_col=st.session_state["applied_value_col"],
+        page_title=st.session_state["applied_page_title"],
+        subtitle=st.session_state["applied_subtitle"],
+        strapline=st.session_state["applied_strapline"],
+        legend_low=st.session_state["applied_legend_low"],
+        legend_high=st.session_state["applied_legend_high"],
+        high_title=st.session_state["applied_high_title"],
+        high_sub=st.session_state["applied_high_sub"],
+        low_title=st.session_state["applied_low_title"],
+        low_sub=st.session_state["applied_low_sub"],
+        top_n=10,
+        show_state_labels=st.session_state.get("applied_show_labels", False),
+        table_cols=st.session_state["applied_table_cols"],
+        hover_cols=st.session_state["applied_hover_cols"],
     )
-elif not effective_github_user or not repo_name.strip():
-    st.info("Fill in username and campaign name above.")
 
-# If user clicks create/update without a CSV, nudge them.
-if create_clicked and uploaded_file is None:
-    st.error("Upload a CSV file before creating/updating the widget.")
+def apply_edits_and_update_preview(df: pd.DataFrame):
+    """
+    Copy edit_* values into applied_* values, then regenerate draft_html.
+    """
+    # copy all edit keys -> applied keys
+    for k in list(st.session_state.keys()):
+        if k.startswith("edit_"):
+            st.session_state["applied_" + k[len("edit_"):]] = st.session_state[k]
 
-# When user clicks create/update with CSV + GitHub ready, unlock config & compute availability
-if create_clicked and uploaded_file is not None and can_run_github:
-    if not (widget_name_input and widget_name_input.strip()):
-        st.error("Enter a widget name (e.g. branded_map.html) before creating/updating.")
-    else:
-        st.session_state["map_can_configure"] = True
-        checked_filename = widget_name_input.strip()
+    # derived lists
+    all_cols = list(df.columns)
+    state_col = st.session_state["applied_state_col"]
+    available_cols = [c for c in all_cols if c != state_col]
 
-        # If the user changed the target filename, this is a "new" conflict, so reset ack
-        if checked_filename != st.session_state.get("map_conflict_filename", ""):
-            st.session_state["map_conflict_filename"] = checked_filename
-            st.session_state["map_conflict_ack"] = False
+    st.session_state["applied_hover_cols"] = normalize_multi_select(
+        st.session_state.get("edit_hover_cols", ["All columns"]),
+        available_cols,
+    )
+    st.session_state["applied_table_cols"] = normalize_multi_select(
+        st.session_state.get("edit_table_cols", ["All columns"]),
+        available_cols,
+    )
 
-        try:
-            repo_exists = check_repo_exists(
-                effective_github_user,
-                repo_name.strip(),
-                GITHUB_TOKEN,
-            )
-            file_exists = False
-            next_fname = None
-            if repo_exists:
-                file_exists = check_file_exists(
-                    effective_github_user,
-                    repo_name.strip(),
-                    GITHUB_TOKEN,
-                    checked_filename,
-                )
-                if file_exists:
-                    next_fname = find_next_widget_filename(
-                        effective_github_user,
-                        repo_name.strip(),
-                        GITHUB_TOKEN,
-                    )
+    st.session_state["draft_html"] = build_html_from_applied(df)
+    st.session_state["draft_ready"] = True
 
-            st.session_state["map_availability"] = {
-                "repo_exists": repo_exists,
-                "file_exists": file_exists,
-                "checked_filename": checked_filename,
-                "suggested_new_filename": next_fname,
-            }
-        except Exception as e:
-            st.error(f"GitHub availability check failed: {e}")
+    # Updating map content invalidates any previously “generated HTML” or iframe publish
+    st.session_state["html_generated"] = False
+    st.session_state["generated_html"] = ""
+    st.session_state["iframe_published"] = False
+    st.session_state["iframe_snippet"] = ""
+    st.session_state["published_url"] = ""
+    st.session_state["publish_status"] = ""
 
-# ---------------------------------------------------------------------
-#  STATUS + AVAILABILITY MESSAGES (directly under the button)
-#  + conflict yes/no + Proceed button (for existing repo+file only)
-# ---------------------------------------------------------------------
-proceed_clicked = False  # default
-conflict_active = False
-availability = st.session_state.get("map_availability")
+# -----------------------------
+# Initial session state
+# -----------------------------
+ss_init("draft_ready", False)
+ss_init("draft_html", "")
+ss_init("csv_fingerprint", "")
 
-if uploaded_file is not None:
-    if availability and GITHUB_TOKEN and effective_github_user and repo_name.strip():
-        repo_exists = availability.get("repo_exists", False)
-        file_exists = availability.get("file_exists", False)
-        checked_filename = availability.get("checked_filename", get_effective_widget_filename())
+ss_init("html_generated", False)
+ss_init("generated_html", "")
 
-        if not repo_exists:
-            st.info(
-                "No existing repo found for this campaign. "
-                "When you publish, the repo will be created and "
-                f"your map will be saved as `{checked_filename}`."
-            )
-            st.session_state["map_publish_filename"] = checked_filename
-        elif repo_exists and not file_exists:
-            st.success(
-                f"Repo exists and `{checked_filename}` is available. "
-                "Publishing will save your map to this file."
-            )
-            st.session_state["map_publish_filename"] = checked_filename
-        else:
-            # Existing repo + existing file
-            if not st.session_state.get("map_conflict_ack", False):
-                # Conflict has NOT been acknowledged yet: show Yes/No + Proceed,
-                # and hide the config tabs below.
-                conflict_active = True
-                st.warning(
-                    f"A campaign widget named `{checked_filename}` already exists in this repo."
-                )
-                replace_choice = st.radio(
-                    "This campaign widget already exists. Do you want to replace it?",
-                    options=[
-                        "Yes – replace the existing widget",
-                        "No – I want to use a different name",
-                    ],
-                    key="map_file_conflict_choice",
-                )
+ss_init("iframe_published", False)
+ss_init("iframe_snippet", "")
+ss_init("published_url", "")
+ss_init("publish_status", "")
 
-                if replace_choice.startswith("Yes"):
-                    st.info(
-                        "Click **Proceed** to overwrite this existing widget with your current settings."
-                    )
-                    proceed_clicked = st.button(
-                        "Proceed",
-                        key="map_proceed_publish",
-                    )
-                    if proceed_clicked:
-                        # User confirmed: remember that this conflict is acknowledged
-                        # so from now on we can show the tabs.
-                        st.session_state["map_conflict_ack"] = True
-                        conflict_active = False
-                        st.session_state["map_publish_filename"] = checked_filename
-                else:
-                    st.info(
-                        "Please enter a new campaign name or widget name above, then click "
-                        "**Create / update widget** again."
-                    )
-                    proceed_clicked = False
-            else:
-                # Conflict already acknowledged earlier for this filename:
-                # just let the user work normally, with tabs visible.
-                conflict_active = False
-                st.info(
-                    "This campaign widget already exists. Publishing again will overwrite "
-                    f"`{checked_filename}` with your updated settings."
-                )
-                st.session_state["map_publish_filename"] = checked_filename
-
-# =====================================================================
-# CONFIG + PUBLISH BLOCK (tabs unlocked after first Create/Update)
-# =====================================================================
-
-if uploaded_file is not None and st.session_state.get("map_can_configure", False):
+# GitHub secrets
+def get_secret(key: str, default: str = "") -> str:
     try:
-        df = pd.read_csv(uploaded_file)
-    except Exception as e:
-        st.error(f"Error reading CSV: {e}")
-        st.stop()
+        if hasattr(st, "secrets") and key in st.secrets:
+            return str(st.secrets[key]).strip()
+    except Exception:
+        pass
+    return default
 
-    if df.empty:
-        st.error("Uploaded CSV has no rows.")
-        st.stop()
+GITHUB_TOKEN = get_secret("GITHUB_TOKEN", "")
+GITHUB_USER_DEFAULT = get_secret("GITHUB_USER", "")
 
-    all_columns = list(df.columns)
+# -----------------------------
+# Top header
+# -----------------------------
+st.title("Branded Map + Table Generator")
+st.write(
+    "Upload a CSV → preview appears immediately. "
+    "Edit in the left panel → click **Update the map contents** to apply changes. "
+    "Then generate HTML → then publish/get iframe."
+)
 
-    # --- derive state_col & column lists from session state (used even if tabs are hidden) ---
-    default_state_guess = next(
-        (c for c in all_columns if "state" in c.lower()), all_columns[0]
-    )
-    state_col = st.session_state.get("map_state_col", default_state_guess)
+# Brand selection (edit-time)
+brand_options = ["Action Network", "VegasInsider", "Canada Sports Betting", "RotoGrinders"]
+default_brand = st.session_state.get("edit_brand", st.session_state.get("applied_brand", "VegasInsider"))
+if default_brand not in brand_options:
+    default_brand = "Action Network"
 
-    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-    if not numeric_cols:
-        numeric_cols = [c for c in all_columns if c != state_col]
+edit_brand = st.selectbox(
+    "Choose a brand",
+    options=brand_options,
+    index=brand_options.index(default_brand),
+    key="edit_brand",
+)
 
-    available_cols = [c for c in all_columns if c != state_col]
+uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
-    # ---------- Config tabs: Widget / Map / Table ----------
-    if not conflict_active:
-        tab_widget, tab_map, tab_table = st.tabs(
-            ["Widget text", "Map settings", "Table settings"]
-        )
+# -----------------------------
+# CSV load + immediate preview on upload
+# -----------------------------
+df = None
+if uploaded_file is not None:
+    try:
+        raw_bytes = uploaded_file.getvalue()
+        fp = f"{uploaded_file.name}:{len(raw_bytes)}:{hash(raw_bytes)}"
+    except Exception:
+        fp = f"{uploaded_file.name}:{time.time()}"
 
-        # ---------- Widget text (tab) ----------
-        with tab_widget:
-            st.markdown("### Widget text")
+    # When a NEW CSV is uploaded: reset all downstream states + initialize defaults
+    if fp != st.session_state.get("csv_fingerprint", ""):
+        st.session_state["csv_fingerprint"] = fp
+        reset_generation_state()
 
-            default_page_title = "State Metric Map"
-            default_subtitle = "Visualizing your selected metric by U.S. state."
-            default_strapline = f"{brand.upper()} · DATA VISUALIZATION"
-
-            col_copy1, col_copy2 = st.columns(2)
-            with col_copy1:
-                page_title = st.text_input(
-                    "Page title",
-                    value=st.session_state.get("map_page_title", default_page_title),
-                    key="map_page_title",
-                )
-            with col_copy2:
-                subtitle = st.text_input(
-                    "Subtitle",
-                    value=st.session_state.get("map_subtitle", default_subtitle),
-                    key="map_subtitle",
-                )
-
-            col_meta1, col_meta2 = st.columns(2)
-            with col_meta1:
-                strapline = st.text_input(
-                    "Strapline (top small text)",
-                    value=st.session_state.get("map_strapline", default_strapline),
-                    key="map_strapline",
-                )
-            with col_meta2:
-                guessed_state = next(
-                    (c for c in all_columns if "state" in c.lower()), all_columns[0]
-                )
-                state_col = st.selectbox(
-                    "State column (full U.S. state names or 2-letter codes)",
-                    options=all_columns,
-                    index=all_columns.index(guessed_state),
-                    key="map_state_col",
-                )
-
-        # ---------- Map settings (tab) ----------
-        with tab_map:
-            st.markdown("### Map settings")
-
-            value_col = st.selectbox(
-                "Primary metric column (used to color the map)",
-                options=[c for c in numeric_cols if c != state_col],
-                key="map_value_col",
-            )
-
-            # Hover columns (map) with "All columns" option
-            hover_options = ["All columns"] + available_cols
-            if "map_hover_cols" in st.session_state:
-                default_hover_selection = st.session_state["map_hover_cols"]
-            else:
-                default_hover_selection = ["All columns"]
-
-            raw_hover_cols = st.multiselect(
-                "Columns to show in the map hover tooltip",
-                options=hover_options,
-                default=default_hover_selection,
-                key="map_hover_cols",
-                help="Select specific columns, or choose 'All columns' to include everything.",
-            )
-
-            col_leg1, col_leg2 = st.columns(2)
-            with col_leg1:
-                legend_low = st.text_input(
-                    "Legend left label",
-                    value=st.session_state.get("map_legend_low", "Lowest value"),
-                    key="map_legend_low",
-                )
-            with col_leg2:
-                legend_high = st.text_input(
-                    "Legend right label",
-                    value=st.session_state.get("map_legend_high", "Highest value"),
-                    key="map_legend_high",
-                )
-
-        # ---------- Table settings (tab) ----------
-        with tab_table:
-            st.markdown("### Table settings")
-
-            table_options = ["All columns"] + available_cols
-            if "map_table_cols" in st.session_state:
-                default_table_selection = st.session_state["map_table_cols"]
-            else:
-                default_table_selection = ["All columns"]
-
-            raw_table_cols = st.multiselect(
-                "Columns to include in the ranked tables (besides the state column)",
-                options=table_options,
-                default=default_table_selection,
-                key="map_table_cols",
-                help="Select specific columns, or choose 'All columns' to include everything in the tables.",
-            )
-
-            col_t1, col_t2 = st.columns(2)
-            with col_t1:
-                high_title = st.text_input(
-                    "High table title",
-                    value=st.session_state.get("map_high_title", "States With the Highest Values"),
-                    key="map_high_title",
-                )
-            with col_t2:
-                low_title = st.text_input(
-                    "Low table title",
-                    value=st.session_state.get("map_low_title", "States With the Lowest Values"),
-                    key="map_low_title",
-                )
-
-            col_s1, col_s2 = st.columns(2)
-            with col_s1:
-                high_sub = st.text_input(
-                    "High table subheading",
-                    value=st.session_state.get("map_high_sub", "Ranked by the selected metric."),
-                    key="map_high_sub",
-                )
-            with col_s2:
-                low_sub = st.text_input(
-                    "Low table subheading",
-                    value=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
-                    key="map_low_sub",
-                )
-
-    # --- after (optional) tabs, recompute core config from session state ---
-
-    # State column
-    state_col = st.session_state.get("map_state_col", state_col)
-
-    # Rebuild available_cols with possibly updated state_col
-    available_cols = [c for c in all_columns if c != state_col]
-
-    # Hover columns from session
-    raw_hover_cols = st.session_state.get("map_hover_cols", ["All columns"])
-    if "All columns" in raw_hover_cols or len(raw_hover_cols) == 0:
-        hover_cols = available_cols
-    else:
-        hover_cols = [c for c in raw_hover_cols if c in available_cols]
-
-    # Table columns from session
-    raw_table_cols = st.session_state.get("map_table_cols", ["All columns"])
-    if "All columns" in raw_table_cols or len(raw_table_cols) == 0:
-        table_cols = available_cols
-    else:
-        table_cols = [c for c in raw_table_cols if c in available_cols]
-
-    # --- Create / update / Proceed publishing logic ---
-
-    availability = st.session_state.get("map_availability")
-    repo_exists = availability.get("repo_exists", False) if availability else False
-    file_exists = availability.get("file_exists", False) if availability else False
-    checked_filename = (
-        availability.get("checked_filename")
-        if availability
-        else (widget_name_input.strip() if widget_name_input else BASE_WIDGET_FILENAME)
-    )
-    # Conflict is only active for publishing if it has NOT been acknowledged yet
-    conflict = repo_exists and file_exists and not st.session_state.get("map_conflict_ack", False)
-
-    filename_to_use = checked_filename
-    should_publish = False
-
-    if can_run_github and uploaded_file is not None:
-        if conflict:
-            # Only publish when Proceed is clicked and user chose "Yes – replace..."
-            if proceed_clicked:
-                choice = st.session_state.get("map_file_conflict_choice")
-                if choice and choice.startswith("Yes"):
-                    filename_to_use = checked_filename
-                    st.session_state["map_publish_filename"] = filename_to_use
-                    should_publish = True
-                else:
-                    st.info(
-                        "Update your campaign or widget name above, then click "
-                        "**Create / update widget** again to publish with a new file."
-                    )
-        else:
-            # No conflict (new repo/file OR conflict already acknowledged)
-            if create_clicked or proceed_clicked:
-                filename_to_use = checked_filename
-                st.session_state["map_publish_filename"] = filename_to_use
-                should_publish = True
-
-    if should_publish:
-        progress_placeholder = None
         try:
-            progress_placeholder = st.empty()
-            progress = progress_placeholder.progress(0)
-            for pct in (20, 45, 70):
-                time.sleep(0.12)
-                progress.progress(pct)
-
-            # Always use Branded style
-            style_mode = "Branded"
-            show_labels = st.session_state.get("map_show_labels", False)
-            brand_meta_publish = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
-
-            value_col_publish = st.session_state.get("map_value_col", numeric_cols[0])
-
-            expected_embed_url = compute_expected_embed_url(
-                effective_github_user, repo_name, filename_to_use
-            )
-
-            html_final = generate_map_table_html_from_df(
-                df,
-                brand_meta_publish,
-                state_col=state_col,
-                value_col=value_col_publish,
-                page_title=st.session_state.get("map_page_title", "State Metric Map"),
-                subtitle=st.session_state.get("map_subtitle", "Visualizing your selected metric by U.S. state."),
-                strapline=st.session_state.get("map_strapline", f"{brand.upper()} · DATA VISUALIZATION"),
-                legend_low=st.session_state.get("map_legend_low", "Lowest value"),
-                legend_high=st.session_state.get("map_legend_high", "Highest value"),
-                high_title=st.session_state.get("map_high_title", "States With the Highest Values"),
-                high_sub=st.session_state.get("map_high_sub", "Ranked by the selected metric."),
-                low_title=st.session_state.get("map_low_title", "States With the Lowest Values"),
-                low_sub=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
-                top_n=10,
-                show_state_labels=show_labels,
-                table_cols=table_cols,
-                hover_cols=hover_cols,
-            )
-
-            progress.progress(80)
-
-            ensure_repo_exists(
-                effective_github_user,
-                repo_name.strip(),
-                GITHUB_TOKEN,
-            )
-
-            progress.progress(90)
-
-            try:
-                ensure_pages_enabled(
-                    effective_github_user,
-                    repo_name.strip(),
-                    GITHUB_TOKEN,
-                    branch="main",
-                )
-            except Exception:
-                pass
-
-            upload_file_to_github(
-                effective_github_user,
-                repo_name.strip(),
-                GITHUB_TOKEN,
-                filename_to_use,
-                html_final,
-                f"Add/update {filename_to_use} from Branded Map app",
-                branch="main",
-            )
-
-            trigger_pages_build(
-                effective_github_user,
-                repo_name.strip(),
-                GITHUB_TOKEN,
-            )
-
-            progress.progress(100)
-            time.sleep(0.15)
-            progress_placeholder.empty()
-
-            iframe_snippet = dedent(f"""\
-            <iframe src="{expected_embed_url}"
-                    title="{html_mod.escape(st.session_state.get('map_page_title', 'State Metric Map'))}"
-                    width="100%" height="1000" scrolling="no"
-                    style="border:0;" loading="lazy"></iframe>""")
-
-            st.session_state["map_iframe_snippet"] = iframe_snippet
-            st.session_state["map_has_generated"] = True  # now we have a real widget
-
-            st.success("Branded map widget created/updated. Open the tabs below to preview and embed it.")
-
+            df = pd.read_csv(uploaded_file)
         except Exception as e:
-            try:
-                if progress_placeholder is not None:
-                    progress_placeholder.empty()
-            except Exception:
-                pass
-            st.error(f"GitHub publish failed: {e}")
+            st.error(f"Error reading CSV: {e}")
+            st.stop()
 
-    st.markdown("---")
+        if df.empty:
+            st.error("Uploaded CSV has no rows.")
+            st.stop()
 
-    # ---------- Preview / HTML / iframe tabs (ONLY after successful publish) ----------
-    if st.session_state.get("map_has_generated", False):
-        final_widget_filename = get_effective_widget_filename()
-        expected_embed_url = compute_expected_embed_url(
-            effective_github_user, repo_name, final_widget_filename
+        cols = list(df.columns)
+        guessed_state = next((c for c in cols if "state" in c.lower()), cols[0])
+
+        # value col guess: first numeric col that isn't state, else first non-state
+        numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+        value_guess = None
+        for c in numeric_cols:
+            if c != guessed_state:
+                value_guess = c
+                break
+        if value_guess is None:
+            non_state = [c for c in cols if c != guessed_state]
+            value_guess = non_state[0] if non_state else cols[0]
+
+        # Initialize edit_* defaults
+        st.session_state["edit_brand"] = edit_brand
+        st.session_state["edit_page_title"] = "State Metric Map"
+        st.session_state["edit_subtitle"] = "Visualizing your selected metric by U.S. state."
+        st.session_state["edit_strapline"] = f"{edit_brand.upper()} · DATA VISUALIZATION"
+
+        st.session_state["edit_state_col"] = guessed_state
+        st.session_state["edit_value_col"] = value_guess
+
+        st.session_state["edit_legend_low"] = "Lowest value"
+        st.session_state["edit_legend_high"] = "Highest value"
+
+        st.session_state["edit_high_title"] = "States With the Highest Values"
+        st.session_state["edit_low_title"] = "States With the Lowest Values"
+        st.session_state["edit_high_sub"] = "Ranked by the selected metric."
+        st.session_state["edit_low_sub"] = "Ranked by the selected metric."
+
+        st.session_state["edit_show_labels"] = False
+        st.session_state["edit_hover_cols"] = ["All columns"]
+        st.session_state["edit_table_cols"] = ["All columns"]
+
+        # Apply immediately so preview shows up right away
+        apply_edits_and_update_preview(df)
+
+    else:
+        # same CSV; just load it for rendering
+        try:
+            df = pd.read_csv(uploaded_file)
+        except Exception as e:
+            st.error(f"Error reading CSV: {e}")
+            st.stop()
+
+# -----------------------------
+# Main two-panel layout
+# Left: Tabs / Right: Preview
+# -----------------------------
+if uploaded_file is None:
+    st.info("Upload a CSV to see the preview and editing panel.")
+    st.stop()
+
+if df is None or df.empty:
+    st.error("CSV could not be loaded.")
+    st.stop()
+
+left, right = st.columns([0.42, 0.58], gap="large")
+
+with left:
+    tab_edit, tab_html, tab_iframe = st.tabs(
+        ["Edit map contents", "HTML code", "Iframe"]
+    )
+
+    # -----------------------------
+    # Edit tab
+    # -----------------------------
+    with tab_edit:
+        st.subheader("Edit map contents")
+
+        cols = list(df.columns)
+        # state column selector
+        state_col = st.selectbox(
+            "State column (full name or 2-letter code)",
+            options=cols,
+            index=cols.index(st.session_state.get("edit_state_col", cols[0])),
+            key="edit_state_col",
         )
 
-        tab_config, tab_embed = st.tabs(
-            [
-                "Preview map page",
-                "Widget HTML/Iframe",
+        # numeric col pick fallback
+        numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+        # allow non-numeric too (since your generator coerces strings)
+        candidate_value_cols = [c for c in cols if c != state_col]
+        if numeric_cols:
+            candidate_value_cols = [c for c in numeric_cols if c != state_col] + [
+                c for c in candidate_value_cols if c not in numeric_cols
             ]
+        candidate_value_cols = list(dict.fromkeys(candidate_value_cols))  # de-dupe keep order
+
+        if not candidate_value_cols:
+            st.error("No available metric columns (besides the state column).")
+            st.stop()
+
+        st.selectbox(
+            "Primary metric column (colors the map)",
+            options=candidate_value_cols,
+            index=candidate_value_cols.index(
+                st.session_state.get("edit_value_col", candidate_value_cols[0])
+            )
+            if st.session_state.get("edit_value_col", candidate_value_cols[0]) in candidate_value_cols
+            else 0,
+            key="edit_value_col",
         )
 
-        with tab_config:
-            # Only keep the label toggle; color style is fixed to Branded
-            show_labels = st.checkbox(
-                "Show state rank labels",
-                value=st.session_state.get("map_show_labels", False),
-                key="map_show_labels",
-                help="Overlay labels like 'CA (3)' on the map (small Northeast states use callouts).",
-            )
+        st.checkbox(
+            "Show state rank labels",
+            value=st.session_state.get("edit_show_labels", False),
+            key="edit_show_labels",
+        )
 
-            style_mode = "Branded"
-            brand_meta_preview = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
-            html_preview = generate_map_table_html_from_df(
-                df,
-                brand_meta_preview,
-                state_col=state_col,
-                value_col=st.session_state.get("map_value_col", numeric_cols[0]),
-                page_title=st.session_state.get("map_page_title", "State Metric Map"),
-                subtitle=st.session_state.get("map_subtitle", "Visualizing your selected metric by U.S. state."),
-                strapline=st.session_state.get("map_strapline", f"{brand.upper()} · DATA VISUALIZATION"),
-                legend_low=st.session_state.get("map_legend_low", "Lowest value"),
-                legend_high=st.session_state.get("map_legend_high", "Highest value"),
-                high_title=st.session_state.get("map_high_title", "States With the Highest Values"),
-                high_sub=st.session_state.get("map_high_sub", "Ranked by the selected metric."),
-                low_title=st.session_state.get("map_low_title", "States With the Lowest Values"),
-                low_sub=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
-                top_n=10,
-                show_state_labels=show_labels,
-                table_cols=table_cols,
-                hover_cols=hover_cols,
-            )
+        st.markdown("#### Text")
+        st.text_input("Page title", key="edit_page_title")
+        st.text_input("Subtitle", key="edit_subtitle")
+        st.text_input("Strapline (top small text)", key="edit_strapline")
 
-            components.html(html_preview, height=1000, scrolling=True)
+        st.markdown("#### Legend labels")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.text_input("Legend left label", key="edit_legend_low")
+        with c2:
+            st.text_input("Legend right label", key="edit_legend_high")
 
-        with tab_embed:
-            style_mode = "Branded"
-            show_labels = st.session_state.get("map_show_labels", False)
-            brand_meta_embed = get_brand_meta(st.session_state.get("map_brand", brand), style_mode)
-            html_embed = generate_map_table_html_from_df(
-                df,
-                brand_meta_embed,
-                state_col=state_col,
-                value_col=st.session_state.get("map_value_col", numeric_cols[0]),
-                page_title=st.session_state.get("map_page_title", "State Metric Map"),
-                subtitle=st.session_state.get("map_subtitle", "Visualizing your selected metric by U.S. state."),
-                strapline=st.session_state.get("map_strapline", f"{brand.upper()} · DATA VISUALIZATION"),
-                legend_low=st.session_state.get("map_legend_low", "Lowest value"),
-                legend_high=st.session_state.get("map_legend_high", "Highest value"),
-                high_title=st.session_state.get("map_high_title", "States With the Highest Values"),
-                high_sub=st.session_state.get("map_high_sub", "Ranked by the selected metric."),
-                low_title=st.session_state.get("map_low_title", "States With the Lowest Values"),
-                low_sub=st.session_state.get("map_low_sub", "Ranked by the selected metric."),
-                top_n=10,
-                show_state_labels=show_labels,
-                table_cols=table_cols,
-                hover_cols=hover_cols,
-            )
+        st.markdown("#### Hover + tables columns")
+        available_cols = [c for c in cols if c != state_col]
+        hover_options = ["All columns"] + available_cols
+        table_options = ["All columns"] + available_cols
 
-            subtab_html, subtab_iframe = st.tabs(["HTML file contents", "Iframe code"])
+        st.multiselect(
+            "Columns to show on hover",
+            options=hover_options,
+            default=st.session_state.get("edit_hover_cols", ["All columns"]),
+            key="edit_hover_cols",
+        )
+        st.multiselect(
+            "Columns to include in ranked tables",
+            options=table_options,
+            default=st.session_state.get("edit_table_cols", ["All columns"]),
+            key="edit_table_cols",
+        )
 
-            with subtab_html:
-                st.text_area(
-                    label="",
-                    value=html_embed,
-                    height=350,
-                    label_visibility="collapsed",
-                )
+        st.markdown("#### Table titles")
+        c3, c4 = st.columns(2)
+        with c3:
+            st.text_input("High table title", key="edit_high_title")
+            st.text_input("High table subheading", key="edit_high_sub")
+        with c4:
+            st.text_input("Low table title", key="edit_low_title")
+            st.text_input("Low table subheading", key="edit_low_sub")
 
-            with subtab_iframe:
-                st.markdown("**Current iframe code:**")
-                if st.session_state.get("map_iframe_snippet"):
-                    st.code(st.session_state["map_iframe_snippet"], language="html")
-                else:
-                    st.info(
-                        "No iframe yet – publish the widget to generate iframe code. "
-                        'It will use height=700 and scrolling="no".'
-                    )
+        st.divider()
+
+        update_clicked = st.button("Update the map contents", type="primary")
+        if update_clicked:
+            apply_edits_and_update_preview(df)
+            st.success("Map contents updated. Preview refreshed on the right.")
+
+    # -----------------------------
+    # HTML tab
+    # -----------------------------
+    with tab_html:
+        st.subheader("HTML code")
+
+        st.caption("HTML will NOT be shown until you click **Get the HTML code**.")
+        get_html_clicked = st.button("Get the HTML code", type="primary")
+
+        if get_html_clicked:
+            # Always use the currently-applied preview HTML (what the user sees on the right)
+            st.session_state["generated_html"] = st.session_state.get("draft_html", "")
+            st.session_state["html_generated"] = True
+            st.success("HTML generated. You can now copy it, or move to the Iframe tab.")
+
+        if st.session_state.get("html_generated", False):
+            st.code(st.session_state.get("generated_html", ""), language="html")
+        else:
+            st.info("Click **Get the HTML code** to generate and display the HTML here.")
+
+    # -----------------------------
+    # Iframe tab
+    # -----------------------------
+    with tab_iframe:
+        st.subheader("Iframe")
+
+        if not st.session_state.get("html_generated", False):
+            # Prompt user if they come here too early
+            st.warning("Please click **Get the HTML code** first (in the HTML code tab), then come back to publish/get iframe.")
+            iframe_disabled = True
+        else:
+            iframe_disabled = False
+
+        st.markdown("#### GitHub publish settings")
+        # sensible defaults
+        default_user = st.session_state.get("gh_user", GITHUB_USER_DEFAULT or "")
+        default_repo = st.session_state.get("gh_repo", "branded-map-widget")
+        default_file = st.session_state.get("gh_file", BASE_WIDGET_FILENAME)
+
+        gh_user = st.text_input("GitHub username", value=default_user, key="gh_user")
+        gh_repo = st.text_input("Repo name", value=default_repo, key="gh_repo")
+        gh_file = st.text_input("File name (e.g. map.html)", value=default_file, key="gh_file")
+
+        expected_url = compute_expected_embed_url(gh_user, gh_repo, gh_file)
+        st.caption(f"Expected GitHub Pages URL:\n\n`{expected_url}`")
+
+        if not GITHUB_TOKEN:
+            st.info("Set `GITHUB_TOKEN` in `.streamlit/secrets.toml` (with `repo` scope) to enable publishing.")
+            publish_disabled = True
+        else:
+            publish_disabled = False
+
+        replace_existing = st.checkbox(
+            "Replace existing file if it already exists",
+            value=False,
+            disabled=iframe_disabled,
+            help="If unchecked and the file exists, you will be asked to choose a different file name.",
+        )
+
+        publish_clicked = st.button(
+            "Get the iframe (publish to GitHub Pages)",
+            type="primary",
+            disabled=iframe_disabled or publish_disabled,
+        )
+
+        if publish_clicked:
+            # Validate
+            if not gh_user.strip() or not gh_repo.strip() or not gh_file.strip():
+                st.error("Please provide GitHub username, repo name, and file name.")
+            else:
+                try:
+                    repo_exists = check_repo_exists(gh_user.strip(), gh_repo.strip(), GITHUB_TOKEN)
+                    file_exists = False
+                    if repo_exists:
+                        file_exists = check_file_exists(gh_user.strip(), gh_repo.strip(), GITHUB_TOKEN, gh_file.strip())
+
+                    if file_exists and not replace_existing:
+                        st.error(
+                            f"`{gh_file.strip()}` already exists in `{gh_user.strip()}/{gh_repo.strip()}`.\n\n"
+                            "Choose a different file name, or enable **Replace existing file**."
+                        )
+                    else:
+                        # Create repo if missing
+                        ensure_repo_exists(gh_user.strip(), gh_repo.strip(), GITHUB_TOKEN)
+
+                        # Ensure Pages enabled (best-effort)
+                        try:
+                            ensure_pages_enabled(gh_user.strip(), gh_repo.strip(), GITHUB_TOKEN, branch="main")
+                        except Exception:
+                            pass
+
+                        # Upload the generated HTML (the one user explicitly generated)
+                        html_to_publish = st.session_state.get("generated_html", "")
+                        upload_file_to_github(
+                            owner=gh_user.strip(),
+                            repo=gh_repo.strip(),
+                            token=GITHUB_TOKEN,
+                            path=gh_file.strip(),
+                            content=html_to_publish,
+                            message=f"Publish {gh_file.strip()} from Branded Map app",
+                            branch="main",
+                        )
+
+                        trigger_pages_build(gh_user.strip(), gh_repo.strip(), GITHUB_TOKEN)
+
+                        published_url = compute_expected_embed_url(gh_user.strip(), gh_repo.strip(), gh_file.strip())
+                        iframe_snippet = dedent(f"""\
+                        <iframe src="{published_url}"
+                                title="{html_mod.escape(st.session_state.get('applied_page_title', 'State Metric Map'))}"
+                                width="100%" height="1000" scrolling="no"
+                                style="border:0;" loading="lazy"></iframe>""")
+
+                        st.session_state["iframe_published"] = True
+                        st.session_state["published_url"] = published_url
+                        st.session_state["iframe_snippet"] = iframe_snippet
+
+                        st.success("Published. Your iframe code is ready below.")
+
+                except Exception as e:
+                    st.error(f"Publish failed: {e}")
+
+        if st.session_state.get("iframe_published", False):
+            st.markdown("#### Iframe code")
+            st.code(st.session_state.get("iframe_snippet", ""), language="html")
+
+with right:
+    st.subheader("Map preview")
+
+    if st.session_state.get("draft_ready", False) and st.session_state.get("draft_html", ""):
+        components.html(st.session_state["draft_html"], height=1000, scrolling=True)
+    else:
+        st.info("Preview will appear here after CSV upload.")
