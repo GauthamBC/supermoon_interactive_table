@@ -1,15 +1,10 @@
 import base64
 import time
 import re
-import html as html_mod
-from textwrap import dedent
-
 import requests
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
-import plotly.express as px
-import plotly.graph_objects as go
 
 # ============== 0. Secrets ==============
 
@@ -27,7 +22,9 @@ GITHUB_USER_DEFAULT = get_secret("GITHUB_USER", "")
 # === GitHub helpers ===================================================
 
 def github_headers(token: str):
-    headers = {"Accept": "application/vnd.github+json"}
+    headers = {
+        "Accept": "application/vnd.github+json",
+    }
     if token:
         headers["Authorization"] = f"Bearer {token}"
     headers["X-GitHub-Api-Version"] = "2022-11-28"
@@ -35,12 +32,18 @@ def github_headers(token: str):
 
 
 def ensure_repo_exists(owner: str, repo: str, token: str) -> bool:
+    """
+    Ensure repo exists.
+    Returns:
+      True  -> repo was just created
+      False -> repo already existed
+    """
     api_base = "https://api.github.com"
     headers = github_headers(token)
 
     r = requests.get(f"{api_base}/repos/{owner}/{repo}", headers=headers)
     if r.status_code == 200:
-        return False
+        return False  # already exists
     if r.status_code != 404:
         raise RuntimeError(f"Error checking repo: {r.status_code} {r.text}")
 
@@ -48,16 +51,20 @@ def ensure_repo_exists(owner: str, repo: str, token: str) -> bool:
         "name": repo,
         "auto_init": True,
         "private": False,
-        "description": "Branded interactive map + tables widget (auto-created by Streamlit app).",
+        "description": "Stadium fan experience widget (auto-created by Streamlit app).",
     }
     r = requests.post(f"{api_base}/user/repos", headers=headers, json=payload)
     if r.status_code not in (200, 201):
         raise RuntimeError(f"Error creating repo: {r.status_code} {r.text}")
 
-    return True
+    return True  # newly created
 
 
 def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main") -> None:
+    """
+    Attempt to enable GitHub Pages on the repo from the given branch root.
+    If Pages is already enabled, this is a no-op.
+    """
     api_base = "https://api.github.com"
     headers = github_headers(token)
 
@@ -67,6 +74,7 @@ def ensure_pages_enabled(owner: str, repo: str, token: str, branch: str = "main"
     if r.status_code not in (404, 403):
         raise RuntimeError(f"Error checking GitHub Pages: {r.status_code} {r.text}")
     if r.status_code == 403:
+        # No permission via API; nothing we can do programmatically.
         return
 
     payload = {"source": {"branch": branch, "path": "/"}}
@@ -84,6 +92,9 @@ def upload_file_to_github(
     message: str,
     branch: str = "main",
 ) -> None:
+    """
+    Create or update a file in the repo at the given path.
+    """
     api_base = "https://api.github.com"
     headers = github_headers(token)
 
@@ -98,7 +109,11 @@ def upload_file_to_github(
 
     encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
 
-    payload = {"message": message, "content": encoded, "branch": branch}
+    payload = {
+        "message": message,
+        "content": encoded,
+        "branch": branch,
+    }
     if sha:
         payload["sha"] = sha
 
@@ -108,11 +123,15 @@ def upload_file_to_github(
 
 
 def trigger_pages_build(owner: str, repo: str, token: str) -> bool:
+    """
+    Ask GitHub to build the Pages site (legacy mode).
+    """
     api_base = "https://api.github.com"
     headers = github_headers(token)
     r = requests.post(f"{api_base}/repos/{owner}/{repo}/pages/builds", headers=headers)
     return r.status_code in (201, 202)
 
+# --- Availability helpers ---------------------------------------------
 
 def check_repo_exists(owner: str, repo: str, token: str) -> bool:
     api_base = "https://api.github.com"
@@ -141,6 +160,10 @@ def check_file_exists(owner: str, repo: str, token: str, path: str, branch: str 
 
 
 def find_next_widget_filename(owner: str, repo: str, token: str, branch: str = "main") -> str:
+    """
+    Look at the root of the repo and find the next available wN.html filename.
+    Returns 'w1.html' if none are found or on fallback.
+    """
     api_base = "https://api.github.com"
     headers = github_headers(token)
     r = requests.get(
@@ -149,7 +172,7 @@ def find_next_widget_filename(owner: str, repo: str, token: str, branch: str = "
         params={"ref": branch},
     )
     if r.status_code != 200:
-        return "t1.html"
+        return "w1.html"
 
     max_n = 0
     try:
@@ -157,1348 +180,1163 @@ def find_next_widget_filename(owner: str, repo: str, token: str, branch: str = "
         for item in items:
             if item.get("type") == "file":
                 name = item.get("name", "")
-                m = re.fullmatch(r"t(\d+)\.html", name)
+                m = re.fullmatch(r"w(\d+)\.html", name)
                 if m:
                     max_n = max(max_n, int(m.group(1)))
     except Exception:
-        return "t1.html"
+        return "w1.html"
 
-    return f"t{max_n + 1}.html" if max_n >= 0 else "t1.html"
-
+    return f"w{max_n + 1}.html" if max_n >= 0 else "w1.html"
 
 # === Brand metadata ===================================================
 
-UNBRANDED_SCALE = ["#60A5FA", "#F97316", "#DC2626"]
-
-def get_brand_meta(brand: str, style_mode: str = "Branded") -> dict:
+def get_brand_meta(brand: str) -> dict:
+    """
+    Brand metadata: name, logo, alt text, and a CSS class
+    used to theme the widget.
+    """
+    default_logo = "https://i.postimg.cc/x1nG117r/AN-final2-logo.png"
     brand_clean = (brand or "").strip() or "Action Network"
-    style_mode = (style_mode or "Branded").strip().lower()
 
     meta = {
         "name": brand_clean,
-        "brand_class": "",
-        "logo_url": "",
+        "logo_url": default_logo,
         "logo_alt": f"{brand_clean} logo",
-        "accent": "#16A34A",
-        "accent_soft": "#DCFCE7",
-        "accent_softer": "#F3FBF7",
-        "branded_scale": UNBRANDED_SCALE,
-        "site_url": "https://www.actionnetwork.com/",
-        "logo_width": 140,
-        "logo_height": 32,
+        "brand_class": "brand-actionnetwork",
     }
 
     if brand_clean == "Action Network":
-        meta.update({
-            "brand_class": "brand-actionnetwork",
-            "logo_url": "https://i.postimg.cc/x1nG117r/AN-final2-logo.png",
-            "logo_alt": "Action Network logo",
-            "accent": "#16A34A",
-            "accent_soft": "#DCFCE7",
-            "accent_softer": "#F3FBF7",
-            "branded_scale": ["#BBF7D0", "#4ADE80", "#166534"],
-            "site_url": "https://www.actionnetwork.com/",
-        })
+        meta["brand_class"] = "brand-actionnetwork"
+        meta["logo_url"] = "https://i.postimg.cc/x1nG117r/AN-final2-logo.png"
+        meta["logo_alt"] = "Action Network logo"
+
     elif brand_clean == "VegasInsider":
-        meta.update({
-            "brand_class": "brand-vegasinsider",
-            "logo_url": "https://i.postimg.cc/kGVJyXc1/VI-logo-final.png",
-            "logo_alt": "VegasInsider logo",
-            "accent": "#FCBE31",
-            "accent_soft": "#FFF3C7",
-            "accent_softer": "#FFF9EC",
-            "branded_scale": ["#FFF9EC", "#FCD34D", "#B45309"],
-            "site_url": "https://www.vegasinsider.com/",
-        })
+        meta["brand_class"] = "brand-vegasinsider"
+        meta["logo_url"] = "https://i.postimg.cc/kGVJyXc1/VI-logo-final.png"
+        meta["logo_alt"] = "VegasInsider logo"
+
     elif brand_clean == "Canada Sports Betting":
-        meta.update({
-            "brand_class": "brand-canadasb",
-            "logo_url": "https://i.postimg.cc/ZKbrbPCJ/CSB-FN.png",
-            "logo_alt": "Canada Sports Betting logo",
-            "accent": "#DC2626",
-            "accent_soft": "#FEE2E2",
-            "accent_softer": "#FFF5F5",
-            "branded_scale": ["#FECACA", "#FB7185", "#B91C1C"],
-            "site_url": "https://www.canadasportsbetting.ca/",
-        })
+        meta["brand_class"] = "brand-canadasb"
+        meta["logo_url"] = "https://i.postimg.cc/ZKbrbPCJ/CSB-FN.png"
+        meta["logo_alt"] = "Canada Sports Betting logo"
+
     elif brand_clean == "RotoGrinders":
-        meta.update({
-            "brand_class": "brand-rotogrinders",
-            "logo_url": "https://i.postimg.cc/PrcJnQtK/RG-logo-Fn.png",
-            "logo_alt": "RotoGrinders logo",
-            "accent": "#0EA5E9",
-            "accent_soft": "#E0F2FE",
-            "accent_softer": "#F3FAFF",
-            "branded_scale": ["#BFDBFE", "#38BDF8", "#1D4ED8"],
-            "site_url": "https://rotogrinders.com/",
-        })
-
-    meta["style_mode"] = style_mode
-
-    if style_mode == "unbranded":
-        meta["map_scale"] = UNBRANDED_SCALE
-        meta["accent"] = "#EF4444"
-        meta["accent_soft"] = "#FEE2E2"
-        meta["accent_softer"] = "#FEF2F2"
-    else:
-        meta["map_scale"] = meta["branded_scale"]
+        meta["brand_class"] = "brand-rotogrinders"
+        meta["logo_url"] = "https://i.postimg.cc/PrcJnQtK/RG-logo-Fn.png"
+        meta["logo_alt"] = "RotoGrinders logo"
 
     return meta
 
+# === State flags by USPS abbreviation (for city chips) ===============
 
-# === State mapping ====================================================
-
-STATE_ABBR = {
-    "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA",
-    "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE", "Florida": "FL", "Georgia": "GA",
-    "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN", "Iowa": "IA",
-    "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
-    "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS", "Missouri": "MO",
-    "Montana": "MT", "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ",
-    "New Mexico": "NM", "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH",
-    "Oklahoma": "OK", "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
-    "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT", "Vermont": "VT",
-    "Virginia": "VA", "Washington": "WA", "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY",
+STATE_FLAG_URLS_ABBR = {
+    "AL": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Alabama.svg",
+    "AK": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Alaska.svg",
+    "AZ": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Arizona.svg",
+    "AR": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Arkansas.svg",
+    "CA": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_California.svg",
+    "CO": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Colorado.svg",
+    "CT": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Connecticut.svg",
+    "DE": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Delaware.svg",
+    "FL": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Florida.svg",
+    "GA": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Georgia_(U.S._state).svg",
+    "HI": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Hawaii.svg",
+    "ID": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Idaho.svg",
+    "IL": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Illinois.svg",
+    "IN": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Indiana.svg",
+    "IA": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Iowa.svg",
+    "KS": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Kansas.svg",
+    "KY": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Kentucky.svg",
+    "LA": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Louisiana.svg",
+    "ME": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Maine.svg",
+    "MD": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Maryland.svg",
+    "MA": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Massachusetts.svg",
+    "MI": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Michigan.svg",
+    "MN": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Minnesota.svg",
+    "MS": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Mississippi.svg",
+    "MO": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Missouri.svg",
+    "MT": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Montana.svg",
+    "NE": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Nebraska.svg",
+    "NV": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Nevada.svg",
+    "NH": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_New_Hampshire.svg",
+    "NJ": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_New_Jersey.svg",
+    "NM": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_New_Mexico.svg",
+    "NY": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_New_York.svg",
+    "NC": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_North_Carolina.svg",
+    "ND": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_North_Dakota.svg",
+    "OH": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Ohio.svg",
+    "OK": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Oklahoma.svg",
+    "OR": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Oregon.svg",
+    "PA": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Pennsylvania.svg",
+    "RI": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Rhode_Island.svg",
+    "SC": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_South_Carolina.svg",
+    "SD": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_South_Dakota.svg",
+    "TN": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Tennessee.svg",
+    "TX": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Texas.svg",
+    "UT": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Utah.svg",
+    "VT": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Vermont.svg",
+    "VA": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Virginia.svg",
+    "WA": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Washington.svg",
+    "WV": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_West_Virginia.svg",
+    "WI": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Wisconsin.svg",
+    "WY": "https://commons.wikimedia.org/wiki/Special:FilePath/Flag_of_Wyoming.svg",
 }
 
-STATE_LOOKUP = {}
-for name, code in STATE_ABBR.items():
-    STATE_LOOKUP[name] = code
-    STATE_LOOKUP[name.title()] = code
-    STATE_LOOKUP[name.upper()] = code
-    STATE_LOOKUP[name.lower()] = code
-    STATE_LOOKUP[code] = code
-    STATE_LOOKUP[code.upper()] = code
-    STATE_LOOKUP[code.lower()] = code
+# === 1. HTML template for City / Stadium metrics ======================
 
-# ---- Label support (optional, desktop only) --------------------------
-
-SMALL_STATE_CENTROIDS = {
-    "CT": {"lat": 41.6, "lon": -72.7},
-    "DE": {"lat": 39.0, "lon": -75.5},
-    "MD": {"lat": 39.0, "lon": -76.7},
-    "MA": {"lat": 42.3, "lon": -71.8},
-    "NH": {"lat": 43.6, "lon": -71.6},
-    "NJ": {"lat": 40.1, "lon": -74.5},
-    "RI": {"lat": 41.7, "lon": -71.6},
-    "VT": {"lat": 44.0, "lon": -72.7},
-    "DC": {"lat": 38.9, "lon": -77.0},
-}
-SMALL_STATES = set(SMALL_STATE_CENTROIDS.keys())
-UP_CALLOUT_STATES = {"VT", "MA", "NH"}
-UP_CALLOUT_OFFSETS = {
-    "MA": {"d_lon": 5.8, "d_lat": 3.2},
-    "VT": {"d_lon": 5.3, "d_lat": 4.4},
-    "NH": {"d_lon": 6.4, "d_lat": 6.8},
-}
-DOWN_CALLOUT_NUDGE = {
-    "DE": {"d_lon": 0.45, "d_lat": 0.15},
-    "MD": {"d_lon": -0.35, "d_lat": -0.20},
-}
-
-
-# === 2. HTML TEMPLATE ==================================================
-
-HTML_TEMPLATE_MAP_TABLE = r"""<!doctype html>
+HTML_TEMPLATE = r"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>[[PAGE_TITLE]]</title>
+<title>[[TITLE]]</title>
 </head>
-<body style="margin:0;background:#F3F4F6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0F172A;">
 
-<section class="vi-map-card [[BRAND_CLASS]]" data-show-labels="[[SHOW_LABELS]]" style="width:100%;max-width:100%;margin:0;padding:0;">
+<body style="margin:0;">
 
-<style>
-.vi-map-card, .vi-map-card * { box-sizing:border-box; font-family:inherit; }
+<section class="vi-compact-embed [[BRAND_CLASS]]" role="region" aria-labelledby="vi-compact-embed-title"
+  style="max-width:860px;margin:16px auto;font:14px/1.35 Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+         color:#181a1f;background:#ffffff;border:1px solid #DCEFE6;border-radius:12px;
+         box-shadow:0 1px 2px rgba(0,0,0,.04),0 6px 16px rgba(86,194,87,.10);">
+  <style>
+    section.vi-compact-embed, section.vi-compact-embed * {
+      box-sizing: border-box;
+      font-family: inherit;
+      color: inherit;
+    }
+    section.vi-compact-embed { color-scheme: light; }
 
-.vi-map-card{
-  --accent:[[ACCENT]];
-  --accent-soft:[[ACCENT_SOFT]];
-  --accent-softer:[[ACCENT_SOFTER]];
-}
+    .vi-compact-embed{
+      --brand-50:#F6FFF9; --brand-100:#DCF2EB; --brand-300:#BCE5D6;
+      --brand-500:#56C257; --brand-600:#3FA94B; --brand-700:#2E8538; --brand-900:#1F5D28;
+      --ink:#181a1f; --muted:#666b73; --border:#DCEFE6;
+      --hover-tint: rgba(86,194,87,.12); --hover-ring:#BCE5D6; --hover-shadow:0 10px 24px rgba(86,194,87,.18);
+      --viz-soft-bg:#e6f4ee;
+      --viz-soft-bar-bg:rgba(86,194,87,.16);
+    }
 
-/* Card container */
-.vi-map-shell{
-  background:#FFFFFF;
-  border-radius:0;
-  box-shadow:0 8px 24px rgba(15,23,42,.12);
-  border:1px solid rgba(148,163,184,.25);
-  padding:18px 18px 20px;
+    section.vi-compact-embed.brand-vegasinsider{
+      --brand-50:#FFF7DC;
+      --brand-100:#FFE8AA;
+      --brand-300:#FFE8AA;
+      --brand-500:#F2C23A;
+      --brand-600:#D9A72A;
+      --brand-700:#B9851A;
+      --brand-900:#111111;
+      --border:#F2C23A;
+      --hover-tint: rgba(242,194,58,.20);
+      --hover-ring:#F2C23A;
+      --hover-shadow:0 10px 24px rgba(0,0,0,.40);
+      --viz-soft-bg:#FFF4D9;
+      --viz-soft-bar-bg:rgba(242,194,58,.18);
+    }
 
-  max-height: 100vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
+    section.vi-compact-embed.brand-canadasb{
+      --brand-50:#FEF2F2;
+      --brand-100:#FEE2E2;
+      --brand-300:#FECACA;
+      --brand-500:#EF4444;
+      --brand-600:#DC2626;
+      --brand-700:#B91C1C;
+      --brand-900:#7F1D1D;
+      --border:#FECACA;
+      --hover-tint:#FBE9E9;
+      --hover-ring:#FECACA;
+      --hover-shadow:0 10px 24px rgba(127,29,29,.32);
+      --viz-soft-bg:#FEE2E2;
+      --viz-soft-bar-bg:rgba(239,68,68,.18);
+    }
 
-/* Scrollbar */
-.vi-map-shell{
-  scrollbar-width: thin;
-  scrollbar-color: var(--accent) transparent;
-}
-.vi-map-shell::-webkit-scrollbar{ width:6px; height:6px; }
-.vi-map-shell::-webkit-scrollbar-track{
-  background:var(--accent-soft);
-  border-radius:999px;
-}
-.vi-map-shell::-webkit-scrollbar-thumb{
-  background:var(--accent);
-  border-radius:999px;
-}
-.vi-map-shell::-webkit-scrollbar-thumb:hover{ filter:brightness(0.9); }
+    section.vi-compact-embed.brand-rotogrinders{
+      --brand-50:#E8F1FF;
+      --brand-100:#D3E3FF;
+      --brand-300:#9ABCF9;
+      --brand-500:#2F7DF3;
+      --brand-600:#0159D1;
+      --brand-700:#0141A1;
+      --brand-900:#011F54;
+      --border:#9ABCF9;
+      --hover-tint:rgba(1,65,161,.12);
+      --hover-ring:#2F7DF3;
+      --hover-shadow:0 10px 24px rgba(1,65,161,.35);
+      --viz-soft-bg:#E3EEFF;
+      --viz-soft-bar-bg:rgba(1,65,161,.20);
+    }
 
-/* Top header */
-.vi-map-header{
-  margin-bottom:10px;
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-start;
-  gap:12px;
-}
-.vi-map-header-main{ flex:1 1 auto; min-width:0; }
-.vi-map-brand-link{
-  flex-shrink:0;
-  display:inline-flex;
-  align-items:flex-start;
-  text-decoration:none;
-}
-.vi-map-brand-link img{ display:block; max-width:140px; height:auto; }
+    .vi-compact-embed .head{
+      padding:14px 16px;border-bottom:1px solid var(--border)!important;color:#fff!important;
+      background:
+        radial-gradient(120% 140% at 85% 10%, rgba(255,255,255,.10) 0%, transparent 60%),
+        linear-gradient(90deg,var(--brand-900) 0%,var(--brand-600) 45%,var(--brand-500) 100%)!important;
+    }
+    .vi-compact-embed .title{margin:0 0 2px;font-size:clamp(16px,2.2vw,20px);line-height:1.2;font-weight:800;color:#fff!important}
+    .vi-compact-embed .sub{margin:0;color:rgba(255,255,255,.92)!important;font-size:12px}
+    .vi-compact-embed .meta{margin:4px 0 0;color:rgba(255,255,255,.85)!important;font-size:12px}
 
-/* Brand-tinted logos */
-.vi-map-card.brand-actionnetwork .vi-map-brand-link img{
-  filter: brightness(0) saturate(100%) invert(62%) sepia(23%) saturate(1250%) hue-rotate(78deg) brightness(96%) contrast(92%);
-}
-.vi-map-card.brand-vegasinsider .vi-map-brand-link img{
-  filter: brightness(0) saturate(100%) invert(72%) sepia(63%) saturate(652%) hue-rotate(6deg) brightness(95%) contrast(101%);
-}
-.vi-map-card.brand-canadasb .vi-map-brand-link img{
-  filter: brightness(0) saturate(100%) invert(32%) sepia(85%) saturate(2386%) hue-rotate(347deg) brightness(96%) contrast(104%);
-}
-.vi-map-card.brand-rotogrinders .vi-map-brand-link img{
-  filter: brightness(0) saturate(100%) invert(23%) sepia(95%) saturate(1704%) hue-rotate(203deg) brightness(93%) contrast(96%);
-}
+    .vi-compact-embed .table{padding:10px 12px}
+    .vi-compact-embed .row{
+      display:grid;grid-template-columns:36px 1.6fr minmax(220px,1.2fr);gap:8px;align-items:center;margin:6px 0;
+      border:1px solid var(--border)!important;border-radius:12px;padding:8px 10px;background:#fff!important;
+      transition:transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .18s ease,background-color .15s ease,border-color .15s ease;
+      transform-origin:center;
+    }
+    .vi-compact-embed .row:hover,.vi-compact-embed .row:focus-within{
+      background:linear-gradient(0deg,var(--hover-tint),var(--hover-tint)),#fff!important;
+      transform:scale(1.01);box-shadow:var(--hover-shadow);border-color:var(--hover-ring)!important;
+    }
+    @media (prefers-reduced-motion:reduce){
+      .vi-compact-embed .row{transition:none}
+      .vi-compact-embed .row:hover,.vi-compact-embed .row:focus-within{transform:none;box-shadow:none}
+    }
+    @media (max-width:640px){
+      .vi-compact-embed .row{grid-template-columns:30px 1fr}
+      .vi-compact-embed .metric{grid-column:1 / -1}
+    }
 
-/* Strapline + title + subtitle */
-.vi-map-strapline{
-  font-size:11px;
-  letter-spacing:.12em;
-  text-transform:uppercase;
-  color:#64748B;
-  font-weight:700;
-}
-.vi-map-title{
-  margin:6px 0 4px;
-  font-size:clamp(22px,2.6vw,26px);
-  line-height:1.1;
-  font-weight:800;
-  color:var(--accent);
-}
-.vi-map-subtitle{
-  margin:0;
-  font-size:13px;
-  color:#4B5563;
-}
+    .vi-compact-embed .rank{
+      display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--muted)
+    }
+    .vi-compact-embed .city{
+      display:flex;flex-direction:column;gap:2px;font-weight:700;color:var(--ink)
+    }
+    .vi-compact-embed .city-main{
+      font-size:14px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .vi-compact-embed .chip{
+      width:18px;height:18px;border-radius:50%;overflow:hidden;
+      border:1px solid #cfe4da;background:#fff;flex-shrink:0;
+    }
+    .vi-compact-embed .chip img{
+      width:100%;height:100%;object-fit:cover;
+    }
 
-/* Legend */
-.vi-map-legend-labels{
-  display:flex;
-  justify-content:space-between;
-  font-size:11px;
-  text-transform:uppercase;
-  font-weight:600;
-  color:#6B7280;
-  margin:14px 2px 4px;
-}
-.vi-map-legend-bar{
-  height:6px;
-  border-radius:999px;
-  background:linear-gradient(90deg,[[SCALE_START]],[[SCALE_MID]],[[SCALE_END]]);
-  overflow:hidden;
-}
+    .vi-compact-embed .metric{
+      position:relative;height:28px;border-radius:999px;background:#f9fafb;overflow:hidden;
+    }
+    .vi-compact-embed .bar{
+      position:absolute;inset:0 auto 0 0;border-radius:999px;
+      background:linear-gradient(90deg,var(--brand-600),var(--brand-500))!important;
+      box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)
+    }
 
-/* Map frame */
-.vi-map-frame{
-  margin-top:14px;
-  border-radius:16px;
-  background:#F9FAFB;
-  border:1px solid #E5E7EB;
-  overflow:hidden;
-  height: 520px;
-}
+    /* Fan Experience gradient bands – smoother 6-step scale */
+    .vi-compact-embed .bar.fan-band.band-1{
+      background:linear-gradient(90deg,var(--brand-100),var(--brand-50))!important;
+    } /* very low */
 
-/* Force Plotly to fill the frame */
-.vi-map-frame .plotly-graph-div,
-.vi-map-frame .js-plotly-plot,
-.vi-map-frame .svg-container{
-  width:100% !important;
-  height:100% !important;
-}
+    .vi-compact-embed .bar.fan-band.band-2{
+      background:linear-gradient(90deg,var(--brand-300),var(--brand-100))!important;
+    } /* low */
 
-/* HARD LOCK: prevent accidental pan/drag on mouse/touch */
-.vi-map-frame .draglayer,
-.vi-map-frame .zoomlayer,
-.vi-map-frame .panlayer{
-  pointer-events:none !important;
-}
+    .vi-compact-embed .bar.fan-band.band-3{
+      background:linear-gradient(90deg,var(--brand-500),var(--brand-300))!important;
+    } /* mid */
 
-/* Tables */
-.vi-map-section-sub{
-  margin:0 0 10px;
-  font-size:12px;
-  color:#6B7280;
-  padding-left:10px;
-  border-left:3px solid var(--accent-soft);
-}
+    .vi-compact-embed .bar.fan-band.band-4{
+      background:linear-gradient(90deg,var(--brand-600),var(--brand-500))!important;
+    } /* mid-high */
 
-.vi-tab-header{
-  display:inline-flex;
-  gap:6px;
-  margin:20px 0 6px;
-  padding:3px;
-  background:rgba(15,23,42,.02);
-  border-radius:999px;
-  border:1px solid rgba(148,163,184,.35);
-}
-.vi-tab-header .vi-tab{
-  border:0;
-  background:transparent;
-  border-radius:999px;
-  padding:6px 14px;
-  font-size:12px;
-  font-weight:600;
-  color:#6B7280;
-  cursor:pointer;
-  transition:background-color .18s ease, color .18s ease, box-shadow .18s ease, transform .06s ease;
-}
-.vi-tab-header .vi-tab.is-active{
-  background:var(--accent);
-  color:#FFFFFF;
-  box-shadow:0 3px 8px rgba(15,23,42,.2);
-  transform:translateY(-0.5px);
-}
-.vi-tab-header .vi-tab:hover:not(.is-active){
-  background:var(--accent-soft);
-  color:#111827;
-}
-.vi-tab-header .vi-tab:focus-visible{
-  outline:none;
-  box-shadow:0 0 0 2px var(--accent-soft),0 0 0 4px rgba(15,23,42,.25);
-}
+    .vi-compact-embed .bar.fan-band.band-5{
+      background:linear-gradient(90deg,var(--brand-700),var(--brand-600))!important;
+    } /* high */
 
-.vi-tab-panel{ margin-top:6px; }
+    .vi-compact-embed .bar.fan-band.band-6{
+      background:linear-gradient(90deg,var(--brand-900),var(--brand-700))!important;
+    } /* elite */
 
-.vi-table-scroll{
-  width:100%;
-  max-width:100%;
-  overflow-x:auto;
-  overflow-y:hidden;
-  -webkit-overflow-scrolling:touch;
-  padding-bottom:6px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--accent) transparent;
-}
-.vi-table-scroll::-webkit-scrollbar{ height:6px; }
-.vi-table-scroll::-webkit-scrollbar-track{
-  background:var(--accent-soft);
-  border-radius:999px;
-}
-.vi-table-scroll::-webkit-scrollbar-thumb{
-  background:var(--accent);
-  border-radius:999px;
-}
-.vi-table-scroll::-webkit-scrollbar-thumb:hover{ filter:brightness(0.9); }
+    .vi-compact-embed .val{
+      position:absolute;right:6px;top:50%;transform:translateY(-50%);
+      font-variant-numeric:tabular-nums;font-weight:800;font-size:13px;
+      color:#0e1a12!important;background:#fff!important;border:2px solid #e6e9ed!important;border-radius:999px;padding:2px 8px
+    }
 
-.vi-map-table{
-  display:inline-table;
-  width:max-content;
-  min-width:100%;
-  border-collapse:collapse;
-  font-size:13px;
-  color:#111827;
-}
-.vi-map-table th,
-.vi-map-table td{ white-space:nowrap; }
+    .vi-compact-embed .details{
+      margin:0;padding:0;border:1px solid var(--border);border-width:0;border-radius:12px;background:var(--brand-50);
+      max-height:0;opacity:0;overflow:hidden;transform:translateY(-6px);
+      transition:max-height .28s.ease,opacity .28s.ease,transform .28s.ease,padding .20s.ease,margin .20s.ease,border-width .20s.ease;
+    }
+    .vi-compact-embed .details.open{margin:8px 0 12px;padding:12px;border-width:1px;max-height:420px;opacity:1;transform:translateY(0)}
+    .vi-compact-embed .metrics-title{margin:0 0 10px;font-weight:800;font-size:14px;color:var(--brand-700)}
+    .vi-compact-embed .metrics-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    @media (max-width:640px){.vi-compact-embed .metrics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:380px){.vi-compact-embed .metrics-grid{grid-template-columns:1fr}}
 
-.vi-map-table thead th{
-  text-align:left;
-  padding:8px 10px;
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.06em;
-  color:var(--accent);
-  background:var(--accent-soft);
-  border-bottom:1px solid rgba(148,163,184,.35);
-}
-.vi-map-table tbody tr:nth-child(odd){ background:#FFFFFF; }
-.vi-map-table tbody tr:nth-child(even){ background:var(--accent-softer); }
-.vi-map-table tbody tr:hover{
-  background:var(--accent-soft);
-  filter:brightness(0.96);
-  transition:background-color .15s ease, filter .15s ease;
-}
-.vi-map-table tbody td{
-  padding:7px 10px;
-  vertical-align:middle;
-}
+    .vi-compact-embed .metric-card{
+      background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px;
+      display:grid;grid-template-rows:auto auto auto auto;gap:6px;align-content:start;
+    }
+    .vi-compact-embed .metric-label{font-size:12px;color:var(--muted);font-weight:700;margin:0;line-height:1.2;display:flex;align-items:center;gap:4px}
+    .vi-compact-embed .metric-label .icon{font-size:14px}
+    .vi-compact-embed .metric-number{font-weight:800;font-size:19px;color:#0e1a1f;margin:0;line-height:1.1;font-variant-numeric:tabular-nums}
+    .vi-compact-embed .metric-scale{font-size:11px;color:#8a9099;margin:0}
 
-.vi-rank-pill{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  min-width:22px;
-  height:22px;
-  padding:0 7px;
-  border-radius:999px;
-  font-size:11px;
-  font-weight:600;
-  background:var(--accent);
-  color:#FFFFFF;
-}
+    .vi-compact-embed .mini-bar{height:10px;border-radius:999px;background:var(--viz-soft-bg);overflow:hidden;align-self:center}
+    .vi-compact-embed .mini-bar .fill{display:block;height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,var(--brand-600),var(--brand-500));transition:width .6s.ease}
 
-/* Mobile */
-@media (max-width: 560px){
-  .vi-map-shell{ padding:14px 12px 16px; }
-  .vi-map-header{ flex-direction:column; align-items:flex-start; gap:10px; }
-  .vi-map-brand-link img{ max-width:120px; }
+    /* Walk score "step track" */
+    .vi-compact-embed .step-track{
+      display:flex;gap:4px;align-items:center;justify-content:flex-start;margin-top:2px;
+    }
+    .vi-compact-embed .step-track .step{
+      width:10px;height:10px;border-radius:999px;background:var(--viz-soft-bg);
+    }
+    .vi-compact-embed .step-track .step.filled{
+      background:linear-gradient(180deg,var(--brand-600),var(--brand-500));
+    }
 
-  .vi-map-frame{ height: 360px; border-radius:14px; }
+    .vi-compact-embed .donut{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center}
+    .vi-compact-embed .donut svg{width:56px;height:56px}
+    .vi-compact-embed .donut circle.bg{stroke:var(--viz-soft-bg);stroke-width:8;fill:none}
+    .vi-compact-embed .donut circle.fg{stroke:var(--brand-600);stroke-width:8;fill:none;stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset .7s.ease}
 
-  .vi-tab-header{
-    display:flex;
-    width:100%;
-    flex-wrap:wrap;
-    gap:8px;
-    border-radius:16px;
-  }
-  .vi-tab-header .vi-tab{
-    flex:1 1 48%;
-    text-align:center;
-    padding:8px 10px;
-    white-space:normal;
-  }
-}
-</style>
+    .vi-compact-embed .details-close{margin-top:10px;align-self:flex-end;background:#fff;border:1px solid var(--border);border-radius:999px;padding:6px 10px;font-weight:700;cursor:pointer}
+    .vi-compact-embed .details-close:hover{border-color:var(--hover-ring)}
 
-<div class="vi-map-shell">
+    .vi-compact-embed .row.is-clickable{cursor:pointer}
+    .vi-compact-embed .row.is-clickable[aria-expanded="true"]{border-color:var(--brand-600)!important}
 
-  <header class="vi-map-header">
-    <div class="vi-map-header-main">
-      <div class="vi-map-strapline">[[STRAPLINE]]</div>
-      <h1 class="vi-map-title">[[PAGE_TITLE]]</h1>
-      <p class="vi-map-subtitle">[[SUBTITLE]]</p>
+    /* Desktop internal scroll – match Supermoon behaviour */
+    .vi-compact-embed{
+      --pane-max-h: min(72vh, 680px);
+      display:flex;
+      flex-direction:column;
+    }
+
+    .vi-compact-embed .table{
+      max-height:var(--pane-max-h);
+      overflow:auto;
+      -webkit-overflow-scrolling:touch;
+      overscroll-behavior:contain;
+      scrollbar-gutter:stable both-edges;
+    }
+
+    .vi-compact-embed .table::-webkit-scrollbar{width:10px;height:8px}
+    .vi-compact-embed .table::-webkit-scrollbar-track{background:var(--brand-50);border-radius:999px}
+    .vi-compact-embed .table::-webkit-scrollbar-thumb{
+      background:linear-gradient(180deg,var(--brand-600),var(--brand-500));border-radius:999px;border:2px solid #fff;
+    }
+
+    /* Footer + embed button */
+    .vi-compact-embed .vi-footer {
+      display:block!important;text-align:center;padding:12px 0 4px;min-height:64px;
+      border-top:1px solid var(--border);
+      background:
+        radial-gradient(120% 140% at 85% 10%, rgba(255,255,255,.10) 0%, transparent 60%),
+        linear-gradient(90deg,var(--brand-900) 0%,var(--brand-600) 45%,var(--brand-500) 100%)!important;
+      color:#fff;position:relative;overflow:visible;
+    }
+    .vi-compact-embed .footer-inner{
+      display:flex;justify-content:center;align-items:center;gap:12px;position:relative;
+    }
+    .vi-compact-embed .embed-btn{
+      position:absolute;left:14px;top:50%;transform:translateY(-50%);
+      background:var(--brand-600);color:#fff;border:1px solid var(--brand-600);
+      border-radius:8px;padding:6px 14px;font:13px/1.2 system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+      cursor:pointer;transition:.2s.ease;
+    }
+    .vi-compact-embed .embed-btn:hover{background:var(--brand-700);border-color:var(--brand-700);}
+    .vi-compact-embed .vi-footer img{
+      height:40px;width:auto;display:inline-block;filter:brightness(0) invert(1);
+    }
+    section.vi-compact-embed.brand-actionnetwork .vi-footer img{height:44px}
+    section.vi-compact-embed.brand-vegasinsider .vi-footer img{height:32px}
+    section.vi-compact-embed.brand-canadasb .vi-footer img{height:40px}
+    section.vi-compact-embed.brand-rotogrinders .vi-footer img{height:32px}
+
+    .vi-compact-embed .embed-wrapper{
+      position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);
+      width:min(600px, calc(100% - 24px));display:none;padding:16px 20px;border:1px solid #ccc;border-radius:12px;
+      background:#fff;color:#111;box-shadow:0 12px 28px rgba(0,0,0,.18);z-index:1000;
+    }
+    .vi-compact-embed .embed-wrapper::after{
+      content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:-8px;
+      border:8px solid transparent;border-top-color:#fff;filter:drop-shadow(0 1px 1px rgba(0,0,0,.08));
+    }
+    .vi-compact-embed #copy-status{display:none;color:#008000;font-size:13px;margin-top:6px;}
+    .vi-compact-embed .embed-wrapper textarea{
+      width:100%;height:140px;font:14px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+      color:#111;background:#fff;padding:10px 12px;border:1px solid #ddd;border-radius:8px;resize:none;
+    }
+
+    /* Mobile overrides – same pattern as Supermoon */
+    @media (max-width:640px){
+      html, body { height:auto !important; overflow:auto !important; }
+
+      .vi-compact-embed{
+        display:block;
+        min-height:auto;
+        overflow:visible;
+        --pane-max-h:min(70vh,560px);
+      }
+      .vi-compact-embed .table{
+        max-height:var(--pane-max-h)!important;
+        overflow:auto!important;
+        -webkit-overflow-scrolling:touch!important;
+      }
+
+      .vi-compact-embed .footer-inner{
+        justify-content:space-between!important;
+        padding:0 10px;
+        gap:8px;
+      }
+      .vi-compact-embed .embed-btn{
+        position:static!important;
+        transform:none!important;
+        padding:6px 10px;
+        font-size:12px;
+        flex-shrink:0;
+      }
+      .vi-compact-embed .vi-footer img{height:44px;}
+
+      .vi-compact-embed .embed-wrapper{
+        position:absolute!important;
+        bottom:calc(100% + 10px)!important;
+        left:50%!important;
+        transform:translateX(-50%)!important;
+        width:min(600px, calc(100% - 24px))!important;
+        max-height:65vh;
+        overflow:auto;
+        z-index:1000;
+      }
+
+      .vi-compact-embed .details.open{max-height:none!important;}
+      .vi-compact-embed .details{
+        display:flex;
+        flex-direction:column;
+        scroll-margin-top:8px;
+      }
+      .vi-compact-embed .details-close{
+        order:-1;
+        align-self:flex-end;
+        position:sticky;
+        top:8px;
+        z-index:5;
+        padding:8px 12px;
+        border-radius:999px;
+        background:#fff;
+        box-shadow:0 2px 6px rgba(0,0,0,.08);
+      }
+    }
+  </style>
+
+  <div class="head">
+    <h3 id="vi-compact-embed-title" class="title">[[TITLE]]</h3>
+    <p class="sub"><em>[[SUBTITLE]]</em></p>
+    <p class="meta">Click <strong>a city</strong> to see women's stadium fan experience metrics.</p>
+  </div>
+
+  <div class="table">
+    [[ROWS]]
+
+    <div id="city-details" class="details" aria-hidden="true" role="region" aria-labelledby="metrics-title">
+      <h4 id="metrics-title" class="metrics-title">Stadium Fan Experience for Women</h4>
+      <div class="metrics-grid">
+        <!-- Crime index -->
+        <div class="metric-card">
+          <div class="metric-label"><span class="icon">🚨</span>City Crime Index</div>
+          <div class="metric-number"><span id="city-crime-val">0.0</span></div>
+          <div class="mini-bar"><span id="city-crime-bar" class="fill"></span></div>
+          <div class="metric-scale">Lower is safer</div>
+        </div>
+
+        <!-- Walk score -->
+        <div class="metric-card">
+          <div class="metric-label"><span class="icon">🚶</span>Stadium Walk Score</div>
+          <div class="metric-number"><span id="city-walk-val">0.0</span></div>
+          <div class="step-track" id="city-walk-steps" aria-hidden="true"></div>
+          <div class="metric-scale">0 • 100</div>
+        </div>
+
+        <!-- Sentiment donut -->
+        <div class="metric-card">
+          <div class="metric-label"><span class="icon">😊</span>Stadium Sentiment</div>
+          <div class="donut">
+            <svg viewBox="0 0 72 72" aria-hidden="true">
+              <circle class="bg" cx="36" cy="36" r="26"></circle>
+              <circle id="city-sent-arc" class="fg" cx="36" cy="36" r="26" stroke-dasharray="0" stroke-dashoffset="0"></circle>
+            </svg>
+            <div>
+              <div class="metric-number"><span id="city-sent-val">0%</span></div>
+              <div class="metric-scale">Percent positive</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button id="city-close" class="details-close" type="button" aria-label="Close metrics">Close ✕</button>
     </div>
-    <a href="[[BRAND_URL]]" target="_blank" rel="noopener noreferrer" class="vi-map-brand-link">
+  </div>
+
+  <div class="vi-footer">
+    <div class="footer-inner">
+      <button id="copy-embed-btn" class="embed-btn" aria-controls="embed-wrapper" aria-expanded="false">🔗 Embed This Table</button>
       <img src="[[BRAND_LOGO_URL]]"
            alt="[[BRAND_LOGO_ALT]]"
-           width="[[BRAND_LOGO_WIDTH]]"
-           height="[[BRAND_LOGO_HEIGHT]]"
-           loading="lazy"
-           decoding="async" />
-    </a>
-  </header>
-
-  <div class="vi-map-legend">
-    <div class="vi-map-legend-labels">
-      <span>[[LEGEND_LOW]]</span>
-      <span>[[LEGEND_HIGH]]</span>
+           width="120" height="auto" loading="lazy" decoding="async" />
     </div>
-    <div class="vi-map-legend-bar"></div>
+
+    <div id="embed-wrapper" class="embed-wrapper">
+      <textarea id="embed-code" readonly>&lt;iframe src="[[EMBED_URL]]"
+      title="[[TITLE]]"
+      width="100%" height="650"
+      scrolling="no"
+      style="border:0;" loading="lazy"&gt;&lt;/iframe&gt;
+      </textarea>
+      <p id="copy-status">Embed code copied!</p>
+    </div>
   </div>
 
-  <div class="vi-map-frame">
-    [[MAP_HTML]]
-  </div>
+  <script>
+    (function(){
+      const DATA = [[DATA]];
 
-  <section class="vi-map-tables" style="margin-top:4px;">
-    <div class="vi-tab-header" role="tablist" aria-label="State rankings">
-      <button class="vi-tab is-active" data-tab="high" role="tab" aria-selected="true" tabindex="0">
-        [[HIGH_TITLE]]
-      </button>
-      <button class="vi-tab" data-tab="low" role="tab" aria-selected="false" tabindex="-1">
-        [[LOW_TITLE]]
-      </button>
-    </div>
+      const rows   = document.querySelectorAll('.vi-compact-embed .row.is-clickable[data-city]');
+      const panel  = document.getElementById('city-details');
+      const closeB = document.getElementById('city-close');
 
-    <p class="vi-map-section-sub vi-map-section-sub-tab" data-tab="high">[[HIGH_SUB]]</p>
-    <p class="vi-map-section-sub vi-map-section-sub-tab" data-tab="low" style="display:none;">[[LOW_SUB]]</p>
+      function setBar(id, value, max){
+        const el = document.getElementById(id);
+        if(!el || max <= 0) return;
+        const pct = Math.max(0, Math.min(1, value / max)) * 100;
+        el.style.width = pct.toFixed(1) + '%';
+      }
 
-    <div class="vi-tab-panel" data-panel="high">
-      [[TABLE_HIGH_HTML]]
-    </div>
-    <div class="vi-tab-panel" data-panel="low" style="display:none;">
-      [[TABLE_LOW_HTML]]
-    </div>
-  </section>
+      function setDonut(id, pctVal){
+        const arc = document.getElementById(id);
+        if(!arc) return;
+        const r=26, C=2*Math.PI*r;
+        arc.style.strokeDasharray = C.toFixed(1);
+        arc.style.strokeDashoffset = C.toFixed(1);
+        const pct = Math.max(0, Math.min(1, pctVal/100));
+        requestAnimationFrame(()=> arc.style.strokeDashoffset = (C*(1-pct)).toFixed(1));
+      }
 
-</div>
-
-<script>
-(function(){
-  var widgets = document.querySelectorAll('.vi-map-card');
-  widgets.forEach(function(root){
-    var tabs = root.querySelectorAll('.vi-tab-header .vi-tab');
-    var panels = root.querySelectorAll('.vi-tab-panel');
-    var subs = root.querySelectorAll('.vi-map-section-sub-tab');
-
-    if (tabs && tabs.length){
-      tabs.forEach(function(btn){
-        btn.addEventListener('click', function(){
-          var target = this.getAttribute('data-tab');
-
-          tabs.forEach(function(b){
-            var active = (b === btn);
-            b.classList.toggle('is-active', active);
-            b.setAttribute('aria-selected', active ? 'true' : 'false');
-            b.setAttribute('tabindex', active ? '0' : '-1');
-          });
-
-          panels.forEach(function(p){
-            p.style.display = (p.getAttribute('data-panel') === target) ? 'block' : 'none';
-          });
-
-          subs.forEach(function(s){
-            s.style.display = (s.getAttribute('data-tab') === target) ? 'block' : 'none';
-          });
-        });
-      });
-    }
-
-    function setLabelVisibility(gd, allowLabels){
-      if(!gd || !gd.data || !window.Plotly) return;
-      var labelIdx = [];
-      for (var i=0; i<gd.data.length; i++){
-        if (gd.data[i] && gd.data[i].name === "__labels__"){
-          labelIdx.push(i);
+      function buildWalkSteps(score){
+        const track = document.getElementById('city-walk-steps');
+        if(!track) return;
+        track.innerHTML = '';
+        const total = 10;
+        const safeScore = Math.max(0, Math.min(100, score));
+        const filled = Math.round(safeScore / 10);
+        for(let i=0;i<total;i++){
+          const dot = document.createElement('span');
+          dot.className = 'step';
+          if(i < filled) dot.classList.add('filled');
+          track.appendChild(dot);
         }
       }
-      if (!labelIdx.length) return;
-      window.Plotly.restyle(gd, {visible: allowLabels ? true : false}, labelIdx);
-    }
 
-    function lockAndFitPlotly(){
-      var frame = root.querySelector('.vi-map-frame');
-      if(!frame) return;
+      function renderCity(name){
+        const d = DATA[name];
+        if(!d) return;
 
-      var gd = frame.querySelector('.js-plotly-plot');
-      if(!gd || !window.Plotly) return;
+        const title = document.getElementById('metrics-title');
+        if(title) title.textContent = name + ' — Stadium Fan Experience for Women';
 
-      // lock drag layer even if Plotly injects inline styles later
-      var dl = frame.querySelector('.draglayer');
-      var zl = frame.querySelector('.zoomlayer');
-      var pl = frame.querySelector('.panlayer');
-      if (dl) dl.style.pointerEvents = 'none';
-      if (zl) zl.style.pointerEvents = 'none';
-      if (pl) pl.style.pointerEvents = 'none';
+        const cv = document.getElementById('city-crime-val');
+        const wv = document.getElementById('city-walk-val');
+        const sv = document.getElementById('city-sent-val');
 
-      var h = frame.clientHeight || 520;
-      var w = frame.clientWidth || 800;
-      var isMobile = w <= 560;
+        if(cv) cv.textContent = d.crime.toFixed(2);
+        if(wv) wv.textContent = d.walk.toFixed(1);
+        if(sv) sv.textContent = d.sentiment.toFixed(1) + '%';
 
-      // Zoom OUT a little to prevent clipping
-      var projScale = isMobile ? 0.98 : 1.04;
+        // Crime bar: inverted (lower crime => more green)
+        setBar('city-crime-bar', 100 - d.crime, 100);
 
-      // labels: obey toggle on desktop, FORCE OFF on mobile
-      var wantLabels = (root.getAttribute('data-show-labels') === 'true');
-      var allowLabels = (!isMobile) && wantLabels;
-      setLabelVisibility(gd, allowLabels);
+        // Walk steps
+        buildWalkSteps(d.walk);
 
-      Plotly.relayout(gd, {
-        height: h,
-        "geo.projection.scale": projScale,
-        "dragmode": false
-      });
-    }
-
-    var tries = 0;
-    var timer = setInterval(function(){
-      tries += 1;
-      lockAndFitPlotly();
-      if ((window.Plotly && root.querySelector('.vi-map-frame .js-plotly-plot')) || tries > 25){
-        clearInterval(timer);
+        // Sentiment donut
+        setDonut('city-sent-arc', d.sentiment);
       }
-    }, 200);
 
-    window.addEventListener('resize', function(){ setTimeout(lockAndFitPlotly, 120); });
-  });
-})();
-</script>
+      function openUnderRow(row){
+        const city = row.dataset.city;
+        row.after(panel);
+        document.querySelectorAll('.vi-compact-embed .row.is-clickable[aria-expanded]')
+          .forEach(r=>r.setAttribute('aria-expanded','false'));
+        row.setAttribute('aria-expanded','true');
 
+        if(!panel.classList.contains('open')){
+          panel.classList.add('open');
+          panel.setAttribute('aria-hidden','false');
+        }
+        renderCity(city);
+        panel.scrollIntoView({block:'nearest', behavior:'smooth'});
+      }
+
+      function closePanel(){
+        panel.classList.remove('open');
+        panel.setAttribute('aria-hidden','true');
+        document.querySelectorAll('.vi-compact-embed .row.is-clickable[aria-expanded]')
+          .forEach(r=>r.setAttribute('aria-expanded','false'));
+      }
+
+      rows.forEach(row=>{
+        row.addEventListener('click', ()=>{
+          const isExpanded  = row.getAttribute('aria-expanded') === 'true';
+          const panelIsOpen = panel.classList.contains('open');
+          if (isExpanded && panelIsOpen) closePanel();
+          else openUnderRow(row);
+        });
+
+        row.addEventListener('keydown', e=>{
+          if(e.key==='Enter' || e.key===' '){
+            e.preventDefault();
+            const isExpanded  = row.getAttribute('aria-expanded') === 'true';
+            const panelIsOpen = panel.classList.contains('open');
+            if (isExpanded && panelIsOpen) closePanel();
+            else openUnderRow(row);
+          }
+        });
+      });
+
+      if(closeB) closeB.addEventListener('click', closePanel);
+      document.addEventListener('keydown', e=>{ if(e.key==='Escape' && panel.classList.contains('open')) closePanel(); });
+
+      function sendHeightToParent() {
+        try {
+          const height = document.body.scrollHeight;
+          window.parent.postMessage({ type: "resize-iframe", height: height, src: window.location.href }, "*");
+        } catch (e) {}
+      }
+      window.addEventListener("load", sendHeightToParent);
+      window.addEventListener("resize", sendHeightToParent);
+      const observer = new MutationObserver(sendHeightToParent);
+      observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+
+      const btn     = document.getElementById('copy-embed-btn');
+      const wrapper = document.getElementById('embed-wrapper');
+      const ta      = document.getElementById('embed-code');
+      const status  = document.getElementById('copy-status');
+
+      if (btn && ta && wrapper && status) {
+        btn.addEventListener('click', () => {
+          const isHidden = wrapper.style.display === 'none' || wrapper.style.display === '';
+          wrapper.style.display = isHidden ? 'block' : 'none';
+          btn.textContent = isHidden ? 'Hide Embed Code' : '🔗 Embed This Table';
+          btn.setAttribute('aria-expanded', String(isHidden));
+          if (isHidden) {
+            ta.focus();
+            ta.select();
+            try { document.execCommand('copy'); } catch(e) {}
+            status.style.display = 'block';
+            setTimeout(() => status.style.display = 'none', 2500);
+          } else {
+            btn.focus();
+          }
+          sendHeightToParent();
+        });
+
+        document.addEventListener('click', (e)=>{
+          const open = wrapper.style.display === 'block';
+          if (open && !wrapper.contains(e.target) && !btn.contains(e.target)) {
+            wrapper.style.display = 'none';
+            btn.setAttribute('aria-expanded','false');
+            btn.textContent = '🔗 Embed This Table';
+            sendHeightToParent();
+          }
+        });
+
+        document.addEventListener('keydown', (e)=>{
+          if (e.key === 'Escape' && wrapper.style.display === 'block') {
+            wrapper.style.display = 'none';
+            btn.setAttribute('aria-expanded','false');
+            btn.textContent = '🔗 Embed This Table';
+            btn.focus();
+            sendHeightToParent();
+          }
+        });
+      }
+    })();
+  </script>
 </section>
 </body>
 </html>
 """
 
-# === 3. HTML generators ===============================================
+# === 2. Generator: build rows + DATA ==================================
 
-def build_ranked_table_html(df: pd.DataFrame, value_col: str, top_n: int = 10) -> str:
-    cols = list(df.columns)
-    state_col = cols[0]
-    other_cols = [c for c in cols if c not in (state_col,)]
-    if value_col in other_cols:
-        other_cols.remove(value_col)
-        metric_cols = [value_col] + other_cols
-    else:
-        metric_cols = other_cols
-
-    head_cells = ['<th scope="col">Rank</th>', f'<th scope="col">{html_mod.escape(state_col)}</th>']
-    for c in metric_cols:
-        head_cells.append(f'<th scope="col">{html_mod.escape(str(c))}</th>')
-    thead_html = "<tr>" + "".join(head_cells) + "</tr>"
-
-    body_rows = []
-    for idx, (_, row) in enumerate(df.head(top_n).iterrows(), start=1):
-        tds = [f'<td><span class="vi-rank-pill">{idx}</span></td>']
-        tds.append(f'<td>{html_mod.escape(str(row[state_col]))}</td>')
-        for c in metric_cols:
-            val = row[c]
-            text = "" if pd.isna(val) else str(val)
-            tds.append(f'<td>{html_mod.escape(text)}</td>')
-        body_rows.append("<tr>" + "".join(tds) + "</tr>")
-
-    return f"""
-<div class="vi-table-scroll">
-<table class="vi-map-table">
-  <thead>{thead_html}</thead>
-  <tbody>{''.join(body_rows)}</tbody>
-</table>
-</div>
-"""
-
-
-def generate_map_table_html_from_df(
+def generate_html_from_df(
     df: pd.DataFrame,
-    brand_meta: dict,
-    state_col: str,
-    value_col: str,
-    page_title: str,
+    title: str,
     subtitle: str,
-    strapline: str,
-    legend_low: str,
-    legend_high: str,
-    high_title: str,
-    high_sub: str,
-    low_title: str,
-    low_sub: str,
-    top_n: int = 10,
-    show_state_labels: bool = False,
-    table_cols=None,
-    hover_cols=None,
+    embed_url: str,
+    brand_logo_url: str,
+    brand_logo_alt: str,
+    brand_class: str,
 ) -> str:
     df = df.copy()
-    df[state_col] = df[state_col].astype(str).str.strip()
+    df = df.sort_values("rank", ascending=True).reset_index(drop=True)
 
-    s = df[state_col].astype(str).str.strip()
-    name_mask = s.str.len() > 2
-    code_mask = ~name_mask
-    s_norm = s.copy()
-    s_norm.loc[name_mask] = s_norm.loc[name_mask].str.title()
-    s_norm.loc[code_mask] = s_norm.loc[code_mask].str.upper()
-    df["state_abbr"] = s_norm.map(STATE_LOOKUP)
+    max_fan = float(df["fan_score"].max() or 1.0)
 
-    df[value_col] = (
-        df[value_col]
-        .astype(str)
-        .str.replace("%", "", regex=False)
-        .str.replace(",", "", regex=False)
-    )
-    df[value_col] = pd.to_numeric(df[value_col], errors="coerce")
+    def band_for_fan(score: float) -> str:
+        # 6 bands for smoother color steps
+        if score >= 75.0:
+            return "band-6"
+        elif score >= 65.0:
+            return "band-5"
+        elif score >= 55.0:
+            return "band-4"
+        elif score >= 45.0:
+            return "band-3"
+        elif score >= 35.0:
+            return "band-2"
+        else:
+            return "band-1"
 
-    df = df[~df["state_abbr"].isna()].copy()
-    df = df[~df[value_col].isna()].copy()
+    row_snippets = []
+    for _, row in df.iterrows():
+        rank = int(row["rank"])
+        city_label = str(row["city"])  # expected like "San Diego, CA"
 
-    if df.empty:
-        return "<p style='padding:16px;font-family:sans-serif;'>No valid state/metric data to display.</p>"
+        # Try to extract state abbreviation from the city label
+        state_abbrev = ""
+        if "," in city_label:
+            parts = [p.strip() for p in city_label.split(",")]
+            if len(parts) >= 2:
+                state_abbrev = parts[-1]
 
-    df["rank"] = df[value_col].rank(ascending=False, method="min").astype(int)
+        flag_url = STATE_FLAG_URLS_ABBR.get(state_abbrev, "")
+        if flag_url:
+            img_html = (
+                f'<img loading="lazy" decoding="async" alt="{state_abbrev} flag" '
+                f'width="18" height="18" src="{flag_url}">'
+            )
+        else:
+            img_html = ""
 
-    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-    if value_col not in numeric_cols:
-        numeric_cols = [value_col] + numeric_cols
+        crime = float(row["crime_index"])
+        walk = float(row["walk_score"])
+        sent = float(row["sentiment_pct"])
+        fan = float(row["fan_score"])
 
-    if hover_cols is None or len(hover_cols) == 0:
-        default_hover = [c for c in numeric_cols if c != "rank"]
-        metrics_for_hover = [value_col] + [c for c in default_hover if c != value_col][:2]
-    else:
-        cleaned_hover = [c for c in hover_cols if c in df.columns and c != state_col]
-        metrics_for_hover = [value_col] + [c for c in cleaned_hover if c != value_col]
+        width_pct = fan / max_fan * 100.0
+        bar_style = f"width:{width_pct:.2f}%;"
+        band_class = band_for_fan(fan)
 
-    seen = set()
-    metrics_for_hover = [c for c in metrics_for_hover if not (c in seen or seen.add(c))]
-    custom_cols = [state_col] + metrics_for_hover
+        # Row shows rank + flag + city label + overall fan score bar (sub-metrics only in details)
+        row_html = f"""
+    <div class="row is-clickable" data-city="{city_label}" data-rank="{rank}" aria-expanded="false" tabindex="0" role="button">
+      <div class="rank">{rank}</div>
+      <div class="city">
+        <span class="city-main">
+          <span class="chip">{img_html}</span>
+          {city_label}
+        </span>
+      </div>
+      <div class="metric">
+        <span class="bar fan-band {band_class}" style="{bar_style}"></span>
+        <span class="val">{fan:.2f}</span>
+      </div>
+    </div>""".rstrip()
+        row_snippets.append(row_html)
 
-    v_min = df[value_col].min()
-    v_max = df[value_col].max()
-    if pd.isna(v_min) or pd.isna(v_max) or v_min == v_max:
-        df["fill_norm"] = 0.5
-    else:
-        df["fill_norm"] = (df[value_col] - v_min) / (v_max - v_min)
+    rows_html = "\n\n".join(row_snippets)
 
-    map_scale = brand_meta["map_scale"]
-    accent = brand_meta.get("accent", "#16A34A")
-    style_mode = brand_meta.get("style_mode", "branded")
-
-    fig = px.choropleth(
-        df,
-        locations="state_abbr",
-        locationmode="USA-states",
-        scope="usa",
-        color=value_col,
-        color_continuous_scale=map_scale,
-        custom_data=df[custom_cols],
-    )
-
-    lines = []
-    for idx, col in enumerate(metrics_for_hover, start=1):
-        nice_label = col.replace("_", " ").strip().title()
-        value_fmt = f"%{{customdata[{idx}]}}"
-        lines.append(
-            f"<span style='color:{accent};font-weight:500;'>"
-            f"{html_mod.escape(nice_label)}:</span> {value_fmt}"
+    data_lines = []
+    for _, row in df.iterrows():
+        city = str(row["city"])
+        crime = float(row["crime_index"])
+        walk = float(row["walk_score"])
+        sentiment = float(row["sentiment_pct"])
+        fan = float(row["fan_score"])
+        data_lines.append(
+            f'        "{city}":  {{ crime:{crime:.2f}, walk:{walk:.2f}, sentiment:{sentiment:.2f}, fan:{fan:.2f} }}'
         )
-
-    hovertemplate = (
-        f"<span style='font-weight:600;color:{accent};'>"
-        "%{customdata[0]} (%{location})"
-        "</span><br>"
-        + "<br>".join(lines)
-        + "<extra></extra>"
-    )
-
-    fig.update_traces(
-        hovertemplate=hovertemplate,
-        hoverlabel=dict(
-            bgcolor="#FFFFFF",
-            bordercolor="rgba(15,23,42,0.18)",
-            font=dict(color="#111827", size=12),
-            align="left",
-            namelength=-1,
-        ),
-        marker_line_color="#F9FAFB",
-        marker_line_width=1,
-        showlegend=False,
-    )
-
-    # --- Optional labels (desktop only enforced via JS) ---
-    if show_state_labels:
-        label_df = df.copy()
-        label_df["label_text"] = label_df["state_abbr"] + " (" + label_df["rank"].astype(str) + ")"
-
-        small_mask = label_df["state_abbr"].isin(SMALL_STATES)
-        df_big = label_df[~small_mask]
-        df_small = label_df[small_mask]
-
-        if not df_big.empty:
-            def add_big_group(group, text_color):
-                if group.empty:
-                    return
-                fig.add_trace(
-                    go.Scattergeo(
-                        locationmode="USA-states",
-                        locations=group["state_abbr"],
-                        text=group["label_text"],
-                        mode="text",
-                        textfont=dict(size=10, color=text_color),
-                        hoverinfo="skip",
-                        showlegend=False,
-                        name="__labels__",
-                    )
-                )
-
-            if style_mode == "unbranded":
-                dark_bg = df_big[df_big["fill_norm"] >= 0.55]
-                light_bg = df_big[df_big["fill_norm"] < 0.55]
-                add_big_group(dark_bg, "#FFFFFF")
-                add_big_group(light_bg, "#111827")
-            else:
-                dark_bg = df_big[df_big["fill_norm"] >= 0.55]
-                light_bg = df_big[df_big["fill_norm"] < 0.55]
-                add_big_group(dark_bg, "#FFFFFF")
-                add_big_group(light_bg, map_scale[2] if len(map_scale) >= 3 else "#111827")
-
-        if not df_small.empty:
-            df_small = df_small.copy()
-            df_small["centroid_lat"] = df_small["state_abbr"].map(lambda s: SMALL_STATE_CENTROIDS[s]["lat"])
-            df_small["centroid_lon"] = df_small["state_abbr"].map(lambda s: SMALL_STATE_CENTROIDS[s]["lon"])
-            df_small = df_small.sort_values("centroid_lat", ascending=False).reset_index(drop=True)
-
-            min_lat = df_small["centroid_lat"].min()
-            down_j = 0
-
-            line_lons, line_lats = [], []
-            label_lons, label_lats, label_texts = [], [], []
-
-            for _, row in df_small.iterrows():
-                abbr = row["state_abbr"]
-                c = SMALL_STATE_CENTROIDS[abbr]
-                lon0, lat0 = c["lon"], c["lat"]
-
-                if abbr in UP_CALLOUT_STATES:
-                    offs = UP_CALLOUT_OFFSETS.get(abbr, {"d_lon": 4.5, "d_lat": 3.0})
-                    lon1 = lon0 - offs["d_lon"]
-                    lat1 = lat0 + offs["d_lat"]
-                else:
-                    offset_lon = 4.8 - down_j * 0.4
-                    lon1 = lon0 + offset_lon
-                    lat1 = min_lat - 1.8 - down_j * 0.35
-
-                    nudge = DOWN_CALLOUT_NUDGE.get(abbr)
-                    if nudge:
-                        lon1 += nudge.get("d_lon", 0.0)
-                        lat1 += nudge.get("d_lat", 0.0)
-
-                    down_j += 1
-
-                line_lons += [lon0, lon1, None]
-                line_lats += [lat0, lat1, None]
-
-                label_lons.append(lon1)
-                label_lats.append(lat1)
-                label_texts.append(row["label_text"])
-
-            fig.add_trace(
-                go.Scattergeo(
-                    lon=line_lons,
-                    lat=line_lats,
-                    mode="lines",
-                    line=dict(width=1, color=accent),
-                    hoverinfo="skip",
-                    showlegend=False,
-                    name="__labels__",
-                )
-            )
-            fig.add_trace(
-                go.Scattergeo(
-                    lon=label_lons,
-                    lat=label_lats,
-                    mode="text",
-                    text=label_texts,
-                    textfont=dict(size=10, color=accent),
-                    hoverinfo="skip",
-                    showlegend=False,
-                    name="__labels__",
-                )
-            )
-
-    # Lower default scale (zoom OUT a bit) to avoid clipping
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=0, b=0),
-        paper_bgcolor="#F9FAFB",
-        plot_bgcolor="#F9FAFB",
-        showlegend=False,
-        dragmode=False,
-        geo=dict(
-            bgcolor="#F9FAFB",
-            lakecolor="#F9FAFB",
-            showlakes=False,
-            showland=True,
-            landcolor="#F3F4F6",
-            showframe=False,
-            showcoastlines=False,
-            showcountries=False,
-            projection=dict(scale=1.04),
-        ),
-        coloraxis_showscale=False,
-        height=520,
-    )
-
-    map_html = fig.to_html(
-        include_plotlyjs="cdn",
-        full_html=False,
-        config={
-            "displayModeBar": False,
-            "responsive": True,
-            "scrollZoom": False,
-            "doubleClick": False,
-        },
-    )
-
-    if table_cols is None or len(table_cols) == 0:
-        default_table_cols = [c for c in numeric_cols if c != "rank"]
-        table_cols = [value_col] + [c for c in default_table_cols if c != value_col]
-    else:
-        table_cols = [c for c in table_cols if c in df.columns and c != state_col]
-        table_cols = [value_col] + [c for c in table_cols if c != value_col]
-
-    df_for_tables = pd.DataFrame({state_col: df[state_col], **{c: df[c] for c in table_cols}})
-    df_high = df_for_tables.sort_values(by=value_col, ascending=False)
-    df_low = df_for_tables.sort_values(by=value_col, ascending=True)
-
-    high_table_html = build_ranked_table_html(df_high, value_col=value_col, top_n=10)
-    low_table_html = build_ranked_table_html(df_low, value_col=value_col, top_n=10)
-
-    scale_start, scale_mid, scale_end = map_scale[0], map_scale[1], map_scale[2]
-
-    show_labels_str = "true" if bool(show_state_labels) else "false"
+    data_js = "{\n" + ",\n".join(data_lines) + "\n      }"
 
     html = (
-        HTML_TEMPLATE_MAP_TABLE
-        .replace("[[PAGE_TITLE]]", html_mod.escape(page_title))
-        .replace("[[SUBTITLE]]", html_mod.escape(subtitle or ""))
-        .replace("[[STRAPLINE]]", html_mod.escape(strapline or ""))
-        .replace("[[LEGEND_LOW]]", html_mod.escape(legend_low or "Lowest"))
-        .replace("[[LEGEND_HIGH]]", html_mod.escape(legend_high or "Highest"))
-        .replace("[[MAP_HTML]]", map_html)
-        .replace("[[HIGH_TITLE]]", html_mod.escape(high_title))
-        .replace("[[HIGH_SUB]]", html_mod.escape(high_sub or ""))
-        .replace("[[LOW_TITLE]]", html_mod.escape(low_title))
-        .replace("[[LOW_SUB]]", html_mod.escape(low_sub or ""))
-        .replace("[[TABLE_HIGH_HTML]]", high_table_html)
-        .replace("[[TABLE_LOW_HTML]]", low_table_html)
-        .replace("[[BRAND_CLASS]]", brand_meta.get("brand_class", ""))
-        .replace("[[ACCENT]]", brand_meta.get("accent", "#16A34A"))
-        .replace("[[ACCENT_SOFT]]", brand_meta.get("accent_soft", "#DCFCE7"))
-        .replace("[[ACCENT_SOFTER]]", brand_meta.get("accent_softer", "#F3FBF7"))
-        .replace("[[SCALE_START]]", scale_start)
-        .replace("[[SCALE_MID]]", scale_mid)
-        .replace("[[SCALE_END]]", scale_end)
-        .replace("[[BRAND_LOGO_URL]]", brand_meta.get("logo_url", ""))
-        .replace("[[BRAND_LOGO_ALT]]", html_mod.escape(brand_meta.get("logo_alt", "")))
-        .replace("[[BRAND_URL]]", html_mod.escape(brand_meta.get("site_url", "")))
-        .replace("[[BRAND_LOGO_WIDTH]]", str(brand_meta.get("logo_width", 140)))
-        .replace("[[BRAND_LOGO_HEIGHT]]", str(brand_meta.get("logo_height", 32)))
-        .replace("[[SHOW_LABELS]]", show_labels_str)
+        HTML_TEMPLATE
+        .replace("[[ROWS]]", rows_html)
+        .replace("[[DATA]]", data_js)
+        .replace("[[TITLE]]", title)
+        .replace("[[SUBTITLE]]", subtitle)
+        .replace("[[EMBED_URL]]", embed_url)
+        .replace("[[BRAND_LOGO_URL]]", brand_logo_url)
+        .replace("[[BRAND_LOGO_ALT]]", brand_logo_alt)
+        .replace("[[BRAND_CLASS]]", brand_class or "")
     )
+
     return html
 
+# === 3. Streamlit App ================================================
 
-# =====================================================================
-# STREAMLIT UX
-# =====================================================================
+st.set_page_config(page_title="Women's Stadium Fan Experience Table Generator", layout="wide")
 
-st.title("Branded Map + Table Generator")
+st.title("Women's Stadium Fan Experience Table Generator")
 st.write(
-    "Upload a CSV → preview appears immediately. "
-    "Edit on the left → click **Update the map contents** to apply changes. "
-    "Then **Get the HTML code** → then publish/get iframe."
+    "Upload a CSV, choose a brand and GitHub campaign, then click **Update widget** "
+    "to publish your women's stadium fan experience table via GitHub Pages."
 )
 
-BASE_WIDGET_FILENAME = "branded_map.html"
+# Brand selection
+brand_options = [
+    "Action Network",
+    "VegasInsider",
+    "Canada Sports Betting",
+    "RotoGrinders",
+]
+default_brand = st.session_state.get("brand", "Action Network")
+if default_brand not in brand_options:
+    default_brand = "Action Network"
 
-
-def ss_init(key: str, value):
-    if key not in st.session_state:
-        st.session_state[key] = value
-
-
-def reset_generation_state():
-    st.session_state["draft_html"] = ""
-    st.session_state["draft_ready"] = False
-    st.session_state["html_generated"] = False
-    st.session_state["generated_html"] = ""
-    st.session_state["iframe_published"] = False
-    st.session_state["iframe_snippet"] = ""
-    st.session_state["published_url"] = ""
-
-
-def compute_expected_embed_url(user: str, repo: str, fname: str) -> str:
-    if user and repo.strip() and fname.strip():
-        return f"https://{user}.github.io/{repo.strip()}/{fname.strip()}"
-    return "https://example.github.io/your-repo/widget.html"
-
-
-def normalize_multi_select(selection, available_cols):
-    if not selection or "All columns" in selection:
-        return list(available_cols)
-    return [c for c in selection if c in available_cols]
-
-
-def build_html_from_applied(df: pd.DataFrame) -> str:
-    style_mode = "Branded"
-    brand_meta = get_brand_meta(st.session_state.get("applied_brand", "Action Network"), style_mode)
-
-    return generate_map_table_html_from_df(
-        df=df,
-        brand_meta=brand_meta,
-        state_col=st.session_state["applied_state_col"],
-        value_col=st.session_state["applied_value_col"],
-        page_title=st.session_state["applied_page_title"],
-        subtitle=st.session_state["applied_subtitle"],
-        strapline=st.session_state["applied_strapline"],
-        legend_low=st.session_state["applied_legend_low"],
-        legend_high=st.session_state["applied_legend_high"],
-        high_title=st.session_state["applied_high_title"],
-        high_sub=st.session_state["applied_high_sub"],
-        low_title=st.session_state["applied_low_title"],
-        low_sub=st.session_state["applied_low_sub"],
-        top_n=10,
-        show_state_labels=bool(st.session_state.get("applied_show_labels", False)),
-        table_cols=st.session_state["applied_table_cols"],
-        hover_cols=st.session_state["applied_hover_cols"],
-    )
-
-
-def apply_edits_and_update_preview(df: pd.DataFrame):
-    cols = list(df.columns)
-    if not cols:
-        st.session_state["draft_html"] = "<p style='padding:16px;font-family:sans-serif;'>No columns found.</p>"
-        st.session_state["draft_ready"] = True
-        return
-
-    def guess_state_col() -> str:
-        return next((c for c in cols if "state" in str(c).lower()), cols[0])
-
-    def guess_value_col(state_col: str) -> str:
-        numeric = df.select_dtypes(include=["number"]).columns.tolist()
-        for c in numeric:
-            if c != state_col:
-                return c
-        for c in cols:
-            if c != state_col:
-                return c
-        return cols[0]
-
-    state_col = st.session_state.get("edit_state_col") or st.session_state.get("applied_state_col") or guess_state_col()
-    if state_col not in cols:
-        state_col = guess_state_col()
-
-    value_col = st.session_state.get("edit_value_col") or st.session_state.get("applied_value_col") or guess_value_col(state_col)
-    if value_col not in cols or value_col == state_col:
-        value_col = guess_value_col(state_col)
-
-    brand = st.session_state.get("edit_brand") or st.session_state.get("applied_brand") or "Action Network"
-
-    page_title = st.session_state.get("edit_page_title") or st.session_state.get("applied_page_title") or "State Metric Map"
-    subtitle = st.session_state.get("edit_subtitle") or st.session_state.get("applied_subtitle") or "Visualizing your selected metric by U.S. state."
-    strapline = st.session_state.get("edit_strapline") or st.session_state.get("applied_strapline") or f"{str(brand).upper()} · DATA VISUALIZATION"
-
-    legend_low = st.session_state.get("edit_legend_low") or st.session_state.get("applied_legend_low") or "Lowest value"
-    legend_high = st.session_state.get("edit_legend_high") or st.session_state.get("applied_legend_high") or "Highest value"
-
-    high_title = st.session_state.get("edit_high_title") or st.session_state.get("applied_high_title") or "States With the Highest Values"
-    low_title = st.session_state.get("edit_low_title") or st.session_state.get("applied_low_title") or "States With the Lowest Values"
-    high_sub = st.session_state.get("edit_high_sub") or st.session_state.get("applied_high_sub") or "Ranked by the selected metric."
-    low_sub = st.session_state.get("edit_low_sub") or st.session_state.get("applied_low_sub") or "Ranked by the selected metric."
-
-    show_labels = bool(st.session_state.get("edit_show_labels", st.session_state.get("applied_show_labels", False)))
-
-    st.session_state["applied_brand"] = brand
-    st.session_state["applied_state_col"] = state_col
-    st.session_state["applied_value_col"] = value_col
-    st.session_state["applied_page_title"] = page_title
-    st.session_state["applied_subtitle"] = subtitle
-    st.session_state["applied_strapline"] = strapline
-    st.session_state["applied_legend_low"] = legend_low
-    st.session_state["applied_legend_high"] = legend_high
-    st.session_state["applied_high_title"] = high_title
-    st.session_state["applied_low_title"] = low_title
-    st.session_state["applied_high_sub"] = high_sub
-    st.session_state["applied_low_sub"] = low_sub
-    st.session_state["applied_show_labels"] = show_labels
-
-    available_cols = [c for c in cols if c != state_col]
-    raw_hover = st.session_state.get("edit_hover_cols") or st.session_state.get("applied_hover_cols") or ["All columns"]
-    raw_table = st.session_state.get("edit_table_cols") or st.session_state.get("applied_table_cols") or ["All columns"]
-
-    st.session_state["applied_hover_cols"] = normalize_multi_select(raw_hover, available_cols)
-    st.session_state["applied_table_cols"] = normalize_multi_select(raw_table, available_cols)
-
-    st.session_state["draft_html"] = build_html_from_applied(df)
-    st.session_state["draft_ready"] = True
-
-    st.session_state["html_generated"] = False
-    st.session_state["generated_html"] = ""
-    st.session_state["iframe_published"] = False
-    st.session_state["iframe_snippet"] = ""
-    st.session_state["published_url"] = ""
-
-
-# base state
-ss_init("csv_fingerprint", "")
-ss_init("draft_ready", False)
-ss_init("draft_html", "")
-ss_init("html_generated", False)
-ss_init("generated_html", "")
-ss_init("iframe_published", False)
-ss_init("iframe_snippet", "")
-ss_init("published_url", "")
+brand = st.selectbox(
+    "Choose a brand",
+    options=brand_options,
+    index=brand_options.index(default_brand),
+    key="brand",
+)
 
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
-if uploaded_file is None:
-    st.info("Upload a CSV to see the preview and editing panel.")
-    st.stop()
+if uploaded_file is not None:
+    # --- Step 1: read & clean CSV ---
+    try:
+        raw_df = pd.read_csv(uploaded_file)
+    except Exception as e:
+        st.error(f"Error reading CSV: {e}")
+        st.stop()
 
-try:
-    raw_bytes = uploaded_file.getvalue()
-    fp = f"{uploaded_file.name}:{len(raw_bytes)}:{hash(raw_bytes)}"
-except Exception:
-    fp = f"{uploaded_file.name}:{time.time()}"
+    required_cols = [
+        "Rank",
+        "City",
+        "City Crime Index",
+        "Stadium Walk Score",
+        "Stadium Sentiment (%)",
+        "Fan Experience Score",
+    ]
+    missing = [c for c in required_cols if c not in raw_df.columns]
+    if missing:
+        st.error(f"Missing required columns in CSV: {missing}")
+        st.stop()
 
-try:
-    df = pd.read_csv(uploaded_file)
-except Exception as e:
-    st.error(f"Error reading CSV: {e}")
-    st.stop()
+    df = pd.DataFrame()
+    df["rank"] = raw_df["Rank"].astype(int)
+    df["city"] = raw_df["City"].astype(str)
+    df["crime_index"] = raw_df["City Crime Index"].astype(float)
+    df["walk_score"] = raw_df["Stadium Walk Score"].astype(float)
+    df["sentiment_pct"] = (
+        raw_df["Stadium Sentiment (%)"]
+        .astype(str)
+        .str.replace("%", "", regex=False)
+        .str.strip()
+        .astype(float)
+    )
+    df["fan_score"] = raw_df["Fan Experience Score"].astype(float)
 
-if df.empty:
-    st.error("Uploaded CSV has no rows.")
-    st.stop()
+    # Defaults for widget text
+    default_title = "Ranking 50 U.S. Cities for Women's Stadium Fan Experience"
+    default_subtitle = (
+        "All 50 cities in our dataset ranked on women's stadium fan experience, based on "
+        "city crime index, walkability, stadium sentiment, and an overall fan experience score."
+    )
 
-if fp != st.session_state.get("csv_fingerprint", ""):
-    st.session_state["csv_fingerprint"] = fp
-    reset_generation_state()
+    # ---------- GitHub / hosting settings ----------
+    saved_gh_user = st.session_state.get("gh_user", "")
+    saved_gh_repo = st.session_state.get("gh_repo", "stadium-fan-experience-widget")
 
-    cols = list(df.columns)
-    guessed_state = next((c for c in cols if "state" in c.lower()), cols[0])
+    username_options = ["GauthamBC", "ActionNetwork", "MoonWatcher", "SampleUser"]
+    if GITHUB_USER_DEFAULT and GITHUB_USER_DEFAULT not in username_options:
+        username_options.insert(0, GITHUB_USER_DEFAULT)
 
-    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-    value_guess = None
-    for c in numeric_cols:
-        if c != guessed_state:
-            value_guess = c
-            break
-    if value_guess is None:
-        non_state = [c for c in cols if c != guessed_state]
-        value_guess = non_state[0] if non_state else cols[0]
+    if saved_gh_user in username_options:
+        default_idx = username_options.index(saved_gh_user)
+    else:
+        default_idx = 0
 
-    st.session_state["edit_brand"] = "VegasInsider"
-    st.session_state["edit_page_title"] = "State Metric Map"
-    st.session_state["edit_subtitle"] = "Visualizing your selected metric by U.S. state."
-    st.session_state["edit_strapline"] = f"{st.session_state['edit_brand'].upper()} · DATA VISUALIZATION"
+    github_username_input = st.selectbox(
+        "Username (GitHub username)",
+        options=username_options,
+        index=default_idx,
+        key="gh_user",
+    )
+    effective_github_user = github_username_input.strip()
 
-    st.session_state["edit_state_col"] = guessed_state
-    st.session_state["edit_value_col"] = value_guess
+    repo_name = st.text_input(
+        "Widget hosting repository name (leave no spaces; letters, numbers and underscores are fine)",
+        value=saved_gh_repo,
+        key="gh_repo",
+    )
 
-    st.session_state["edit_legend_low"] = "Lowest value"
-    st.session_state["edit_legend_high"] = "Highest value"
+    base_filename = "stadium_fan_experience.html"
+    widget_file_name = st.session_state.get("widget_file_name", base_filename)
 
-    st.session_state["edit_high_title"] = "States With the Highest Values"
-    st.session_state["edit_low_title"] = "States With the Lowest Values"
-    st.session_state["edit_high_sub"] = "Ranked by the selected metric."
-    st.session_state["edit_low_sub"] = "Ranked by the selected metric."
+    def compute_expected_embed_url(user: str, repo: str, fname: str) -> str:
+        if user and repo.strip():
+            return f"https://{user}.github.io/{repo.strip()}/{fname}"
+        return "https://example.github.io/your-repo/widget.html"
 
-    st.session_state["edit_hover_cols"] = ["All columns"]
-    st.session_state["edit_table_cols"] = ["All columns"]
+    expected_embed_url = compute_expected_embed_url(
+        effective_github_user, repo_name, widget_file_name
+    )
 
-    st.session_state["edit_show_labels"] = False  # NEW default
+    st.caption(
+        f"Expected GitHub Pages URL (used in widget footer & iframe):\n\n`{expected_embed_url}`"
+    )
 
-    apply_edits_and_update_preview(df)
+    st.markdown(
+        "<p style='font-size:0.85rem; color:#c4c4c4;'>"
+        "Use <strong>Page availability check</strong> to see whether a page already exists "
+        "for this campaign, then click <strong>Update widget</strong> to publish."
+        "</p>",
+        unsafe_allow_html=True,
+    )
 
-if not st.session_state.get("draft_ready", False):
-    if "applied_state_col" not in st.session_state:
-        apply_edits_and_update_preview(df)
+    iframe_snippet = st.session_state.get("iframe_snippet")
 
-left, right = st.columns([0.42, 0.58], gap="large")
+    # ---------- Button row: Page availability check & Update widget ----------
+    col_check, col_get = st.columns([1, 1])
 
-with left:
-    tab_edit, tab_html, tab_iframe = st.tabs(["Edit map contents", "HTML code", "Iframe"])
-
-    with tab_edit:
-        st.subheader("Edit map contents")
-
-        brand_options = ["Action Network", "VegasInsider", "Canada Sports Betting", "RotoGrinders"]
-        st.selectbox(
-            "Brand",
-            options=brand_options,
-            index=brand_options.index(st.session_state.get("edit_brand", "Action Network"))
-            if st.session_state.get("edit_brand", "Action Network") in brand_options else 0,
-            key="edit_brand",
-        )
-
-        cols = list(df.columns)
-        state_col = st.selectbox(
-            "State column (full name or 2-letter code)",
-            options=cols,
-            index=cols.index(st.session_state.get("edit_state_col", cols[0]))
-            if st.session_state.get("edit_state_col", cols[0]) in cols else 0,
-            key="edit_state_col",
-        )
-
-        numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-        candidate_value_cols = [c for c in cols if c != state_col]
-        if numeric_cols:
-            candidate_value_cols = [c for c in numeric_cols if c != state_col] + [
-                c for c in candidate_value_cols if c not in numeric_cols
-            ]
-        candidate_value_cols = list(dict.fromkeys(candidate_value_cols))
-
-        if not candidate_value_cols:
-            st.error("No available metric columns (besides the state column).")
-            st.stop()
-
-        st.selectbox(
-            "Primary metric column (colors the map)",
-            options=candidate_value_cols,
-            index=candidate_value_cols.index(st.session_state.get("edit_value_col", candidate_value_cols[0]))
-            if st.session_state.get("edit_value_col", candidate_value_cols[0]) in candidate_value_cols else 0,
-            key="edit_value_col",
-        )
-
-        # NEW: labels optional toggle (desktop only; mobile forced OFF by JS)
-        st.checkbox(
-            "Show state rank labels (desktop only)",
-            value=st.session_state.get("edit_show_labels", False),
-            key="edit_show_labels",
-        )
-
-        st.markdown("#### Text")
-        st.text_input("Page title", key="edit_page_title")
-        st.text_input("Subtitle", key="edit_subtitle")
-
-        current_brand = st.session_state.get("edit_brand", "Action Network")
-        default_strapline = f"{current_brand.upper()} · DATA VISUALIZATION"
-        if "edit_strapline" not in st.session_state or not st.session_state["edit_strapline"]:
-            st.session_state["edit_strapline"] = default_strapline
-        st.text_input("Strapline (top small text)", key="edit_strapline")
-
-        st.markdown("#### Legend labels")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.text_input("Legend left label", key="edit_legend_low")
-        with c2:
-            st.text_input("Legend right label", key="edit_legend_high")
-
-        st.markdown("#### Hover + tables columns")
-        available_cols = [c for c in cols if c != state_col]
-
-        hover_options = ["All columns"] + available_cols
-        table_options = ["All columns"] + available_cols
-
-        st.multiselect(
-            "Columns to show on hover",
-            options=hover_options,
-            default=st.session_state.get("edit_hover_cols", ["All columns"]),
-            key="edit_hover_cols",
-        )
-
-        st.multiselect(
-            "Columns to include in ranked tables",
-            options=table_options,
-            default=st.session_state.get("edit_table_cols", ["All columns"]),
-            key="edit_table_cols",
-        )
-
-        st.markdown("#### Table titles")
-        c3, c4 = st.columns(2)
-        with c3:
-            st.text_input("High table title", key="edit_high_title")
-            st.text_input("High table subheading", key="edit_high_sub")
-        with c4:
-            st.text_input("Low table title", key="edit_low_title")
-            st.text_input("Low table subheading", key="edit_low_sub")
-
-        st.divider()
-
-        update_clicked = st.button("Update the map contents", type="primary")
-        if update_clicked:
-            apply_edits_and_update_preview(df)
-            st.success("Map contents updated. Preview refreshed on the right.")
-
-    with tab_html:
-        st.subheader("HTML code")
-        st.caption("HTML will NOT be shown until you click **Get the HTML code**.")
-
-        get_html_clicked = st.button("Get the HTML code", type="primary")
-        if get_html_clicked:
-            st.session_state["generated_html"] = st.session_state.get("draft_html", "")
-            st.session_state["html_generated"] = True
-            st.success("HTML generated. You can now copy it, or move to the Iframe tab.")
-
-        if st.session_state.get("html_generated", False):
-            st.code(st.session_state.get("generated_html", ""), language="html")
-        else:
-            st.info("Click **Get the HTML code** to generate and display the HTML here.")
-
-    with tab_iframe:
-        st.subheader("Iframe")
-
-        if not st.session_state.get("html_generated", False):
-            st.warning(
-                "Please click **Get the HTML code** first (in the HTML code tab), "
-                "then come back to publish/get iframe."
+    if not GITHUB_TOKEN:
+        with col_get:
+            st.info(
+                "Set `GITHUB_TOKEN` in `.streamlit/secrets.toml` (with `repo` scope) "
+                "to enable automatic GitHub publishing."
             )
-            iframe_disabled = True
-        else:
-            iframe_disabled = False
-
-        st.markdown("#### GitHub publish settings")
-
-        gh_user = st.text_input("GitHub username", value=st.session_state.get("gh_user", GITHUB_USER_DEFAULT or ""), key="gh_user")
-        gh_repo = st.text_input("Repo name", value=st.session_state.get("gh_repo", "branded-map-widget"), key="gh_repo")
-        gh_file = st.text_input("File name (e.g. map.html)", value=st.session_state.get("gh_file", BASE_WIDGET_FILENAME), key="gh_file")
-
-        expected_url = compute_expected_embed_url(gh_user, gh_repo, gh_file)
-        st.caption(f"Expected GitHub Pages URL:\n\n`{expected_url}`")
-
-        if not GITHUB_TOKEN:
-            st.info("Set `GITHUB_TOKEN` in `.streamlit/secrets.toml` (with `repo` scope) to enable publishing.")
-            publish_disabled = True
-        else:
-            publish_disabled = False
-
-        replace_existing = st.checkbox(
-            "Replace existing file if it already exists",
-            value=False,
-            disabled=iframe_disabled,
-            help="If unchecked and the file exists, you must change the file name.",
-        )
-
-        publish_clicked = st.button(
-            "Get the iframe (publish to GitHub Pages)",
-            type="primary",
-            disabled=iframe_disabled or publish_disabled,
-        )
-
-        if publish_clicked:
-            if not gh_user.strip() or not gh_repo.strip() or not gh_file.strip():
-                st.error("Please provide GitHub username, repo name, and file name.")
-            else:
+    elif not effective_github_user or not repo_name.strip():
+        with col_get:
+            st.info("Fill in username and campaign name above.")
+    else:
+        # --- Page availability check button ---
+        with col_check:
+            if st.button("Page availability check"):
                 try:
-                    repo_exists = check_repo_exists(gh_user.strip(), gh_repo.strip(), GITHUB_TOKEN)
+                    repo_exists = check_repo_exists(
+                        effective_github_user,
+                        repo_name.strip(),
+                        GITHUB_TOKEN,
+                    )
                     file_exists = False
+                    next_fname = None
                     if repo_exists:
-                        file_exists = check_file_exists(gh_user.strip(), gh_repo.strip(), GITHUB_TOKEN, gh_file.strip())
-
-                    if file_exists and not replace_existing:
-                        st.error(
-                            f"`{gh_file.strip()}` already exists in `{gh_user.strip()}/{gh_repo.strip()}`.\n\n"
-                            "Choose a different file name, or enable **Replace existing file**."
+                        file_exists = check_file_exists(
+                            effective_github_user,
+                            repo_name.strip(),
+                            GITHUB_TOKEN,
+                            base_filename,
                         )
-                    else:
-                        ensure_repo_exists(gh_user.strip(), gh_repo.strip(), GITHUB_TOKEN)
+                        if file_exists:
+                            next_fname = find_next_widget_filename(
+                                effective_github_user,
+                                repo_name.strip(),
+                                GITHUB_TOKEN,
+                            )
 
-                        try:
-                            ensure_pages_enabled(gh_user.strip(), gh_repo.strip(), GITHUB_TOKEN, branch="main")
-                        except Exception:
-                            pass
-
-                        html_to_publish = st.session_state.get("generated_html", "")
-                        upload_file_to_github(
-                            owner=gh_user.strip(),
-                            repo=gh_repo.strip(),
-                            token=GITHUB_TOKEN,
-                            path=gh_file.strip(),
-                            content=html_to_publish,
-                            message=f"Publish {gh_file.strip()} from Branded Map app",
-                            branch="main",
-                        )
-
-                        trigger_pages_build(gh_user.strip(), gh_repo.strip(), GITHUB_TOKEN)
-
-                        published_url = compute_expected_embed_url(gh_user.strip(), gh_repo.strip(), gh_file.strip())
-                        iframe_snippet = dedent(f"""\
-                        <iframe src="{published_url}"
-                                title="{html_mod.escape(st.session_state.get('applied_page_title', 'State Metric Map'))}"
-                                width="100%" height="1000" scrolling="no"
-                                style="border:0;" loading="lazy"></iframe>""")
-
-                        st.session_state["iframe_published"] = True
-                        st.session_state["published_url"] = published_url
-                        st.session_state["iframe_snippet"] = iframe_snippet
-
-                        st.success("Published. Your iframe code is ready below.")
+                    st.session_state["availability"] = {
+                        "repo_exists": repo_exists,
+                        "file_exists": file_exists,
+                        "checked_filename": base_filename,
+                        "suggested_new_filename": next_fname,
+                    }
+                    st.session_state.setdefault("widget_file_name", base_filename)
 
                 except Exception as e:
-                    st.error(f"Publish failed: {e}")
+                    st.error(f"Availability check failed: {e}")
 
-        if st.session_state.get("iframe_published", False):
-            st.markdown("#### Iframe code")
-            st.code(st.session_state.get("iframe_snippet", ""), language="html")
+        # --- Update widget button (publishes to GitHub) ---
+        with col_get:
+            if st.button("Update widget"):
+                try:
+                    progress_placeholder = st.empty()
+                    progress = progress_placeholder.progress(0)
 
-with right:
-    st.subheader("Map preview")
-    if st.session_state.get("draft_ready", False) and st.session_state.get("draft_html", ""):
-        components.html(st.session_state["draft_html"], height=1000, scrolling=True)
-    else:
-        st.info("Preview will appear here after CSV upload.")
+                    for pct in (20, 45, 70):
+                        time.sleep(0.12)
+                        progress.progress(pct)
+
+                    title_for_publish = st.session_state.get("widget_title", default_title)
+                    subtitle_for_publish = st.session_state.get("widget_subtitle", default_subtitle)
+                    brand_for_publish = st.session_state.get("brand", brand)
+                    brand_meta_publish = get_brand_meta(brand_for_publish)
+
+                    widget_file_name = st.session_state.get("widget_file_name", base_filename)
+                    expected_embed_url = compute_expected_embed_url(
+                        effective_github_user, repo_name, widget_file_name
+                    )
+
+                    html_final = generate_html_from_df(
+                        df,
+                        title_for_publish,
+                        subtitle_for_publish,
+                        expected_embed_url,
+                        brand_meta_publish["logo_url"],
+                        brand_meta_publish["logo_alt"],
+                        brand_meta_publish["brand_class"],
+                    )
+
+                    progress.progress(80)
+
+                    ensure_repo_exists(
+                        effective_github_user,
+                        repo_name.strip(),
+                        GITHUB_TOKEN,
+                    )
+
+                    progress.progress(90)
+
+                    try:
+                        ensure_pages_enabled(
+                            effective_github_user,
+                            repo_name.strip(),
+                            GITHUB_TOKEN,
+                            branch="main",
+                        )
+                    except Exception:
+                        pass  # soft failure
+
+                    upload_file_to_github(
+                        effective_github_user,
+                        repo_name.strip(),
+                        GITHUB_TOKEN,
+                        widget_file_name,
+                        html_final,
+                        f"Add/update {widget_file_name} from Streamlit app",
+                        branch="main",
+                    )
+
+                    trigger_pages_build(
+                        effective_github_user,
+                        repo_name.strip(),
+                        GITHUB_TOKEN,
+                    )
+
+                    progress.progress(100)
+                    time.sleep(0.15)
+                    progress_placeholder.empty()
+
+                    iframe_snippet = f"""<iframe src="{expected_embed_url}"
+  title="{title_for_publish}"
+  width="100%" height="650"
+  scrolling="no"
+  style="border:0;" loading="lazy"></iframe>"""
+
+                    st.session_state["iframe_snippet"] = iframe_snippet
+                    st.session_state["has_generated"] = True
+
+                    st.success("Widget iframe updated. Open the tabs below to preview and embed it.")
+
+                except Exception as e:
+                    progress_placeholder.empty()
+                    st.error(f"GitHub publish failed: {e}")
+
+    # ---------- Availability result + options ----------
+    availability = st.session_state.get("availability")
+    if GITHUB_TOKEN and effective_github_user and repo_name.strip():
+        if availability:
+            repo_exists = availability.get("repo_exists", False)
+            file_exists = availability.get("file_exists", False)
+            checked_filename = availability.get("checked_filename", base_filename)
+            suggested_new_filename = availability.get("suggested_new_filename") or "w1.html"
+
+            if not repo_exists:
+                st.info(
+                    "No existing repo found for this campaign. "
+                    "When you click **Update widget**, the repo will be created and "
+                    f"your widget will be saved as `{checked_filename}`."
+                )
+                st.session_state["widget_file_name"] = checked_filename
+            elif repo_exists and not file_exists:
+                st.success(
+                    f"Repo exists and `{checked_filename}` is available. "
+                    "Update widget will save your table to this file."
+                )
+                st.session_state["widget_file_name"] = checked_filename
+            else:
+                st.warning(
+                    f"A page named `{checked_filename}` already exists in this repo."
+                )
+                choice = st.radio(
+                    "What would you like to do?",
+                    options=[
+                        "Replace existing widget (overwrite file)",
+                        f"Create additional widget file in same repo (use {suggested_new_filename})",
+                        "Change campaign name instead",
+                    ],
+                    key="file_conflict_choice",
+                )
+                if choice.startswith("Replace"):
+                    st.session_state["widget_file_name"] = checked_filename
+                    st.info(f"Update widget will overwrite `{checked_filename}` in this repo.")
+                elif choice.startswith("Create additional"):
+                    st.session_state["widget_file_name"] = suggested_new_filename
+                    st.info(
+                        f"Update widget will create a new file `{suggested_new_filename}` "
+                        "in the same repo for this widget."
+                    )
+                else:
+                    st.info(
+                        "Update the campaign name above, then run **Page availability check** again."
+                    )
+
+    st.markdown("---")
+
+    # ---------- Output tabs ----------
+    has_generated = st.session_state.get("has_generated", False)
+    show_tabs = has_generated or not GITHUB_TOKEN  # allow preview when token missing
+
+    widget_file_name = st.session_state.get("widget_file_name", base_filename)
+    expected_embed_url = compute_expected_embed_url(
+        effective_github_user, repo_name, widget_file_name
+    )
+
+    if show_tabs:
+        tab_config, tab_embed = st.tabs(
+            [
+                "Configure & preview widget",
+                "Widget HTML/Iframe",
+            ]
+        )
+
+        with tab_config:
+            col_title, col_sub = st.columns(2)
+
+            with col_title:
+                widget_title = st.text_input(
+                    "Widget name",
+                    value=st.session_state.get("widget_title", default_title),
+                    key="widget_title",
+                )
+
+            with col_sub:
+                widget_subtitle = st.text_input(
+                    "Widget subtitle",
+                    value=st.session_state.get("widget_subtitle", default_subtitle),
+                    key="widget_subtitle",
+                )
+
+            brand_meta_preview = get_brand_meta(st.session_state.get("brand", brand))
+
+            html_preview = generate_html_from_df(
+                df,
+                widget_title,
+                widget_subtitle,
+                expected_embed_url,
+                brand_meta_preview["logo_url"],
+                brand_meta_preview["logo_alt"],
+                brand_meta_preview["brand_class"],
+            )
+
+            components.html(html_preview, height=650, scrolling=True)
+
+        with tab_embed:
+            subtab_html, subtab_iframe = st.tabs(["HTML file contents", "Iframe code"])
+
+            with subtab_html:
+                st.text_area(
+                    label="",
+                    value=html_preview,
+                    height=350,
+                    label_visibility="collapsed",
+                )
+
+            with subtab_iframe:
+                st.markdown("**Current iframe code:**")
+                if st.session_state.get("iframe_snippet"):
+                    st.code(st.session_state["iframe_snippet"], language="html")
+                else:
+                    st.info("No iframe yet – click **Update widget** above to generate it.")
